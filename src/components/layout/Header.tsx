@@ -1,19 +1,30 @@
 "use client";
 import Link from 'next/link';
-import { Home, BookOpen, Sparkles, Menu, UserCircle, LogIn, LogOut, ShoppingCart, Edit3, BookUp } from 'lucide-react';
+import { Home, BookOpen, Sparkles, Menu, UserCircle, LogIn, LogOut, ShoppingCart, Edit3, BookUp, SearchIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetClose } from '@/components/ui/sheet';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Input } from '@/components/ui/input';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 export function Header() {
   const { user, logout } = useAuth();
   const [isClient, setIsClient] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const router = useRouter();
 
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (searchTerm.trim()) {
+      router.push(`/?search=${encodeURIComponent(searchTerm.trim())}`);
+    }
+  };
 
   const baseNavItems = [
     { href: '/', label: 'Home', icon: <Home className="h-5 w-5" /> },
@@ -54,17 +65,31 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center">
-        <Link href="/" className="mr-auto flex items-center gap-2" suppressHydrationWarning>
+        <Link href="/" className="mr-4 flex items-center gap-2" suppressHydrationWarning>
           <BookOpen className="h-7 w-7 text-primary" />
           <span 
-            className="font-bold text-xl tracking-tight"
+            className="font-bold text-xl tracking-tight hidden sm:inline"
             suppressHydrationWarning={true} 
           >
             Manga Platform
           </span>
         </Link>
+
+        <form onSubmit={handleSearch} className="flex-grow max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg mr-auto relative">
+          <Input 
+            type="search"
+            placeholder="搜索漫画或作者..."
+            className="pr-10 text-sm h-9"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          <Button type="submit" variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7">
+            <SearchIcon className="h-4 w-4" />
+            <span className="sr-only">搜索</span>
+          </Button>
+        </form>
         
-        <nav className="hidden md:flex items-center gap-1">
+        <nav className="hidden md:flex items-center gap-1 ml-4">
           {navItems.map((item) =>
             item.isButton ? (
               <Button key={item.label} variant="ghost" onClick={item.onClick} className="flex items-center gap-2" suppressHydrationWarning>
@@ -82,7 +107,7 @@ export function Header() {
           )}
         </nav>
 
-        <div className="md:hidden">
+        <div className="md:hidden ml-2">
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="outline" size="icon" suppressHydrationWarning>

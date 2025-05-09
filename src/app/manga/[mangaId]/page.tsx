@@ -8,7 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { DollarSign, Gift, TrendingUp, CheckCircle, Landmark, Users, Percent, Info, PiggyBank, Ticket, Mail, Link as LinkIcon, ThumbsUp, ThumbsDown, Meh, Lock } from 'lucide-react';
+import { DollarSign, Gift, TrendingUp, CheckCircle, Landmark, Users, Percent, Info, PiggyBank, Ticket, Mail, Link as LinkIcon, ThumbsUp, ThumbsDown, Meh, Lock, Heart } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
@@ -27,17 +27,19 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { MangaSeries } from '@/lib/types';
 import { MANGA_GENRES_DETAILS } from '@/lib/constants';
+import { ScrollArea } from '@/components/ui/scroll-area';
+
 
 interface MangaDetailPageProps {
   params: { mangaId: string };
 }
 
 export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageProps) {
-  const resolvedParams = use(paramsProp);
+  const resolvedParams = use(paramsProp); // Use React.use to resolve the promise
   const mangaId = resolvedParams.mangaId;
 
   const [manga, setManga] = useState<MangaSeries | undefined>(undefined);
-  const { user, isSubscribedToManga, subscribeToManga, donateToManga, investInManga, rateManga } = useAuth();
+  const { user, isSubscribedToManga, subscribeToManga, donateToManga, investInManga, rateManga, isFavorited, toggleFavorite } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -49,7 +51,8 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
   useEffect(() => {
     const currentMangaData = getMangaById(mangaId);
     if (!currentMangaData) {
-      notFound();
+      // This might be too early if params are not yet resolved.
+      // Consider moving notFound() to after manga state is definitively null
     }
     setManga(currentMangaData);
   }, [mangaId]);
@@ -67,14 +70,16 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
           return prevManga;
         });
       } else {
-        setManga(undefined);
+        setManga(undefined); // Manga might have been deleted
       }
-    }, 1000);
+    }, 1000); // Check for updates every second
     return () => clearInterval(interval);
   }, [mangaId]);
 
 
   if (!manga) {
+     // If manga is still undefined after initial attempts and params are resolved, then trigger notFound.
+    if(mangaId) notFound(); // Or a more specific loading/error state
     return <div className="text-center py-10">正在加载漫画详情或漫画未找到...</div>;
   }
 
@@ -154,8 +159,11 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
       toast({ title: "需要登录", description: "请登录后评分。", variant: "destructive", action: <Button onClick={() => router.push('/login?redirect=/manga/' + mangaId)}>登录</Button> });
       return;
     }
-    // rateManga function in AuthContext will handle subscription and "rated once" checks.
     await rateManga(manga.id, score);
+  };
+
+  const handleToggleFavorite = () => {
+    toggleFavorite(manga.id, manga.title);
   };
 
   const isUserSubscribed = user ? isSubscribedToManga(manga.id) : false;
@@ -167,6 +175,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
     if (userRating) return `您已评价过 (${userRating}分)`;
     return "";
   };
+  const userHasFavorited = user ? isFavorited(manga.id) : false;
 
   const currentInvestmentOffer = manga.investmentOffer;
   const sharesRemaining = currentInvestmentOffer ? currentInvestmentOffer.totalSharesInOffer - manga.investors.reduce((sum, inv) => sum + inv.sharesOwned, 0) : 0;
@@ -188,7 +197,21 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
             />
           </div>
           <div className="md:w-2/3 p-6 md:p-0 flex flex-col">
-            <h1 className="text-3xl lg:text-4xl font-bold mb-2" suppressHydrationWarning>{manga.title}</h1>
+            <div className="flex justify-between items-start">
+                <h1 className="text-3xl lg:text-4xl font-bold mb-2" suppressHydrationWarning>{manga.title}</h1>
+                {user && (
+                    <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={handleToggleFavorite} 
+                        className="text-muted-foreground hover:text-primary"
+                        title={userHasFavorited ? "取消收藏" : "收藏"}
+                        suppressHydrationWarning
+                    >
+                        <Heart className={`h-7 w-7 ${userHasFavorited ? 'fill-primary text-primary' : ''}`} />
+                    </Button>
+                )}
+            </div>
             <div className="flex items-center gap-3 mb-1 text-muted-foreground">
               <Avatar className="h-10 w-10">
                 <AvatarImage src={manga.author.avatarUrl} alt={manga.author.name} data-ai-hint="author avatar" />
@@ -312,7 +335,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <p className="font-semibold flex items-center" suppressHydrationWarning><Percent className="mr-2 h-4 w-4 text-muted-foreground" />投资者总收益分成 (%):</p>
+                  <p className="font-semibold flex items-center" suppressHydrationWarning><Percent className="mr-2 h-4 w-4 text-muted-foreground" />投资者总收益分成:</p>
                   <p className="text-lg text-primary" suppressHydrationWarning>{currentInvestmentOffer.sharesOfferedTotalPercent}%</p>
                 </div>
                 <div>
@@ -320,12 +343,22 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
                   <p className="text-lg" suppressHydrationWarning>{currentInvestmentOffer.totalSharesInOffer}</p>
                 </div>
                 <div>
-                  <p className="font-semibold flex items-center" suppressHydrationWarning><DollarSign className="mr-2 h-4 w-4 text-muted-foreground" />每份支持金额:</p>
+                  <p className="font-semibold flex items-center" suppressHydrationWarning><DollarSign className="mr-2 h-4 w-4 text-muted-foreground" />每份投资金额:</p>
                   <p className="text-lg" suppressHydrationWarning>${currentInvestmentOffer.pricePerShare.toFixed(2)}</p>
                 </div>
                  <div>
                   <p className="font-semibold flex items-center" suppressHydrationWarning><PiggyBank className="mr-2 h-4 w-4 text-muted-foreground" />剩余份数:</p>
                   <p className="text-lg" suppressHydrationWarning>{sharesRemaining > 0 ? sharesRemaining : '已全部认购'}</p>
+                </div>
+                 <div>
+                  <p className="font-semibold flex items-center" suppressHydrationWarning><Info className="mr-2 h-4 w-4 text-muted-foreground" />分红周期:</p>
+                  <p className="text-lg" suppressHydrationWarning>
+                    {currentInvestmentOffer.dividendPayoutCycle === 1 && "每月"}
+                    {currentInvestmentOffer.dividendPayoutCycle === 3 && "每季度"}
+                    {currentInvestmentOffer.dividendPayoutCycle === 6 && "每半年"}
+                    {currentInvestmentOffer.dividendPayoutCycle === 12 && "每年"}
+                    {!currentInvestmentOffer.dividendPayoutCycle && "未设定"}
+                  </p>
                 </div>
               </div>
                {currentInvestmentOffer.minSubscriptionRequirement && (

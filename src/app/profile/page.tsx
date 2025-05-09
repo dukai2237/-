@@ -9,24 +9,25 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from "@/components/ui/table";
-import { DollarSign, BookOpenCheck, BarChart3, Briefcase, LogOut, Landmark, Receipt, Edit3, BookUp, PlusCircle, CheckCircle, Clock, AlertCircle } from "lucide-react";
+import { DollarSign, BookOpenCheck, BarChart3, Briefcase, LogOut, Landmark, Receipt, Edit3, BookUp, PlusCircle, CheckCircle, Clock, AlertCircle, Heart, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { getMangaById } from "@/lib/mock-data"; // For fetching favorited manga details
 
 export default function ProfilePage() {
-  const { user, logout, viewingHistory, transactions, addFunds, approveCreatorAccount } = useAuth(); 
+  const { user, logout, viewingHistory, transactions, addFunds, withdrawFunds, approveCreatorAccount, favorites } = useAuth(); 
   const router = useRouter();
   const { toast } = useToast();
 
   const [isAddFundsDialogOpen, setIsAddFundsDialogOpen] = useState(false);
+  const [isWithdrawFundsDialogOpen, setIsWithdrawFundsDialogOpen] = useState(false);
   const [fundsToAdd, setFundsToAdd] = useState("");
+  const [fundsToWithdraw, setFundsToWithdraw] = useState("");
 
-  // Conceptual: Mock admin action button state
   const [isMockAdmin, setIsMockAdmin] = useState(false); 
   useEffect(() => {
-    // Simulate checking if the current user is an admin for dev purposes
-    if (user && user.email === 'admin@example.com') { // Replace with actual admin check
+    if (user && user.email === 'admin@example.com') { 
         setIsMockAdmin(true);
     } else {
         setIsMockAdmin(false);
@@ -72,18 +73,21 @@ export default function ProfilePage() {
     setIsAddFundsDialogOpen(false);
   };
   
-  const handleWithdraw = () => {
-    // For now, just a toast. In real app, this would be more complex.
-    // Also, only creators or users with earnings should be able to withdraw.
-    if (user.walletBalance <= 0) {
-        toast({title: "余额不足", description: "您的钱包余额为0，无法提现。", variant: "destructive"});
+  const handleWithdraw = async () => {
+    const amount = parseFloat(fundsToWithdraw);
+    if (isNaN(amount) || amount <= 0) {
+        toast({ title: "金额无效", description: "请输入一个有效的正数金额。", variant: "destructive" });
         return;
     }
-    toast({title: "提现功能 (模拟)", description: "实际应用中，这将启动提现流程。当前余额: $" + user.walletBalance.toFixed(2), duration: 5000});
-    // Conceptually, you might record a withdrawal transaction here if it were real
+    const success = await withdrawFunds(amount);
+    if (success) {
+      setFundsToWithdraw("");
+      setIsWithdrawFundsDialogOpen(false);
+    }
   };
 
   const isCreator = user.accountType === 'creator';
+  const favoritedMangaList = user.favorites?.map(id => getMangaById(id)).filter(Boolean) || [];
 
   return (
     <div className="space-y-8">
@@ -126,16 +130,17 @@ export default function ProfilePage() {
             <Button onClick={() => setIsAddFundsDialogOpen(true)} variant="secondary" className="w-full sm:w-auto">
               <PlusCircle className="mr-2 h-4 w-4" /> 钱包充值 (模拟)
             </Button>
-            <Button onClick={handleWithdraw} variant="outline" className="w-full sm:w-auto">
-              <Landmark className="mr-2 h-4 w-4" /> 资金提现 (模拟)
-            </Button>
+            {isCreator && user.isApproved && (
+              <Button onClick={() => setIsWithdrawFundsDialogOpen(true)} variant="outline" className="w-full sm:w-auto">
+                <Landmark className="mr-2 h-4 w-4" /> 资金提现 (模拟)
+              </Button>
+            )}
             <Button onClick={logout} variant="destructive" className="w-full sm:w-auto">
                 <LogOut className="mr-2 h-4 w-4" /> 登出
             </Button>
         </CardFooter>
       </Card>
       
-      {/* Conceptual Admin Action: Button to approve a pending creator (visible only if current user is a mock admin and target user is a pending creator) */}
       {isMockAdmin && user.accountType === 'creator' && !user.isApproved && (
         <Card className="w-full max-w-2xl mx-auto bg-yellow-50 border-yellow-300">
             <CardHeader>
@@ -177,6 +182,29 @@ export default function ProfilePage() {
             </ScrollArea>
           ) : (
             <p className="text-muted-foreground">您尚未订阅任何漫画系列。</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="w-full max-w-2xl mx-auto">
+        <CardHeader>
+          <CardTitle className="flex items-center"><Heart className="mr-2 h-6 w-6 text-primary"/>我的收藏</CardTitle>
+          <CardDescription>您收藏的漫画系列。</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {favoritedMangaList.length > 0 ? (
+            <ScrollArea className="h-48">
+              <ul className="space-y-3">
+                {favoritedMangaList.map((manga) => manga && (
+                  <li key={manga.id} className="p-3 border rounded-md flex justify-between items-center">
+                    <Link href={`/manga/${manga.id}`} className="font-semibold hover:text-primary">{manga.title}</Link>
+                    <Badge variant="outline">已收藏</Badge>
+                  </li>
+                ))}
+              </ul>
+            </ScrollArea>
+          ) : (
+            <p className="text-muted-foreground">您尚未收藏任何漫画系列。</p>
           )}
         </CardContent>
       </Card>
@@ -247,8 +275,8 @@ export default function ProfilePage() {
                       <TableCell className="text-xs tabular-nums">{new Date(tx.timestamp).toLocaleDateString()}</TableCell>
                       <TableCell><Badge variant="outline" className="capitalize text-xs whitespace-nowrap">{tx.type.replace(/_/g, ' ')}</Badge></TableCell>
                       <TableCell className="text-sm">{tx.description}</TableCell>
-                      <TableCell className={`text-right font-medium ${tx.amount < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                        {tx.amount < 0 ? '-' : (tx.amount > 0 && tx.type !== 'rating_update' && tx.type !== 'manga_creation' && tx.type !== 'manga_deletion' && tx.type !== 'creator_approval_pending' && tx.type !== 'creator_approved' ? '+' : '')}
+                      <TableCell className={`text-right font-medium ${tx.amount < 0 || tx.type === 'platform_earning' ? 'text-red-600' : 'text-green-600'}`}>
+                        {tx.amount < 0 ? '-' : (tx.amount > 0 && !['rating_update', 'manga_creation', 'manga_deletion', 'creator_approval_pending', 'creator_approved', 'platform_earning'].includes(tx.type) ? '+' : '')}
                         ${tx.type === 'rating_update' || tx.type === 'manga_creation' || tx.type === 'manga_deletion' || tx.type === 'creator_approval_pending' || tx.type === 'creator_approved' ? Math.abs(tx.amount).toFixed(0) : Math.abs(tx.amount).toFixed(2)}
                       </TableCell>
                     </TableRow>
@@ -258,6 +286,30 @@ export default function ProfilePage() {
             </ScrollArea>
           ) : (
             <p className="text-muted-foreground">暂无模拟交易记录。</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="w-full max-w-2xl mx-auto">
+        <CardHeader>
+          <CardTitle className="flex items-center"><Search className="mr-2 h-6 w-6 text-primary"/>搜索历史</CardTitle>
+          <CardDescription>您最近的搜索记录。</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {user.searchHistory && user.searchHistory.length > 0 ? (
+             <ScrollArea className="h-32">
+              <ul className="space-y-2">
+                {user.searchHistory.map((term, index) => (
+                  <li key={index} className="p-2 border rounded-md text-sm">
+                    <Link href={`/?search=${encodeURIComponent(term)}`} className="hover:text-primary">
+                      {term}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </ScrollArea>
+          ) : (
+            <p className="text-muted-foreground">暂无搜索历史。</p>
           )}
         </CardContent>
       </Card>
@@ -298,7 +350,7 @@ export default function ProfilePage() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <label htmlFor="fundsAmount" className="text-right">金额 ($)</label>
+              <Label htmlFor="fundsAmount" className="text-right">金额 ($)</Label>
               <Input
                 id="fundsAmount"
                 type="number"
@@ -312,6 +364,35 @@ export default function ProfilePage() {
           <DialogFooter>
             <DialogClose asChild><Button variant="outline">取消</Button></DialogClose>
             <Button onClick={handleAddFunds}>确认充值</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isWithdrawFundsDialogOpen} onOpenChange={setIsWithdrawFundsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>资金提现 (模拟)</DialogTitle>
+            <DialogDescription>
+              输入您希望从钱包提现的金额。此操作为模拟。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="withdrawAmount" className="text-right">金额 ($)</Label>
+              <Input
+                id="withdrawAmount"
+                type="number"
+                value={fundsToWithdraw}
+                onChange={(e) => setFundsToWithdraw(e.target.value)}
+                className="col-span-3"
+                placeholder="例如: 20.00"
+                max={user.walletBalance}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">取消</Button></DialogClose>
+            <Button onClick={handleWithdraw}>确认提现</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

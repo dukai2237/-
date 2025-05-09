@@ -5,33 +5,56 @@ import type { MangaSeries } from '@/lib/types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight, Star } from 'lucide-react';
+import { ArrowRight, Star, Heart } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { MANGA_GENRES_DETAILS } from '@/lib/constants';
+import { useAuth } from '@/contexts/AuthContext'; // Added
 
 interface MangaCardProps {
   manga: MangaSeries;
 }
 
 export function MangaCard({ manga }: MangaCardProps) {
+  const { user, isFavorited, toggleFavorite } = useAuth(); // Added
+
   const getGenreName = (genreId: string) => {
     const genreDetail = MANGA_GENRES_DETAILS.find(g => g.id === genreId);
-    return genreDetail ? genreDetail.name.split('(')[0].trim() : genreId; // Show only Chinese part or ID if not found
+    return genreDetail ? genreDetail.name.split('(')[0].trim() : genreId; 
   };
 
+  const handleFavoriteToggle = (e: React.MouseEvent) => {
+    e.preventDefault(); // Prevent link navigation if button is inside a link
+    e.stopPropagation();
+    toggleFavorite(manga.id, manga.title);
+  };
+
+  const userHasFavorited = user ? isFavorited(manga.id) : false;
+
   return (
-    <Card className="flex flex-col overflow-hidden h-full shadow-lg hover:shadow-xl transition-shadow duration-300">
-      <CardHeader className="p-0">
+    <Card className="flex flex-col overflow-hidden h-full shadow-lg hover:shadow-xl transition-shadow duration-300 group">
+      <CardHeader className="p-0 relative">
         <Link href={`/manga/${manga.id}`} className="block aspect-[2/3] relative overflow-hidden">
           <Image
             src={manga.coverImage}
             alt={`Cover of ${manga.title}`}
             layout="fill"
             objectFit="cover"
-            className="hover:scale-105 transition-transform duration-300"
+            className="group-hover:scale-105 transition-transform duration-300"
             data-ai-hint="manga cover"
           />
         </Link>
+        {user && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute top-2 right-2 bg-black/30 hover:bg-black/50 text-white hover:text-red-400 rounded-full z-10"
+            onClick={handleFavoriteToggle}
+            title={userHasFavorited ? "取消收藏" : "收藏"}
+            suppressHydrationWarning
+          >
+            <Heart className={`h-5 w-5 ${userHasFavorited ? 'fill-red-500 text-red-500' : 'text-white'}`} />
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="p-4 flex-grow">
         <CardTitle className="text-lg mb-1 leading-tight">

@@ -10,8 +10,8 @@ export interface User {
   accountType: 'creator' | 'user';
   isApproved?: boolean; // For creator accounts, true if approved by admin/founder
   ratingsGiven?: Record<string, 1 | 2 | 3>; // mangaId -> score. Stores the rating a user has given to a manga.
-  // Conceptual: if we had a full admin system, an admin might have this role
-  // isAdmin?: boolean;
+  favorites?: string[]; // mangaIds
+  searchHistory?: string[];
 }
 
 export interface UserSubscription {
@@ -62,6 +62,8 @@ export interface MangaInvestmentOffer {
   minSubscriptionRequirement?: number;
   description: string;
   isActive: boolean;
+  dividendPayoutCycle?: 1 | 3 | 6 | 12; // Payout cycle in months
+  lastDividendPayoutDate?: string; // ISO date string
 }
 
 export interface MangaInvestor {
@@ -82,6 +84,7 @@ export interface MangaSeries {
   genres: string[];
   chapters: Chapter[];
   freePreviewPageCount: number;
+  freePreviewChapterCount?: number; // Add this based on previous request, can be 0
   subscriptionPrice?: number;
 
   totalRevenueFromSubscriptions: number;
@@ -92,6 +95,9 @@ export interface MangaSeries {
   investors: MangaInvestor[];
 
   publishedDate: string;
+  lastUpdatedDate?: string; // For tracking content updates
+  lastInvestmentDate?: string; // For deletion rule
+  lastSubscriptionDate?: string; // For deletion rule (conceptual, as we don't store individual sub dates here)
   averageRating?: number;
   ratingCount?: number;
   viewCount: number;
@@ -107,6 +113,7 @@ export interface SimulatedTransaction {
     | 'author_earning'
     | 'investor_payout' // Conceptual for investor share distribution
     | 'platform_fee'
+    | 'platform_earning' // Specific transaction for platform's cut
     | 'rating_update'
     | 'account_creation'
     | 'manga_creation'

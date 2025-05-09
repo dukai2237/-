@@ -13,10 +13,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import type { MangaInvestmentOffer, AuthorContactDetails } from '@/lib/types';
 import { Switch } from '@/components/ui/switch';
-import { BookUp, PlusCircle, Trash2, AlertTriangle, UploadCloud, Mail, Link as LinkIcon, FileImage, Images } from 'lucide-react';
+import { BookUp, PlusCircle, Trash2, AlertTriangle, UploadCloud, Mail, Link as LinkIcon, FileImage, Images, Edit2 } from 'lucide-react';
 import { MANGA_GENRES_DETAILS, MAX_CHAPTERS_PER_WORK, MAX_PAGES_PER_CHAPTER, MAX_WORKS_PER_CREATOR } from '@/lib/constants';
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
 
 interface EditablePageInput {
   localId: string;
@@ -54,6 +56,8 @@ export default function CreateMangaPage() {
   const [crowdfundingDescription, setCrowdfundingDescription] = useState('');
   const [minSubscriptionRequirement, setMinSubscriptionRequirement] = useState('');
   const [maxSharesPerUser, setMaxSharesPerUser] = useState('');
+  const [dividendPayoutCycle, setDividendPayoutCycle] = useState<MangaInvestmentOffer['dividendPayoutCycle']>(3);
+
 
   const [authorContactEmail, setAuthorContactEmail] = useState(user?.email || '');
   const [authorSocialLinkPlatform, setAuthorSocialLinkPlatform] = useState('');
@@ -61,6 +65,7 @@ export default function CreateMangaPage() {
   const [authorSocialLinks, setAuthorSocialLinks] = useState<{platform: string, url: string}[]>([]);
 
   const pageUploadInputRef = useRef<HTMLInputElement>(null);
+  const singlePageUploadRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [targetChapterForPageUpload, setTargetChapterForPageUpload] = useState<string | null>(null);
 
   const totalPagesInManga = useMemo(() => {
@@ -99,7 +104,6 @@ export default function CreateMangaPage() {
         setCoverImagePreview(reader.result as string);
       };
       reader.readAsDataURL(file);
-      toast({title: "封面图片已选择", description: "这只是一个模拟上传预览。实际应用中图片会上传至服务器。"})
     } else {
       coverImageFileRef.current = null;
       setCoverImagePreview(null);
@@ -152,6 +156,11 @@ export default function CreateMangaPage() {
     setTargetChapterForPageUpload(chapterLocalId);
     pageUploadInputRef.current?.click();
   };
+  
+  const triggerSinglePageImageChange = (pageLocalId: string) => {
+    singlePageUploadRefs.current[pageLocalId]?.click();
+  };
+
 
   const handleMultiplePageImagesUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!targetChapterForPageUpload) return;
@@ -175,7 +184,7 @@ export default function CreateMangaPage() {
           variant: "destructive",
           duration: 7000
         });
-        filesToProcess.splice(remainingPageSlots); // Keep only allowed number of files
+        filesToProcess.splice(remainingPageSlots); 
       }
 
       if (filesToProcess.length === 0) {
@@ -219,7 +228,6 @@ export default function CreateMangaPage() {
     ));
   };
 
-  // For uploading image to a single, existing blank page slot
   const handleSinglePageImageChange = (chapterLocalId: string, pageLocalId: string, event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -239,6 +247,10 @@ export default function CreateMangaPage() {
         ));
       };
       reader.readAsDataURL(file);
+    }
+    // Clear the input value to allow re-uploading the same file if needed
+    if (event.target) {
+      event.target.value = "";
     }
   };
 
@@ -262,7 +274,7 @@ export default function CreateMangaPage() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!title || !summary || !coverImagePreview || selectedGenres.length === 0) {
+    if (!title || !summary || !coverImageFileRef.current || selectedGenres.length === 0) {
       toast({ title: "缺少必填项", description: "请填写标题、摘要、上传封面图片并选择至少一个类型。", variant: "destructive" });
       return;
     }
@@ -301,6 +313,7 @@ export default function CreateMangaPage() {
         minSubscriptionRequirement: minSubscriptionRequirement ? parseInt(minSubscriptionRequirement, 10) : undefined,
         maxSharesPerUser: maxSharesPerUser ? parseInt(maxSharesPerUser, 10) : undefined,
         isActive: true,
+        dividendPayoutCycle: dividendPayoutCycle,
       };
     }
     
@@ -309,10 +322,25 @@ export default function CreateMangaPage() {
         socialLinks: authorSocialLinks.length > 0 ? authorSocialLinks : undefined,
     };
 
+    // For mock, convert coverImageFile to dataURL for storage in MangaSeries
+    let coverImageDataUrl = coverImagePreview; // Use preview if already set
+    if (coverImageFileRef.current && !coverImagePreview) { // If file selected but preview not processed yet (should not happen with current flow)
+      coverImageDataUrl = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(coverImageFileRef.current!);
+      });
+    }
+    if (!coverImageDataUrl) {
+        toast({ title: "封面图片错误", description: "无法处理封面图片，请重新选择。", variant: "destructive" });
+        return;
+    }
+
+
     const newManga = await addMangaSeries({
       title,
       summary,
-      coverImage: coverImagePreview, 
+      coverImage: coverImageDataUrl, 
       genres: selectedGenres,
       freePreviewPageCount: parsedFreePageCount || 0,
       freePreviewChapterCount: parsedFreeChapterCount || 0,
@@ -467,20 +495,24 @@ export default function CreateMangaPage() {
                       {chapter.pages.map((page, pageIndex) => (
                         <Card key={page.localId} className="p-3 bg-background/70">
                           <div className="flex justify-between items-center mb-2">
-                            <Label htmlFor={`page-image-upload-${chapter.localId}-${page.localId}`} className="text-xs font-medium" suppressHydrationWarning>第 {pageIndex + 1} 页图片</Label>
-                            <Button type="button" variant="ghost" size="icon" onClick={() => removePageFromChapterInput(chapter.localId, page.localId)} className="text-destructive hover:bg-destructive/10 h-6 w-6">
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
+                            <Label className="text-xs font-medium" suppressHydrationWarning>第 {pageIndex + 1} 页图片</Label>
+                            <div className="flex items-center gap-1">
+                               <Button type="button" variant="outline" size="xs" onClick={() => triggerSinglePageImageChange(page.localId)}>
+                                <Edit2 className="mr-1 h-3 w-3" /> 更改图片
+                               </Button>
+                               <Input
+                                id={`single-page-upload-${page.localId}`}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                ref={el => singlePageUploadRefs.current[page.localId] = el}
+                                onChange={(e) => handleSinglePageImageChange(chapter.localId, page.localId, e)}
+                               />
+                              <Button type="button" variant="ghost" size="icon" onClick={() => removePageFromChapterInput(chapter.localId, page.localId)} className="text-destructive hover:bg-destructive/10 h-6 w-6">
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
                           </div>
-                          {!page.previewUrl && !page.file && ( 
-                            <Input 
-                              id={`page-image-upload-${chapter.localId}-${page.localId}`}
-                              type="file" 
-                              accept="image/*" 
-                              onChange={(e) => handleSinglePageImageChange(chapter.localId, page.localId, e)} 
-                              className="text-xs mb-2"
-                            />
-                          )}
                           {page.previewUrl && (
                             <div className="relative aspect-[2/3] w-full max-w-[150px] rounded border overflow-hidden mx-auto">
                               <Image src={page.previewUrl} alt={`Page ${pageIndex + 1} preview`} layout="fill" objectFit="contain" data-ai-hint="manga page create"/>
@@ -525,36 +557,55 @@ export default function CreateMangaPage() {
               {enableCrowdfunding && (
                 <div className="space-y-4 p-4 border rounded-md bg-secondary/30">
                   <h3 className="text-lg font-semibold" suppressHydrationWarning>众筹详情</h3>
-                   <p className="text-sm text-muted-foreground" suppressHydrationWarning>通过众筹，您可以让读者成为您作品的支持者，并分享未来的收益。</p>
+                   <p className="text-sm text-muted-foreground" suppressHydrationWarning>允许读者投资您的漫画，共享成功果实。</p>
                   <div className="space-y-2">
                     <Label htmlFor="crowdfundingDescription" suppressHydrationWarning>众筹描述 *</Label>
-                    <Textarea id="crowdfundingDescription" value={crowdfundingDescription} onChange={(e) => setCrowdfundingDescription(e.target.value)} placeholder="简述本次众筹的目的，以及对支持者的回报承诺（例如：收益分成、IP权益等）。" rows={3} required={enableCrowdfunding} />
+                    <Textarea id="crowdfundingDescription" value={crowdfundingDescription} onChange={(e) => setCrowdfundingDescription(e.target.value)} placeholder="简述众筹目标和投资者回报 (如收益分成比例、IP权益等)。" rows={3} required={enableCrowdfunding} />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="sharesOfferedTotalPercent" suppressHydrationWarning>支持者总收益分成 (%) *</Label>
-                      <Input id="sharesOfferedTotalPercent" type="number" value={sharesOfferedTotalPercent} onChange={(e) => setSharesOfferedTotalPercent(e.target.value)} placeholder="例如: 20 (表示总收入的20%将分配给所有支持者)" min="1" max="100" required={enableCrowdfunding} />
-                       <p className="text-xs text-muted-foreground">漫画总收益中，用于分配给所有支持者的百分比。</p>
+                      <Label htmlFor="sharesOfferedTotalPercent" suppressHydrationWarning>投资者总收益分成 (%) *</Label>
+                      <Input id="sharesOfferedTotalPercent" type="number" value={sharesOfferedTotalPercent} onChange={(e) => setSharesOfferedTotalPercent(e.target.value)} placeholder="例如: 20%" min="1" max="100" required={enableCrowdfunding} />
+                       <p className="text-xs text-muted-foreground">漫画总收益中分配给投资者的比例。</p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="totalSharesInOffer" suppressHydrationWarning>众筹总份数 *</Label>
-                      <Input id="totalSharesInOffer" type="number" value={totalSharesInOffer} onChange={(e) => setTotalSharesInOffer(e.target.value)} placeholder="例如: 100 (将上述收益分成分为100份)" min="1" required={enableCrowdfunding} />
-                      <p className="text-xs text-muted-foreground">将“支持者总收益分成”分割成的总份数。</p>
+                      <Input id="totalSharesInOffer" type="number" value={totalSharesInOffer} onChange={(e) => setTotalSharesInOffer(e.target.value)} placeholder="例如: 100份" min="1" required={enableCrowdfunding} />
+                      <p className="text-xs text-muted-foreground">将上述收益分成多少份进行众筹。</p>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="pricePerShare" suppressHydrationWarning>每份支持金额 (USD) *</Label>
-                      <Input id="pricePerShare" type="number" value={pricePerShare} onChange={(e) => setPricePerShare(e.target.value)} placeholder="例如: 10 (每份需要支持者支付10美元)" step="0.01" min="0.01" required={enableCrowdfunding} />
-                       <p className="text-xs text-muted-foreground">支持者购买一份所需支付的金额。</p>
+                      <Label htmlFor="pricePerShare" suppressHydrationWarning>每份投资金额 (USD) *</Label>
+                      <Input id="pricePerShare" type="number" value={pricePerShare} onChange={(e) => setPricePerShare(e.target.value)} placeholder="例如: 10美元/份" step="0.01" min="0.01" required={enableCrowdfunding} />
+                       <p className="text-xs text-muted-foreground">投资者购买一份所需的金额。</p>
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="dividendPayoutCycle">分红周期 *</Label>
+                        <Select
+                            value={dividendPayoutCycle?.toString()}
+                            onValueChange={(value) => setDividendPayoutCycle(parseInt(value,10) as MangaInvestmentOffer['dividendPayoutCycle'])}
+                            required={enableCrowdfunding}
+                        >
+                            <SelectTrigger id="dividendPayoutCycle">
+                                <SelectValue placeholder="选择分红周期" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="1">每月</SelectItem>
+                                <SelectItem value="3">每季度 (3个月)</SelectItem>
+                                <SelectItem value="6">每半年 (6个月)</SelectItem>
+                                <SelectItem value="12">每年 (12个月)</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">投资者收益的分红频率。</p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="minSubscriptionRequirement" suppressHydrationWarning>最低订阅漫画要求 (可选)</Label>
-                      <Input id="minSubscriptionRequirement" type="number" value={minSubscriptionRequirement} onChange={(e) => setMinSubscriptionRequirement(e.target.value)} placeholder="例如: 5 (要求支持者至少订阅了5部漫画)" min="0" />
-                       <p className="text-xs text-muted-foreground">支持者参与众筹前，需要订阅的漫画数量门槛。</p>
+                      <Input id="minSubscriptionRequirement" type="number" value={minSubscriptionRequirement} onChange={(e) => setMinSubscriptionRequirement(e.target.value)} placeholder="例如: 5部" min="0" />
+                       <p className="text-xs text-muted-foreground">投资者需订阅多少部漫画才能参与。</p>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="maxSharesPerUser" suppressHydrationWarning>每人最多支持份数 (可选)</Label>
-                      <Input id="maxSharesPerUser" type="number" value={maxSharesPerUser} onChange={(e) => setMaxSharesPerUser(e.target.value)} placeholder="例如: 10 (每位支持者最多购买10份)" min="1" />
-                      <p className="text-xs text-muted-foreground">限制单个支持者可购买的最大份数。</p>
+                      <Label htmlFor="maxSharesPerUser" suppressHydrationWarning>每人最多投资份数 (可选)</Label>
+                      <Input id="maxSharesPerUser" type="number" value={maxSharesPerUser} onChange={(e) => setMaxSharesPerUser(e.target.value)} placeholder="例如: 10份" min="1" />
+                      <p className="text-xs text-muted-foreground">限制单个投资者可购买的最大份数。</p>
                     </div>
                   </div>
                 </div>
