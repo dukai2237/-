@@ -7,8 +7,10 @@ export interface User {
   subscriptions: UserSubscription[];
   investments: UserInvestment[];
   authoredMangaIds: string[]; // IDs of manga series authored by this user
-  accountType: 'creator' | 'user'; // New field for account type
-  isApproved?: boolean; // For creator accounts, true if approved by founder/admin
+  accountType: 'creator' | 'user';
+  isApproved?: boolean; // For creator accounts, true if approved by admin/founder
+  // Conceptual: if we had a full admin system, an admin might have this role
+  // isAdmin?: boolean; 
 }
 
 export interface UserSubscription {
@@ -24,16 +26,18 @@ export interface UserInvestment {
   sharesOwned: number;
   amountInvested: number;
   investmentDate: string; // ISO date string
-  // Conceptual fields for displaying mock returns
   mockCumulativeReturn?: number; 
 }
 
-export interface AuthorInfo {
+export interface AuthorContactDetails { // New interface for author details embedded in MangaSeries
+  email?: string;
+  socialLinks?: { platform: string; url: string }[];
+}
+
+export interface AuthorInfo { // Existing interface, represents the basic author stub
   id:string;
   name: string;
   avatarUrl: string;
-  contactEmail?: string;
-  socialLinks?: { platform: string; url: string }[];
 }
 
 export interface MangaPage {
@@ -50,18 +54,18 @@ export interface Chapter {
 }
 
 export interface MangaInvestmentOffer {
-  sharesOfferedTotalPercent: number; // e.g., Author offers 20% of manga's future revenue to investors
-  totalSharesInOffer: number; // e.g., That 20% is divided into 100 shares
-  pricePerShare: number; // Cost to buy one share
+  sharesOfferedTotalPercent: number; 
+  totalSharesInOffer: number; 
+  pricePerShare: number; 
   maxSharesPerUser?: number;
-  minSubscriptionRequirement?: number; // e.g., User must be subscribed to 10 mangas
-  description: string; // Author's pitch for the investment
-  isActive: boolean; // Whether the offer is currently open
+  minSubscriptionRequirement?: number; 
+  description: string; 
+  isActive: boolean; 
 }
 
 export interface MangaInvestor {
   userId: string;
-  userName: string; // For display
+  userName: string; 
   sharesOwned: number;
   totalAmountInvested: number;
   joinedDate: string; // ISO date string
@@ -70,43 +74,54 @@ export interface MangaInvestor {
 export interface MangaSeries {
   id: string;
   title: string;
-  author: AuthorInfo; // Renamed from creator to author for clarity within MangaSeries context
+  author: AuthorInfo; 
+  authorDetails?: AuthorContactDetails; // Optional: more detailed contact info for display
   summary: string;
   coverImage: string;
   genres: string[];
   chapters: Chapter[];
   freePreviewPageCount: number;
-  subscriptionPrice?: number; // Monthly, set by author
+  subscriptionPrice?: number; 
 
-  // Financials for the manga (mocked/accumulated conceptually)
   totalRevenueFromSubscriptions: number;
   totalRevenueFromDonations: number;
-  totalRevenueFromMerchandise: number; // Conceptual for now
+  totalRevenueFromMerchandise: number; 
   
   investmentOffer?: MangaInvestmentOffer;
-  investors: MangaInvestor[]; // List of users who have invested
+  investors: MangaInvestor[]; 
 
-  // New fields for author dashboard and discovery
-  publishedDate: string; // ISO date string
-  averageRating?: number; // Average score from 1 to 3
+  publishedDate: string; 
+  averageRating?: number; 
   ratingCount?: number;
-  viewCount: number; // Mock total views
-
-  // Platform fee rate (e.g., 0.10 for 10%) - this is a global setting but could be here if ever variable
-  // For simplicity, we'll assume a global 10% platform fee applied during transactions.
+  viewCount: number; 
 }
 
-// Simplified Transaction type for client-side simulation and logging
 export interface SimulatedTransaction {
   id: string;
-  type: 'subscription_payment' | 'donation_payment' | 'investment_payment' | 'merchandise_purchase' | 'author_earning' | 'investor_payout' | 'platform_fee' | 'rating_update' | 'account_creation' | 'manga_creation' | 'manga_deletion' | 'wallet_deposit' | 'wallet_withdrawal' | 'creator_approval';
-  amount: number;
+  type: 
+    | 'subscription_payment' 
+    | 'donation_payment' 
+    | 'investment_payment' 
+    | 'merchandise_purchase' // For future e-commerce
+    | 'author_earning' 
+    | 'investor_payout' // Conceptual for investor share distribution
+    | 'platform_fee' 
+    | 'rating_update' 
+    | 'account_creation' 
+    | 'manga_creation' 
+    | 'manga_deletion' 
+    | 'wallet_deposit' 
+    | 'wallet_withdrawal'
+    | 'creator_approval_pending' // When a creator signs up
+    | 'creator_approved' // When an admin approves a creator
+    | 'revenue_distribution_to_investors'; // Conceptual transaction for distributing earnings
+  amount: number; // Positive for income to user/author, negative for expenses/payments from user
   userId?: string; 
-  authorId?: string; // This can be the creator's ID
+  authorId?: string; 
   mangaId?: string;
   description: string;
   timestamp: string; // ISO date string
-  relatedData?: any; // For storing rating score, accountType, etc.
+  relatedData?: any; 
 }
 
 export interface MangaRating {

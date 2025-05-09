@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useState, useEffect, type FormEvent, useMemo } from 'react';
+import { useState, useEffect, type FormEvent, useMemo, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,9 +11,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import type { MangaSeries, MangaInvestmentOffer, Chapter, MangaPage } from '@/lib/types';
+import type { MangaSeries, MangaInvestmentOffer, Chapter, MangaPage, AuthorContactDetails } from '@/lib/types';
 import { getMangaById, updateMockMangaData } from '@/lib/mock-data';
-import { Edit3, BookUp, PlusCircle, Trash2, AlertTriangle, UploadCloud } from 'lucide-react';
+import { Edit3, BookUp, PlusCircle, Trash2, AlertTriangle, UploadCloud, Mail, Link as LinkIcon } from 'lucide-react';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { MANGA_GENRES_DETAILS, MAX_CHAPTERS_PER_WORK, MAX_PAGES_PER_CHAPTER } from '@/lib/constants';
 import { Checkbox } from "@/components/ui/checkbox";
@@ -51,19 +50,28 @@ export default function EditMangaPage() {
 
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
-  const [coverImage, setCoverImage] = useState('');
+  
+  const [coverImagePreview, setCoverImagePreview] = useState<string | null>(null);
+  const coverImageFileRef = useRef<File | null>(null);
+
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [editableChapters, setEditableChapters] = useState<EditableChapterState[]>([]);
   const [freePreviewPageCount, setFreePreviewPageCount] = useState('0');
   const [subscriptionPrice, setSubscriptionPrice] = useState('');
 
-  const [enableInvestment, setEnableInvestment] = useState(false);
+  const [enableCrowdfunding, setEnableCrowdfunding] = useState(false);
   const [sharesOfferedTotalPercent, setSharesOfferedTotalPercent] = useState('');
   const [totalSharesInOffer, setTotalSharesInOffer] = useState('');
   const [pricePerShare, setPricePerShare] = useState('');
-  const [investmentDescription, setInvestmentDescription] = useState('');
+  const [crowdfundingDescription, setCrowdfundingDescription] = useState('');
   const [minSubscriptionRequirement, setMinSubscriptionRequirement] = useState('');
   const [maxSharesPerUser, setMaxSharesPerUser] = useState('');
+  
+  const [authorContactEmail, setAuthorContactEmail] = useState('');
+  const [authorSocialLinkPlatform, setAuthorSocialLinkPlatform] = useState('');
+  const [authorSocialLinkUrl, setAuthorSocialLinkUrl] = useState('');
+  const [authorSocialLinks, setAuthorSocialLinks] = useState<{platform: string, url: string}[]>([]);
+
 
   const totalPagesInManga = useMemo(() => {
     return editableChapters
@@ -77,15 +85,15 @@ export default function EditMangaPage() {
       return;
     }
     if (user.accountType !== 'creator') {
-      toast({ title: "Access Denied", description: "Only creators can edit manga.", variant: "destructive" });
+      toast({ title: "访问受限", description: "只有创作者才能编辑漫画。", variant: "destructive" });
       router.push('/');
       return;
     }
     if (!user.isApproved) {
       toast({ 
-        title: "Account Pending Approval", 
-        description: "Your creator account must be approved by an admin before you can edit manga.", 
-        variant: "destructive",
+        title: "账号待审批", 
+        description: "您的创作者账号需经管理员审批后才能编辑漫画。", 
+        variant: "default",
         duration: 7000
       });
       router.push('/creator/dashboard');
@@ -97,14 +105,14 @@ export default function EditMangaPage() {
       const fetchedManga = getMangaById(mangaId);
       if (fetchedManga) {
         if (fetchedManga.author.id !== user.id) {
-          toast({ title: "Access Denied", description: "You can only edit your own manga series.", variant: "destructive" });
+          toast({ title: "访问受限", description: "您只能编辑自己的漫画系列。", variant: "destructive" });
           router.push('/creator/dashboard');
           return;
         }
         setMangaToEdit(fetchedManga);
         setTitle(fetchedManga.title);
         setSummary(fetchedManga.summary);
-        setCoverImage(fetchedManga.coverImage);
+        setCoverImagePreview(fetchedManga.coverImage); // Initialize preview with existing image
         setSelectedGenres(fetchedManga.genres);
         setEditableChapters(fetchedManga.chapters.map(ch => ({
           id: ch.id,
@@ -114,25 +122,55 @@ export default function EditMangaPage() {
         setFreePreviewPageCount(fetchedManga.freePreviewPageCount.toString());
         setSubscriptionPrice(fetchedManga.subscriptionPrice?.toString() || '');
 
+        setAuthorContactEmail(fetchedManga.authorDetails?.email || user.email || '');
+        setAuthorSocialLinks(fetchedManga.authorDetails?.socialLinks || []);
+
         if (fetchedManga.investmentOffer) {
-          setEnableInvestment(fetchedManga.investmentOffer.isActive);
+          setEnableCrowdfunding(fetchedManga.investmentOffer.isActive);
           setSharesOfferedTotalPercent(fetchedManga.investmentOffer.sharesOfferedTotalPercent.toString());
           setTotalSharesInOffer(fetchedManga.investmentOffer.totalSharesInOffer.toString());
           setPricePerShare(fetchedManga.investmentOffer.pricePerShare.toString());
-          setInvestmentDescription(fetchedManga.investmentOffer.description);
+          setCrowdfundingDescription(fetchedManga.investmentOffer.description);
           setMinSubscriptionRequirement(fetchedManga.investmentOffer.minSubscriptionRequirement?.toString() || '');
           setMaxSharesPerUser(fetchedManga.investmentOffer.maxSharesPerUser?.toString() || '');
         } else {
-          setEnableInvestment(false);
+          setEnableCrowdfunding(false);
         }
       } else {
-        toast({ title: "Manga Not Found", description: "Could not find the manga to edit.", variant: "destructive" });
+        toast({ title: "漫画未找到", description: "无法找到要编辑的漫画。", variant: "destructive" });
         router.push('/creator/dashboard');
         return;
       }
     }
     setIsLoading(false);
   }, [mangaId, user, router, toast]);
+
+  const handleCoverImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      coverImageFileRef.current = file;
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCoverImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+      toast({title: "新封面图片已选择", description: "这只是一个模拟上传预览。保存后生效。"})
+    }
+  };
+  
+  const addSocialLink = () => {
+    if (authorSocialLinkPlatform && authorSocialLinkUrl) {
+      setAuthorSocialLinks([...authorSocialLinks, { platform: authorSocialLinkPlatform, url: authorSocialLinkUrl }]);
+      setAuthorSocialLinkPlatform('');
+      setAuthorSocialLinkUrl('');
+    } else {
+      toast({ title: "信息不完整", description: "请输入平台和链接地址。", variant: "destructive" });
+    }
+  };
+
+  const removeSocialLink = (index: number) => {
+    setAuthorSocialLinks(authorSocialLinks.filter((_, i) => i !== index));
+  };
 
   const handleGenreChange = (genreId: string) => {
     setSelectedGenres(prev =>
@@ -143,12 +181,12 @@ export default function EditMangaPage() {
   const addChapter = () => {
     const activeChapters = editableChapters.filter(ch => !ch._toBeDeleted);
     if (activeChapters.length >= MAX_CHAPTERS_PER_WORK) {
-      toast({ title: "Chapter Limit Reached", description: `A manga can have at most ${MAX_CHAPTERS_PER_WORK} chapters.`, variant: "destructive" });
+      toast({ title: "章节已达上限", description: `一部漫画最多只能有 ${MAX_CHAPTERS_PER_WORK} 个章节。`, variant: "destructive" });
       return;
     }
     setEditableChapters([...editableChapters, {
       id: `new-${Date.now()}`,
-      title: `New Chapter ${activeChapters.length + 1}`,
+      title: `新章节 ${activeChapters.length + 1}`,
       pageCount: 10,
       _isNew: true,
     }]);
@@ -184,11 +222,11 @@ export default function EditMangaPage() {
     return (
       <div className="flex flex-col items-center justify-center py-10 text-center">
         <AlertTriangle className="w-12 h-12 text-destructive mb-4" />
-        <h2 className="text-2xl font-semibold mb-2">Cannot Edit Manga</h2>
+        <h2 className="text-2xl font-semibold mb-2">无法编辑漫画</h2>
         <p className="text-muted-foreground">
-          The manga could not be loaded for editing, or your account requires approval.
+          无法加载漫画进行编辑，或您的账号需要审批。
         </p>
-         <Button onClick={() => router.push('/creator/dashboard')} className="mt-4">Go to Dashboard</Button>
+         <Button onClick={() => router.push('/creator/dashboard')} className="mt-4">前往控制面板</Button>
       </div>
     );
   }
@@ -196,32 +234,32 @@ export default function EditMangaPage() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!title || !summary || !coverImage || selectedGenres.length === 0) {
-      toast({ title: "Missing Fields", description: "Please fill title, summary, cover, and select genres.", variant: "destructive" });
+    if (!title || !summary || !coverImagePreview || selectedGenres.length === 0) {
+      toast({ title: "缺少必填项", description: "请填写标题、摘要、封面图片并选择类型。", variant: "destructive" });
       return;
     }
     const finalChapters = editableChapters.filter(ch => !ch._toBeDeleted);
     if (finalChapters.length === 0) {
-      toast({ title: "No Chapters", description: "Manga must have at least one chapter.", variant: "destructive" });
+      toast({ title: "没有章节", description: "漫画必须至少有一个章节。", variant: "destructive" });
       return;
     }
      if (parseInt(freePreviewPageCount, 10) > totalPagesInManga && totalPagesInManga > 0) {
-      toast({ title: "Invalid Free Preview", description: "Free preview pages cannot exceed total pages in the manga.", variant: "destructive" });
+      toast({ title: "免费预览页数无效", description: "免费预览页数不能超过漫画总页数。", variant: "destructive" });
       return;
     }
 
     let updatedInvestmentOfferData: MangaInvestmentOffer | undefined = mangaToEdit.investmentOffer;
-    if (enableInvestment) {
-      if (!sharesOfferedTotalPercent || !totalSharesInOffer || !pricePerShare || !investmentDescription) {
-        toast({ title: "Missing Crowdfunding Fields", variant: "destructive" });
+    if (enableCrowdfunding) {
+      if (!sharesOfferedTotalPercent || !totalSharesInOffer || !pricePerShare || !crowdfundingDescription) {
+        toast({ title: "众筹信息不完整", variant: "destructive" });
         return;
       }
       updatedInvestmentOfferData = {
-        ...(mangaToEdit.investmentOffer || {}), 
+        ...(mangaToEdit.investmentOffer || {} as MangaInvestmentOffer), // Ensure base object if creating new
         sharesOfferedTotalPercent: parseFloat(sharesOfferedTotalPercent),
         totalSharesInOffer: parseInt(totalSharesInOffer, 10),
         pricePerShare: parseFloat(pricePerShare),
-        description: investmentDescription,
+        description: crowdfundingDescription,
         minSubscriptionRequirement: minSubscriptionRequirement ? parseInt(minSubscriptionRequirement, 10) : undefined,
         maxSharesPerUser: maxSharesPerUser ? parseInt(maxSharesPerUser, 10) : undefined,
         isActive: true,
@@ -229,12 +267,19 @@ export default function EditMangaPage() {
     } else if (mangaToEdit.investmentOffer) { 
       updatedInvestmentOfferData = { ...mangaToEdit.investmentOffer, isActive: false };
     }
+    
+    const authorDetailsPayload: AuthorContactDetails = {
+        email: authorContactEmail || undefined,
+        socialLinks: authorSocialLinks.length > 0 ? authorSocialLinks : undefined,
+    };
 
 
     const processedChapters: Chapter[] = finalChapters.map((editCh, index) => {
+      const existingChapterData = mangaToEdit.chapters.find(c => c.id === editCh.id && !editCh._isNew);
       const pages: MangaPage[] = Array.from({ length: editCh.pageCount }, (_, i) => ({
-        id: `${mangaId}-${editCh.id}-page-${i + 1}`.replace('new-', 'ch-'), 
-        imageUrl: `https://picsum.photos/800/1200?random=${mangaId}${editCh.id}${i + 1}`,
+        // Try to reuse existing page IDs if page count hasn't changed drastically, otherwise new IDs
+        id: existingChapterData?.pages[i]?.id || `${mangaId}-${editCh.id.replace('new-', 'ch-')}-page-${i + 1}`, 
+        imageUrl: existingChapterData?.pages[i]?.imageUrl || `https://picsum.photos/800/1200?random=${mangaId}${editCh.id.replace('new-', 'ch-')}${i + 1}`, // Mock image
         altText: `Page ${i + 1}`,
       }));
       return {
@@ -248,26 +293,27 @@ export default function EditMangaPage() {
     const updatedMangaData: Partial<MangaSeries> = {
       title,
       summary,
-      coverImage,
+      coverImage: coverImagePreview, // Use preview as placeholder for new/updated image URL
       genres: selectedGenres,
       chapters: processedChapters,
       freePreviewPageCount: parseInt(freePreviewPageCount, 10) || 0,
       subscriptionPrice: subscriptionPrice ? parseFloat(subscriptionPrice) : undefined,
       investmentOffer: updatedInvestmentOfferData,
+      authorDetails: authorDetailsPayload,
     };
 
     try {
       updateMockMangaData(mangaId, updatedMangaData);
-      toast({ title: "Manga Updated!", description: `${title} has been successfully updated.` });
+      toast({ title: "漫画已更新!", description: `${title} 已成功更新。` });
       router.push('/creator/dashboard');
     } catch (error) {
-      toast({ title: "Update Failed", description: "Could not update manga.", variant: "destructive" });
+      toast({ title: "更新失败", description: "无法更新漫画。", variant: "destructive" });
     }
   };
 
   const handleDeleteManga = async () => {
     if (!user || !user.isApproved) {
-       toast({ title: "Action Denied", description: "Your account needs to be approved to perform this action.", variant: "destructive" });
+       toast({ title: "操作被拒绝", description: "您的账号需要审批通过才能执行此操作。", variant: "destructive" });
        return;
     }
     const success = await deleteMangaSeries(mangaId);
@@ -288,24 +334,27 @@ export default function EditMangaPage() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="title" suppressHydrationWarning>标题 *</Label>
-              <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} required />
+              <Label htmlFor="title-edit" suppressHydrationWarning>标题 *</Label>
+              <Input id="title-edit" value={title} onChange={(e) => setTitle(e.target.value)} required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="summary" suppressHydrationWarning>摘要 *</Label>
-              <Textarea id="summary" value={summary} onChange={(e) => setSummary(e.target.value)} rows={4} required />
+              <Label htmlFor="summary-edit" suppressHydrationWarning>摘要 *</Label>
+              <Textarea id="summary-edit" value={summary} onChange={(e) => setSummary(e.target.value)} rows={4} required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="coverImage-edit" suppressHydrationWarning>封面图片 *</Label>
-              {coverImage && (
+              <Label htmlFor="coverImageFile-edit" suppressHydrationWarning>封面图片 * (模拟本地上传)</Label>
+              <Input id="coverImageFile-edit" type="file" accept="image/*" onChange={handleCoverImageChange} className="text-sm"/>
+              {coverImagePreview && (
                 <div className="mt-2 relative aspect-[2/3] w-full max-w-[200px] rounded-md overflow-hidden border">
-                  <Image src={coverImage} alt="封面预览" layout="fill" objectFit="cover" data-ai-hint="manga cover preview edit"/>
+                  <Image src={coverImagePreview} alt="封面预览" layout="fill" objectFit="cover" data-ai-hint="manga cover preview edit"/>
                 </div>
               )}
-              <Button type="button" variant="outline" onClick={() => setCoverImage(`https://picsum.photos/400/600?random=${Date.now()}`)}>
-                 <UploadCloud className="mr-2 h-4 w-4" /> 更改封面 (模拟)
-              </Button>
-              <p className="text-xs text-muted-foreground" suppressHydrationWarning>点击按钮以更改封面图片（当前为模拟上传）。</p>
+               {!coverImagePreview && mangaToEdit.coverImage && ( // Fallback for initial load before selection
+                 <div className="mt-2 relative aspect-[2/3] w-full max-w-[200px] rounded-md overflow-hidden border">
+                    <Image src={mangaToEdit.coverImage} alt="当前封面" layout="fill" objectFit="cover" data-ai-hint="manga cover current"/>
+                 </div>
+              )}
+              <p className="text-xs text-muted-foreground" suppressHydrationWarning>选择新的本地图片文件以更改封面。实际应用中会上传到服务器。</p>
             </div>
             
             <div className="space-y-2">
@@ -328,20 +377,54 @@ export default function EditMangaPage() {
             </div>
 
             <div className="space-y-4 pt-4 border-t">
+              <h3 className="text-lg font-semibold" suppressHydrationWarning>作者联系方式 (可选)</h3>
+              <div className="space-y-2">
+                <Label htmlFor="authorContactEmail-edit" suppressHydrationWarning>联系邮箱</Label>
+                <Input id="authorContactEmail-edit" type="email" value={authorContactEmail} onChange={(e) => setAuthorContactEmail(e.target.value)} placeholder="作者的公开联系邮箱" />
+              </div>
+              <div className="space-y-3">
+                <Label suppressHydrationWarning>社交媒体链接</Label>
+                {authorSocialLinks.map((link, index) => (
+                  <div key={index} className="flex items-center gap-2 p-2 border rounded-md bg-secondary/30">
+                    <LinkIcon className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium flex-grow">{link.platform}: <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate">{link.url}</a></span>
+                    <Button type="button" variant="ghost" size="icon" onClick={() => removeSocialLink(index)} className="text-destructive h-6 w-6">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+                <div className="flex items-end gap-2">
+                  <div className="flex-grow space-y-1">
+                    <Label htmlFor="socialPlatform-edit" className="text-xs">平台名称</Label>
+                    <Input id="socialPlatform-edit" value={authorSocialLinkPlatform} onChange={(e) => setAuthorSocialLinkPlatform(e.target.value)} placeholder="例如：微博, Twitter" />
+                  </div>
+                  <div className="flex-grow space-y-1">
+                     <Label htmlFor="socialUrl-edit" className="text-xs">链接地址</Label>
+                    <Input id="socialUrl-edit" value={authorSocialLinkUrl} onChange={(e) => setAuthorSocialLinkUrl(e.target.value)} placeholder="https://..." />
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={addSocialLink} className="shrink-0">
+                    <PlusCircle className="mr-1.5 h-4 w-4" /> 添加链接
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+
+            <div className="space-y-4 pt-4 border-t">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-semibold" suppressHydrationWarning>章节 ({editableChapters.filter(ch => !ch._toBeDeleted).length}/{MAX_CHAPTERS_PER_WORK})</h3>
                 <Button type="button" variant="outline" size="sm" onClick={addChapter} disabled={editableChapters.filter(ch => !ch._toBeDeleted).length >= MAX_CHAPTERS_PER_WORK}>
                   <PlusCircle className="mr-2 h-4 w-4" /> 添加章节
                 </Button>
               </div>
-              {editableChapters.filter(ch => !ch._toBeDeleted).length === 0 && <p className="text-sm text-muted-foreground">没有活动章节。添加一个或取消删除。</p>}
+              {editableChapters.filter(ch => !ch._toBeDeleted).length === 0 && <p className="text-sm text-muted-foreground">没有活动章节。添加一个或取消已标记为删除的章节。</p>}
               <ScrollArea className="max-h-72 space-y-3 pr-3">
                 {editableChapters.map((chapter, index) => (
                   <Card key={chapter.id} className={`p-3 ${chapter._toBeDeleted ? 'bg-red-100 dark:bg-red-900/30 opacity-60' : 'bg-secondary/30'}`}>
                     <div className="flex justify-between items-center mb-2">
                       <Label htmlFor={`edit-chapter-title-${index}`} className="text-sm font-medium" suppressHydrationWarning>
-                        {chapter._isNew ? `新章节 ${index + 1}` : `章节 ${mangaToEdit.chapters.find(c=>c.id===chapter.id)?.chapterNumber || index+1} 标题`}
-                        {chapter._toBeDeleted && " (标记为删除)"}
+                        {chapter._isNew ? `新章节` : `章节 ${mangaToEdit.chapters.find(c=>c.id===chapter.id)?.chapterNumber || index+1}`}
+                        {chapter._toBeDeleted && <span className="text-red-600"> (已标记待删除)</span>}
                       </Label>
                       {chapter._toBeDeleted ? (
                          <Button type="button" variant="outline" size="sm" onClick={() => unmarkChapterForDeletion(chapter.id)}>撤销删除</Button>
@@ -370,7 +453,7 @@ export default function EditMangaPage() {
                       className="w-full"
                       disabled={chapter._toBeDeleted}
                     />
-                    <p className="text-xs text-muted-foreground mt-1" suppressHydrationWarning>模拟：更改数量以添加/删除页面。完整的页面管理已简化。</p>
+                    <p className="text-xs text-muted-foreground mt-1" suppressHydrationWarning>模拟：更改页数以调整章节长度。实际应用中，您将在此处管理每一页的图片。</p>
                   </Card>
                 ))}
               </ScrollArea>
@@ -378,47 +461,53 @@ export default function EditMangaPage() {
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
               <div className="space-y-2">
-                <Label htmlFor="freePreviewPageCount" suppressHydrationWarning>免费预览页数 * (最多 {totalPagesInManga})</Label>
-                <Input id="freePreviewPageCount" type="number" value={freePreviewPageCount} onChange={(e) => setFreePreviewPageCount(e.target.value)} min="0" max={totalPagesInManga > 0 ? totalPagesInManga.toString() : '0'} required />
+                <Label htmlFor="freePreviewPageCount-edit" suppressHydrationWarning>免费预览页数 * (最多 {totalPagesInManga})</Label>
+                <Input id="freePreviewPageCount-edit" type="number" value={freePreviewPageCount} onChange={(e) => setFreePreviewPageCount(e.target.value)} min="0" max={totalPagesInManga > 0 ? totalPagesInManga.toString() : '0'} required />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="subscriptionPrice" suppressHydrationWarning>订阅价格 (美元/月, 可选)</Label>
-                <Input id="subscriptionPrice" type="number" value={subscriptionPrice} onChange={(e) => setSubscriptionPrice(e.target.value)} step="0.01" min="0" />
+                <Label htmlFor="subscriptionPrice-edit" suppressHydrationWarning>订阅价格 (美元/月, 可选)</Label>
+                <Input id="subscriptionPrice-edit" type="number" value={subscriptionPrice} onChange={(e) => setSubscriptionPrice(e.target.value)} step="0.01" min="0" />
               </div>
             </div>
 
             <div className="space-y-4 pt-4 border-t">
               <div className="flex items-center space-x-3">
-                <Switch id="enableInvestment-edit" checked={enableInvestment} onCheckedChange={setEnableInvestment} aria-label="启用漫画众筹"/>
-                <Label htmlFor="enableInvestment-edit" className="text-base font-medium cursor-pointer" suppressHydrationWarning>启用漫画众筹?</Label>
+                <Switch id="enableCrowdfunding-edit" checked={enableCrowdfunding} onCheckedChange={setEnableCrowdfunding} aria-label="启用漫画众筹"/>
+                <Label htmlFor="enableCrowdfunding-edit" className="text-base font-medium cursor-pointer" suppressHydrationWarning>启用漫画众筹?</Label>
               </div>
-              {enableInvestment && (
+              {enableCrowdfunding && (
                 <div className="space-y-4 p-4 border rounded-md bg-secondary/30">
                    <h3 className="text-lg font-semibold" suppressHydrationWarning>众筹详情</h3>
+                    <p className="text-sm text-muted-foreground" suppressHydrationWarning>通过众筹，您可以让读者成为您作品的支持者，并分享未来的收益。</p>
                   <div className="space-y-2">
-                    <Label htmlFor="investmentDescription-edit" suppressHydrationWarning>众筹描述 *</Label>
-                    <Textarea id="investmentDescription-edit" value={investmentDescription} onChange={(e) => setInvestmentDescription(e.target.value)} placeholder="简述本次众筹的目的，以及对支持者的回报承诺。" rows={3} required={enableInvestment} />
+                    <Label htmlFor="crowdfundingDescription-edit" suppressHydrationWarning>众筹描述 *</Label>
+                    <Textarea id="crowdfundingDescription-edit" value={crowdfundingDescription} onChange={(e) => setCrowdfundingDescription(e.target.value)} placeholder="简述本次众筹的目的，以及对支持者的回报承诺（例如：收益分成、IP权益等）。" rows={3} required={enableCrowdfunding} />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="sharesOfferedTotalPercent-edit" suppressHydrationWarning>支持者总收益分成 (%) *</Label>
-                      <Input id="sharesOfferedTotalPercent-edit" type="number" value={sharesOfferedTotalPercent} onChange={(e) => setSharesOfferedTotalPercent(e.target.value)} placeholder="例如: 20" min="1" max="100" required={enableInvestment} />
+                      <Input id="sharesOfferedTotalPercent-edit" type="number" value={sharesOfferedTotalPercent} onChange={(e) => setSharesOfferedTotalPercent(e.target.value)} placeholder="例如: 20" min="1" max="100" required={enableCrowdfunding} />
+                       <p className="text-xs text-muted-foreground">漫画总收益中，用于分配给所有支持者的百分比。</p>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="totalSharesInOffer-edit" suppressHydrationWarning>众筹总份额 *</Label>
-                      <Input id="totalSharesInOffer-edit" type="number" value={totalSharesInOffer} onChange={(e) => setTotalSharesInOffer(e.target.value)} placeholder="例如: 100" min="1" required={enableInvestment} />
+                      <Label htmlFor="totalSharesInOffer-edit" suppressHydrationWarning>众筹总份数 *</Label>
+                      <Input id="totalSharesInOffer-edit" type="number" value={totalSharesInOffer} onChange={(e) => setTotalSharesInOffer(e.target.value)} placeholder="例如: 100" min="1" required={enableCrowdfunding} />
+                      <p className="text-xs text-muted-foreground">将“支持者总收益分成”分割成的总份数。</p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="pricePerShare-edit" suppressHydrationWarning>每份支持金额 (USD) *</Label>
-                      <Input id="pricePerShare-edit" type="number" value={pricePerShare} onChange={(e) => setPricePerShare(e.target.value)} placeholder="例如: 10" step="0.01" min="0.01" required={enableInvestment} />
+                      <Input id="pricePerShare-edit" type="number" value={pricePerShare} onChange={(e) => setPricePerShare(e.target.value)} placeholder="例如: 10" step="0.01" min="0.01" required={enableCrowdfunding} />
+                       <p className="text-xs text-muted-foreground">支持者购买一份所需支付的金额。</p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="minSubscriptionRequirement-edit" suppressHydrationWarning>最低订阅漫画要求 (可选)</Label>
                       <Input id="minSubscriptionRequirement-edit" type="number" value={minSubscriptionRequirement} onChange={(e) => setMinSubscriptionRequirement(e.target.value)} placeholder="例如: 5" min="0" />
+                       <p className="text-xs text-muted-foreground">支持者参与众筹前，需要订阅的漫画数量门槛。</p>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="maxSharesPerUser-edit" suppressHydrationWarning>每人最多支持份额 (可选)</Label>
+                      <Label htmlFor="maxSharesPerUser-edit" suppressHydrationWarning>每人最多支持份数 (可选)</Label>
                       <Input id="maxSharesPerUser-edit" type="number" value={maxSharesPerUser} onChange={(e) => setMaxSharesPerUser(e.target.value)} placeholder="例如: 10" min="1" />
+                      <p className="text-xs text-muted-foreground">限制单个支持者可购买的最大份数。</p>
                     </div>
                   </div>
                 </div>
@@ -460,4 +549,3 @@ export default function EditMangaPage() {
     </div>
   );
 }
-

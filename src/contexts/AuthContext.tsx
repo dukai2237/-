@@ -1,12 +1,12 @@
 // src/contexts/AuthContext.tsx
 "use client";
-import type { User, UserSubscription, UserInvestment, SimulatedTransaction, MangaSeries, MangaInvestor, Chapter, MangaPage } from '@/lib/types';
+import type { User, UserSubscription, UserInvestment, SimulatedTransaction, MangaSeries, MangaInvestor, Chapter, MangaPage, AuthorContactDetails } from '@/lib/types';
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { updateMockMangaData, getMangaById, addMockMangaSeries as globalAddMockManga, deleteMockMangaData as globalDeleteManga } from '@/lib/mock-data'; 
+import { updateMockMangaData, getMangaById, addMockMangaSeries as globalAddMockManga, deleteMockMangaData as globalDeleteManga, getAuthorById as fetchAuthorDetails } from '@/lib/mock-data'; 
 import { MAX_WORKS_PER_CREATOR } from '@/lib/constants';
 
-const PLATFORM_FEE_RATE = 0.10; // 10%
+const PLATFORM_FEE_RATE = 0.10; // 10% platform fee
 
 interface AuthContextType {
   user: User | null;
@@ -18,16 +18,15 @@ interface AuthContextType {
   donateToManga: (mangaId: string, mangaTitle: string, authorId: string, amount: number) => Promise<boolean>;
   investInManga: (mangaId: string, mangaTitle: string, sharesToBuy: number, pricePerShare: number, totalCost: number) => Promise<boolean>;
   rateManga: (mangaId: string, score: 1 | 2 | 3) => Promise<boolean>;
-  addMangaSeries: (newMangaData: Omit<MangaSeries, 'id' | 'author' | 'publishedDate' | 'averageRating' | 'ratingCount' | 'viewCount' | 'totalRevenueFromSubscriptions' | 'totalRevenueFromDonations' | 'totalRevenueFromMerchandise' | 'investors' | 'chapters'> & { chaptersInput?: {title: string, pageCount: number}[] }) => Promise<MangaSeries | null>;
+  addMangaSeries: (newMangaData: Omit<MangaSeries, 'id' | 'author' | 'publishedDate' | 'averageRating' | 'ratingCount' | 'viewCount' | 'totalRevenueFromSubscriptions' | 'totalRevenueFromDonations' | 'totalRevenueFromMerchandise' | 'investors' | 'chapters' | 'authorDetails'> & { chaptersInput?: {title: string, pageCount: number}[], authorDetails?: AuthorContactDetails }) => Promise<MangaSeries | null>;
   deleteMangaSeries: (mangaId: string) => Promise<boolean>;
   viewingHistory: Map<string, { chapterId: string, pageIndex: number, date: Date }>;
   updateViewingHistory: (mangaId: string, chapterId: string, pageIndex: number) => void;
   getViewingHistory: (mangaId: string) => { chapterId: string, pageIndex: number, date: Date } | undefined;
   transactions: SimulatedTransaction[];
-  addFunds: (amount: number) => void;
-  withdrawFunds: (amount: number) => void;
-  // For admin/founder to approve a creator - conceptual
-  approveCreator?: (creatorId: string) => void; 
+  addFunds: (amount: number) => void; // User adds funds to their wallet
+  // Conceptual: Admin approves a creator
+  approveCreatorAccount: (creatorId: string) => void; 
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -42,7 +41,7 @@ export const MOCK_USER_VALID: User = {
   investments: [],
   authoredMangaIds: ['manga-4'], 
   accountType: 'creator',
-  isApproved: true, // Approved by default for the main mock creator
+  isApproved: true, 
 };
 
 
@@ -133,8 +132,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (fullUserData.accountType === 'creator' && !fullUserData.isApproved) {
       toast({ 
-        title: "Account Pending Approval", 
-        description: "Your creator account is awaiting approval from the platform admin. You cannot log in yet.", 
+        title: "账号待审批", 
+        description: "您的创作者账号正在等待平台管理员审批。在此之前您无法登录。", 
         variant: "destructive",
         duration: 7000 
       });
@@ -142,54 +141,71 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     setUser(fullUserData);
-    toast({ title: "Login Successful", description: `Welcome back, ${fullUserData.name}!` });
+    toast({ title: "登录成功", description: `欢迎回来, ${fullUserData.name}!` });
   };
 
   const signup = (name: string, email: string, accountType: 'user' | 'creator'): User | null => {
+     // Check if email already exists (simple mock check)
+    const storedUsersString = localStorage.getItem('mockUserList'); // Assume we store a list of users for this check
+    const mockUserList: User[] = storedUsersString ? JSON.parse(storedUsersString) : [];
+    if (mockUserList.some(u => u.email === email)) {
+        toast({ title: "注册失败", description: "该邮箱已被注册。", variant: "destructive" });
+        return null;
+    }
+
     const newUserId = `user-${Date.now()}-${Math.random().toString(16).slice(4)}`;
     const newUser: User = {
       id: newUserId,
       email,
       name,
       avatarUrl: `https://picsum.photos/100/100?random=${newUserId}`,
-      walletBalance: accountType === 'creator' ? 100 : 50, 
+      walletBalance: accountType === 'creator' ? 0 : 50, // Creators start with 0, users with 50
       subscriptions: [],
       investments: [],
       authoredMangaIds: [],
       accountType,
-      isApproved: accountType === 'creator' ? false : undefined,
+      isApproved: accountType === 'user' ? true : false, // Regular users are auto-approved
     };
     
-    // For mock purposes, if we sign up a user that already "exists" in localStorage,
-    // we should probably just log them in instead of overwriting.
-    // However, the current flow is to create a new user always.
-    // The MOCK_USER_VALID is just a default for the login form.
+    // Add to mock user list in localStorage for uniqueness check
+    mockUserList.push(newUser);
+    localStorage.setItem('mockUserList', JSON.stringify(mockUserList));
     
-    setUser(newUser); // Set the new user, even if pending approval. They just can't log in.
+    setUser(newUser); 
 
     recordTransaction({
       type: 'account_creation',
       amount: newUser.walletBalance, 
       userId: newUser.id,
-      description: `Account created for ${name} as ${accountType}. ${accountType === 'creator' ? 'Pending approval.' : 'Initial balance: $' + newUser.walletBalance.toFixed(2)}`,
+      description: `账号创建: ${name} (${accountType}). ${accountType === 'creator' ? '待审批.' : '初始余额: $' + newUser.walletBalance.toFixed(2)}`,
       relatedData: { accountType }
     });
 
     if (accountType === 'creator') {
-      toast({ 
-        title: "Creator Account Registered", 
-        description: `Welcome, ${name}! Your creator account is now registered and awaiting approval from the platform admin.`,
-        duration: 7000
+      recordTransaction({
+        type: 'creator_approval_pending',
+        amount: 0,
+        userId: newUser.id,
+        description: `创作者 ${name} 账号注册，等待审批。`,
       });
+      toast({ 
+        title: "创作者账号已注册", 
+        description: `欢迎, ${name}! 您的创作者账号已注册，并等待管理员审批。审批通过后即可登录和发布作品。`,
+        duration: 10000
+      });
+       // Simulate auto-approval for 'test@example.com' for easier testing
+      if (email === MOCK_USER_VALID.email) {
+        setTimeout(() => approveCreatorAccount(newUser.id), 2000); // Auto-approve mock creator after 2s
+      }
     } else {
-      toast({ title: "Signup Successful!", description: `Welcome, ${name}! Your account has been created.` });
+      toast({ title: "注册成功!", description: `欢迎, ${name}! 您的账号已创建。` });
     }
     return newUser;
   };
 
   const logout = () => {
     setUser(null);
-    toast({ title: "Logout Successful", description: "You have been logged out." });
+    toast({ title: "登出成功", description: "您已成功登出。" });
   }
 
   const isSubscribedToManga = (mangaId: string) => {
@@ -198,11 +214,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const subscribeToManga = async (mangaId: string, mangaTitle: string, price: number): Promise<boolean> => {
     if (!user) {
-      toast({ title: "Login Required", description: "Please log in to subscribe.", variant: "destructive" });
+      toast({ title: "需要登录", description: "请登录后订阅。", variant: "destructive" });
       return false;
     }
     if (user.walletBalance < price) {
-      toast({ title: "Insufficient Funds", description: `You need $${price.toFixed(2)} to subscribe. Your balance is $${user.walletBalance.toFixed(2)}.`, variant: "destructive" });
+      toast({ title: "余额不足", description: `订阅需要 $${price.toFixed(2)}。您的余额为 $${user.walletBalance.toFixed(2)}。`, variant: "destructive" });
       return false;
     }
 
@@ -215,45 +231,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const manga = getMangaById(mangaId);
     if (manga) {
-      const revenueToAuthor = price * (1 - PLATFORM_FEE_RATE);
+      const platformCut = price * PLATFORM_FEE_RATE;
+      const revenueToAuthor = price - platformCut;
       updateMockMangaData(mangaId, { totalRevenueFromSubscriptions: (manga.totalRevenueFromSubscriptions || 0) + revenueToAuthor });
        recordTransaction({
         type: 'subscription_payment',
         amount: -price, 
         userId: user.id,
         mangaId,
-        description: `Subscribed to ${mangaTitle}`,
+        description: `订阅漫画: ${mangaTitle}`,
       });
        recordTransaction({
         type: 'platform_fee',
-        amount: price * PLATFORM_FEE_RATE, 
+        amount: platformCut, 
         mangaId,
-        description: `Platform fee for ${mangaTitle} subscription.`,
-         relatedData: { from: 'author_earnings_pool' }
+        description: `平台抽成 (订阅 ${mangaTitle})`,
+         relatedData: { from: 'user_payment', originalAmount: price }
       });
        recordTransaction({
         type: 'author_earning',
         amount: revenueToAuthor,
         authorId: manga.author.id,
         mangaId,
-        description: `Subscription earnings for ${mangaTitle}.`,
+        description: `来自 ${mangaTitle} 的订阅收益`,
       });
-      toast({ title: "Subscription Successful!", description: `You've subscribed to ${mangaTitle} for $${price.toFixed(2)}.` });
+      toast({ title: "订阅成功!", description: `您已成功订阅 ${mangaTitle}，费用 $${price.toFixed(2)}。` });
     }
     return true;
   };
   
   const donateToManga = async (mangaId: string, mangaTitle: string, authorId: string, amount: number): Promise<boolean> => {
     if (!user) {
-      toast({ title: "Login Required", description: "Please log in to donate.", variant: "destructive" });
+      toast({ title: "需要登录", description: "请登录后打赏。", variant: "destructive" });
       return false;
     }
     if (amount <= 0) {
-       toast({ title: "Invalid Amount", description: "Donation amount must be positive.", variant: "destructive" });
+       toast({ title: "金额无效", description: "打赏金额必须为正数。", variant: "destructive" });
       return false;
     }
     if (user.walletBalance < amount) {
-      toast({ title: "Insufficient Funds", description: `You need $${amount.toFixed(2)} to donate. Your balance is $${user.walletBalance.toFixed(2)}.`, variant: "destructive" });
+      toast({ title: "余额不足", description: `打赏需要 $${amount.toFixed(2)}。您的余额为 $${user.walletBalance.toFixed(2)}。`, variant: "destructive" });
       return false;
     }
 
@@ -264,7 +281,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     const manga = getMangaById(mangaId);
     if (manga) {
-      const revenueToAuthor = amount * (1 - PLATFORM_FEE_RATE);
+      const platformCut = amount * PLATFORM_FEE_RATE;
+      const revenueToAuthor = amount - platformCut;
       updateMockMangaData(mangaId, { totalRevenueFromDonations: (manga.totalRevenueFromDonations || 0) + revenueToAuthor });
       recordTransaction({
         type: 'donation_payment',
@@ -272,44 +290,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         userId: user.id,
         mangaId,
         authorId,
-        description: `Donated to ${mangaTitle}`,
+        description: `打赏漫画: ${mangaTitle}`,
       });
       recordTransaction({
         type: 'platform_fee',
-        amount: amount * PLATFORM_FEE_RATE,
+        amount: platformCut,
         mangaId,
         authorId,
-        description: `Platform fee for ${mangaTitle} donation.`,
-        relatedData: { from: 'author_earnings_pool' }
+        description: `平台抽成 (打赏 ${mangaTitle})`,
+        relatedData: { from: 'user_payment', originalAmount: amount }
       });
       recordTransaction({
         type: 'author_earning',
         amount: revenueToAuthor,
         authorId,
         mangaId,
-        description: `Donation earnings for ${mangaTitle}.`,
+        description: `来自 ${mangaTitle} 的打赏收益`,
       });
-      toast({ title: "Donation Successful!", description: `You've donated $${amount.toFixed(2)} to ${mangaTitle}.` });
+      toast({ title: "打赏成功!", description: `您已成功向 ${mangaTitle} 打赏 $${amount.toFixed(2)}。` });
     }
     return true;
   };
 
   const investInManga = async (mangaId: string, mangaTitle: string, sharesToBuy: number, pricePerShare: number, totalCost: number): Promise<boolean> => {
     if (!user) {
-      toast({ title: "Login Required", description: "Please log in to invest.", variant: "destructive" });
+      toast({ title: "需要登录", description: "请登录后投资。", variant: "destructive" });
       return false;
     }
     const manga = getMangaById(mangaId);
     if (!manga || !manga.investmentOffer || !manga.investmentOffer.isActive) {
-      toast({ title: "Investment Not Available", description: "This manga is not currently offering investment.", variant: "destructive" });
+      toast({ title: "投资不可用", description: "此漫画目前不开放投资。", variant: "destructive" });
       return false;
     }
-    if (manga.investmentOffer.minSubscriptionRequirement && user.subscriptions.length < manga.investmentOffer.minSubscriptionRequirement) {
-      toast({ title: "Investment Requirement Not Met", description: `You need to be subscribed to at least ${manga.investmentOffer.minSubscriptionRequirement} manga series to invest. You are subscribed to ${user.subscriptions.length}.`, variant: "destructive" });
+    if (manga.investmentOffer.minSubscriptionRequirement && (!user.subscriptions || user.subscriptions.length < manga.investmentOffer.minSubscriptionRequirement)) {
+      toast({ title: "未满足投资要求", description: `您需要至少订阅 ${manga.investmentOffer.minSubscriptionRequirement} 部漫画才能投资。您当前已订阅 ${user.subscriptions?.length || 0} 部。`, variant: "destructive", duration: 7000 });
       return false;
     }
     if (user.walletBalance < totalCost) {
-      toast({ title: "Insufficient Funds", description: `You need $${totalCost.toFixed(2)} to invest. Your balance is $${user.walletBalance.toFixed(2)}.`, variant: "destructive" });
+      toast({ title: "余额不足", description: `投资需要 $${totalCost.toFixed(2)}。您的余额为 $${user.walletBalance.toFixed(2)}。`, variant: "destructive" });
       return false;
     }
 
@@ -317,13 +335,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const totalSharesOwnedAfter = (existingInvestment?.sharesOwned || 0) + sharesToBuy;
 
     if (manga.investmentOffer.maxSharesPerUser && totalSharesOwnedAfter > manga.investmentOffer.maxSharesPerUser) {
-       toast({ title: "Share Limit Exceeded", description: `You cannot own more than ${manga.investmentOffer.maxSharesPerUser} shares for this manga.`, variant: "destructive" });
+       toast({ title: "超出持股上限", description: `您最多能持有此漫画 ${manga.investmentOffer.maxSharesPerUser} 份股份。`, variant: "destructive" });
       return false;
     }
     
     const totalSharesSold = manga.investors.reduce((sum, inv) => sum + inv.sharesOwned, 0);
     if (totalSharesSold + sharesToBuy > manga.investmentOffer.totalSharesInOffer) {
-      toast({ title: "Not Enough Shares", description: `Only ${manga.investmentOffer.totalSharesInOffer - totalSharesSold} shares are remaining for this offer.`, variant: "destructive"});
+      toast({ title: "股份不足", description: `此众筹项目仅剩 ${manga.investmentOffer.totalSharesInOffer - totalSharesSold} 份股份。`, variant: "destructive"});
       return false;
     }
 
@@ -357,43 +375,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updatedMangaInvestors.push(newInvestorEntry);
     }
     
-    const authorGets = totalCost * (1 - PLATFORM_FEE_RATE);
-    updateMockMangaData(mangaId, { investors: updatedMangaInvestors }); 
+    const platformCut = totalCost * PLATFORM_FEE_RATE;
+    const authorGets = totalCost - platformCut; // Creator receives investment amount minus platform fee
+    updateMockMangaData(mangaId, { 
+        investors: updatedMangaInvestors,
+        // Assuming investment amount also contributes to a conceptual "project fund" or directly to author
+        // totalRevenueFromDonations: (manga.totalRevenueFromDonations || 0) + authorGets // Or a new field like totalInvestmentReceived
+    }); 
     
     recordTransaction({
         type: 'investment_payment',
         amount: -totalCost, 
         userId: user.id,
         mangaId,
-        description: `Invested in ${sharesToBuy} shares of ${mangaTitle}`,
+        description: `投资 ${mangaTitle} ${sharesToBuy} 份股份`,
     });
      recordTransaction({
         type: 'platform_fee', 
-        amount: totalCost * PLATFORM_FEE_RATE,
+        amount: platformCut,
         mangaId,
         authorId: manga.author.id,
-        description: `Platform fee for investment in ${mangaTitle}.`,
-        relatedData: { from: 'creator_investment_proceeds' }
+        description: `平台抽成 (投资 ${mangaTitle})`,
+        relatedData: { from: 'user_payment', originalAmount: totalCost }
     });
     recordTransaction({
-        type: 'author_earning', 
+        type: 'author_earning', // Or 'project_funding'
         amount: authorGets,
         authorId: manga.author.id,
         mangaId,
-        description: `Received investment for ${mangaTitle}.`,
+        description: `收到 ${mangaTitle} 的投资款`,
     });
-    toast({ title: "Investment Successful!", description: `You've invested $${totalCost.toFixed(2)} in ${mangaTitle} for ${sharesToBuy} shares.` });
+    toast({ title: "投资成功!", description: `您已成功向 ${mangaTitle} 投资 $${totalCost.toFixed(2)}，获得 ${sharesToBuy} 份股份。` });
     return true;
   };
 
   const rateManga = async (mangaId: string, score: 1 | 2 | 3): Promise<boolean> => {
     if (!user) {
-      toast({ title: "Login Required", description: "Please log in to rate manga.", variant: "destructive" });
+      toast({ title: "需要登录", description: "请登录后评分。", variant: "destructive" });
       return false;
     }
     const manga = getMangaById(mangaId);
     if (!manga) {
-      toast({ title: "Manga Not Found", variant: "destructive" });
+      toast({ title: "漫画未找到", variant: "destructive" });
       return false;
     }
 
@@ -411,38 +434,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       amount: 0, 
       userId: user.id,
       mangaId,
-      description: `Rated ${manga.title} with score: ${score}`,
+      description: `评价漫画 ${manga.title} 分数: ${score}`,
       relatedData: { score }
     });
     
-    toast({ title: "Rating Submitted!", description: `You rated ${manga.title}. New average: ${newAverageRating.toFixed(1)}.` });
+    toast({ title: "评价已提交!", description: `您评价了 ${manga.title}。新的平均分: ${newAverageRating.toFixed(1)}。` });
     return true;
   };
   
   const addMangaSeries = async (
-    newMangaData: Omit<MangaSeries, 'id' | 'author' | 'publishedDate' | 'averageRating' | 'ratingCount' | 'viewCount' | 'totalRevenueFromSubscriptions' | 'totalRevenueFromDonations' | 'totalRevenueFromMerchandise' | 'investors' | 'chapters'> & { chaptersInput?: {title: string, pageCount: number}[] }
+    newMangaData: Omit<MangaSeries, 'id' | 'author' | 'publishedDate' | 'averageRating' | 'ratingCount' | 'viewCount' | 'totalRevenueFromSubscriptions' | 'totalRevenueFromDonations' | 'totalRevenueFromMerchandise' | 'investors' | 'chapters' | 'authorDetails'> & { chaptersInput?: {title: string, pageCount: number}[], authorDetails?: AuthorContactDetails }
   ): Promise<MangaSeries | null> => {
     if (!user || user.accountType !== 'creator') {
-      toast({ title: "Permission Denied", description: "Only creators can add new manga series.", variant: "destructive" });
+      toast({ title: "权限不足", description: "仅创作者可添加新漫画系列。", variant: "destructive" });
       return null;
     }
     if (!user.isApproved) {
-      toast({ title: "Account Not Approved", description: "Your creator account must be approved by an admin before you can publish manga.", variant: "destructive" });
+      toast({ title: "账号未审批", description: "您的创作者账号需经管理员审批后才能发布漫画。", variant: "destructive" });
       return null;
     }
     if (user.authoredMangaIds.length >= MAX_WORKS_PER_CREATOR) {
-      toast({ title: "Limit Reached", description: `You cannot create more than ${MAX_WORKS_PER_CREATOR} manga series.`, variant: "destructive" });
+      toast({ title: "已达上限", description: `您最多能创建 ${MAX_WORKS_PER_CREATOR} 部漫画系列。`, variant: "destructive" });
       return null;
     }
 
     const newMangaId = `manga-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    
+    // Fetch full author details to embed if provided, otherwise use basic user info
+    const authorInfoForManga: MangaSeries['author'] = {
+      id: user.id,
+      name: user.name,
+      avatarUrl: user.avatarUrl,
+    };
+    
+    const mangaAuthorDetails: AuthorContactDetails | undefined = newMangaData.authorDetails 
+        ? newMangaData.authorDetails 
+        : { email: user.email }; // Default to user email if no specific details provided
+
+
     const newManga: MangaSeries = {
       id: newMangaId,
-      author: {
-        id: user.id,
-        name: user.name,
-        avatarUrl: user.avatarUrl,
-      },
+      author: authorInfoForManga,
+      authorDetails: mangaAuthorDetails,
       ...newMangaData,
       chapters: (newMangaData.chaptersInput || []).map((chap, index) => ({
         id: `${newMangaId}-chapter-${index + 1}`,
@@ -450,7 +483,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         chapterNumber: index + 1,
         pages: Array.from({ length: chap.pageCount }, (_, i) => ({
             id: `${newMangaId}-chapter-${index + 1}-page-${i + 1}`,
-            imageUrl: `https://picsum.photos/800/1200?random=${newMangaId}c${index+1}p${i+1}`,
+            imageUrl: `https://picsum.photos/800/1200?random=${newMangaId}c${index+1}p${i+1}`, // Mock image
             altText: `Page ${i + 1}`,
         })),
       })),
@@ -464,7 +497,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       investors: [],
     };
 
-    globalAddMockManga(newManga);
+    globalAddMockManga(newManga); // Adds to the global mock data list
     setUser(prevUser => prevUser ? ({ ...prevUser, authoredMangaIds: [...prevUser.authoredMangaIds, newManga.id] }) : null);
     
     recordTransaction({
@@ -473,29 +506,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       userId: user.id,
       authorId: user.id,
       mangaId: newManga.id,
-      description: `Creator ${user.name} added new manga: ${newManga.title}`
+      description: `创作者 ${user.name} 添加新漫画: ${newManga.title}`
     });
 
-    toast({ title: "Manga Created!", description: `${newManga.title} has been added.` });
+    toast({ title: "漫画已创建!", description: `${newManga.title} 已成功添加。` });
     return newManga;
   };
 
   const deleteMangaSeries = async (mangaId: string): Promise<boolean> => {
     if (!user || user.accountType !== 'creator') {
-      toast({ title: "Permission Denied", description: "Only creators can delete manga series.", variant: "destructive" });
+      toast({ title: "权限不足", description: "仅创作者可删除漫画系列。", variant: "destructive" });
       return false;
     }
      if (!user.isApproved) {
-      toast({ title: "Account Not Approved", description: "Your creator account must be approved by an admin to manage manga.", variant: "destructive" });
+      toast({ title: "账号未审批", description: "您的创作者账号需经管理员审批才能管理漫画。", variant: "destructive" });
       return false;
     }
     const mangaToDelete = getMangaById(mangaId);
     if (!mangaToDelete || mangaToDelete.author.id !== user.id) {
-      toast({ title: "Permission Denied", description: "You can only delete your own manga series.", variant: "destructive" });
+      toast({ title: "权限不足", description: "您只能删除自己的漫画系列。", variant: "destructive" });
       return false;
     }
 
-    globalDeleteManga(mangaId);
+    globalDeleteManga(mangaId); // Deletes from global mock data list
     setUser(prevUser => {
       if (!prevUser) return null;
       return { ...prevUser, authoredMangaIds: prevUser.authoredMangaIds.filter(id => id !== mangaId) };
@@ -507,9 +540,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       userId: user.id,
       authorId: user.id,
       mangaId: mangaId,
-      description: `Creator ${user.name} deleted manga: ${mangaToDelete.title}`
+      description: `创作者 ${user.name} 删除漫画: ${mangaToDelete.title}`
     });
-    toast({ title: "Manga Deleted", description: `${mangaToDelete.title} has been removed.` });
+    toast({ title: "漫画已删除", description: `${mangaToDelete.title} 已被移除。` });
     return true;
   };
 
@@ -522,10 +555,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return viewingHistory.get(mangaId);
   };
 
-  const addFunds = (amount: number) => {
+  const addFunds = (amount: number) => { // User adds funds to their wallet
     if (!user) return;
     if (amount <= 0) {
-      toast({ title: "Invalid Amount", description: "Amount must be positive.", variant: "destructive" });
+      toast({ title: "金额无效", description: "充值金额必须为正数。", variant: "destructive" });
       return;
     }
     setUser(prev => prev ? ({ ...prev, walletBalance: prev.walletBalance + amount }) : null);
@@ -533,61 +566,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       type: 'wallet_deposit',
       amount: amount,
       userId: user.id,
-      description: `Deposited $${amount.toFixed(2)} to wallet.`
+      description: `钱包充值 $${amount.toFixed(2)}`
     });
-    toast({ title: "Funds Added", description: `$${amount.toFixed(2)} has been added to your wallet.` });
-  };
-
-  const withdrawFunds = (amount: number) => {
-    if (!user) return;
-    if (amount <= 0) {
-      toast({ title: "Invalid Amount", description: "Amount must be positive.", variant: "destructive" });
-      return;
-    }
-    if (user.walletBalance < amount) {
-      toast({ title: "Insufficient Funds", description: `Cannot withdraw $${amount.toFixed(2)}. Current balance: $${user.walletBalance.toFixed(2)}`, variant: "destructive" });
-      return;
-    }
-    setUser(prev => prev ? ({ ...prev, walletBalance: prev.walletBalance - amount }) : null);
-    recordTransaction({
-      type: 'wallet_withdrawal',
-      amount: -amount,
-      userId: user.id,
-      description: `Withdrew $${amount.toFixed(2)} from wallet.`
-    });
-    toast({ title: "Funds Withdrawn", description: `$${amount.toFixed(2)} has been withdrawn from your wallet (mock).` });
+    toast({ title: "充值成功", description: `$${amount.toFixed(2)} 已添加到您的钱包。` });
   };
   
-  // Conceptual function for admin to approve a creator
-  const approveCreator = (creatorId: string) => {
-    // In a real app, this would update the backend.
-    // For mock, we'd need a way to update a user in a list if we had one,
-    // or update localStorage directly for that user if they are logged out.
-    // If the currently logged-in user IS the one being approved (e.g. admin panel approves self for testing), update state.
-    if (user && user.id === creatorId && user.accountType === 'creator') {
+  // Conceptual admin function to approve a creator
+  const approveCreatorAccount = (creatorId: string) => {
+    // In a real app, this would be an admin-only action, likely calling a backend API.
+    // For this mock setup, we'll directly modify the user state if the current user is the one being approved (for testing)
+    // or try to update localStorage for a potential offline user.
+    
+    let userWasUpdated = false;
+
+    if (user && user.id === creatorId && user.accountType === 'creator' && !user.isApproved) {
       setUser(prev => prev ? ({ ...prev, isApproved: true }) : null);
-      toast({ title: "Creator Approved", description: `Creator ${user.name} has been approved.` });
-       recordTransaction({
-        type: 'creator_approval',
-        amount: 0,
-        userId: creatorId, // The creator being approved
-        // adminId: adminUser.id // if an admin user context existed
-        description: `Creator account ${creatorId} approved.`,
-      });
+      toast({ title: "创作者已审批", description: `创作者 ${user.name} (${user.email}) 已被批准。` });
+      recordTransaction({ type: 'creator_approved', amount: 0, userId: creatorId, description: `创作者 ${user.name} 账号已批准。` });
+      userWasUpdated = true;
     } else {
-      // If approving another user not currently logged in, this would typically be an API call.
-      // For mock: one might update localStorage for that user ID or update a global mock user list.
-      console.log(`Conceptual: Approve creator ${creatorId}. This would be an admin action updating backend/localStorage.`);
-      // Simulate updating a user in localStorage if they are not logged in
-      const storedUser = localStorage.getItem('authUser');
-      if (storedUser) {
-          let parsedUser = JSON.parse(storedUser);
-          if (parsedUser.id === creatorId && parsedUser.accountType === 'creator') {
-              parsedUser.isApproved = true;
-              localStorage.setItem('authUser', JSON.stringify(parsedUser));
-               toast({ title: "Creator Approved (External)", description: `Creator ID ${creatorId} has been approved. They can now log in.` });
-          }
+      // Try to update a non-logged-in user from the mock list in localStorage (if exists)
+      const storedUsersString = localStorage.getItem('mockUserList');
+      if (storedUsersString) {
+        let mockUserList: User[] = JSON.parse(storedUsersString);
+        const userIndex = mockUserList.findIndex(u => u.id === creatorId && u.accountType === 'creator' && !u.isApproved);
+        if (userIndex !== -1) {
+          mockUserList[userIndex].isApproved = true;
+          localStorage.setItem('mockUserList', JSON.stringify(mockUserList));
+          toast({ title: "创作者已审批 (外部)", description: `创作者ID ${creatorId} 已被批准。他们现在可以登录了。` });
+          recordTransaction({ type: 'creator_approved', amount: 0, userId: creatorId, description: `创作者账号 ${creatorId} 已批准 (外部更新)。`});
+          userWasUpdated = true;
+        }
       }
+    }
+    if (!userWasUpdated) {
+        console.warn(`approveCreatorAccount: Creator ID ${creatorId} not found or already approved/not a creator.`);
+        toast({title: "审批操作", description: `尝试批准创作者 ${creatorId}。未找到或状态无变化。`, variant: "default"})
     }
   };
 
@@ -610,8 +624,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         getViewingHistory,
         transactions,
         addFunds,
-        withdrawFunds,
-        // approveCreator // Expose if an admin panel component needed to call this
+        approveCreatorAccount
     }}>
       {children}
     </AuthContext.Provider>
@@ -625,4 +638,3 @@ export function useAuth() {
   }
   return context;
 }
-
