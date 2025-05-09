@@ -1,6 +1,6 @@
 "use client";
 import Link from 'next/link';
-import { Home, BookOpen, Sparkles, Menu, UserCircle, LogIn, LogOut, ShoppingCart } from 'lucide-react';
+import { Home, BookOpen, Sparkles, Menu, UserCircle, LogIn, LogOut, ShoppingCart, Edit3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetClose } from '@/components/ui/sheet';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,13 +9,11 @@ import { useState, useEffect } from 'react';
 
 export function Header() {
   const { user, logout } = useAuth();
-  // state to ensure user-dependent parts are rendered only on client after hydration
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
   }, []);
-
 
   const baseNavItems = [
     { href: '/', label: 'Home', icon: <Home className="h-5 w-5" /> },
@@ -23,33 +21,35 @@ export function Header() {
     { href: '/merchandise', label: 'Merchandise', icon: <ShoppingCart className="h-5 w-5" /> },
   ];
 
-  // Determine authNavItems based on user state; will be fully formed once isClient is true
-  const authNavItems = user
-    ? [
-        { href: '/profile', label: 'Profile', icon: (
-          user.avatarUrl ? (
-            <Avatar className="h-6 w-6">
-              <AvatarImage src={user.avatarUrl} alt={user.name || 'User'} data-ai-hint="user avatar small" />
-              <AvatarFallback>{user.name?.[0]?.toUpperCase() || 'U'}</AvatarFallback>
-            </Avatar>
-          ) : <UserCircle className="h-5 w-5" />
-        )},
-        { onClick: logout, label: 'Logout', icon: <LogOut className="h-5 w-5" />, isButton: true },
-      ]
-    : [
-        { href: '/login', label: 'Login', icon: <LogIn className="h-5 w-5" /> },
-        { href: '/signup', label: 'Sign Up', icon: <UserCircle className="h-5 w-5" /> },
-      ];
+  let dynamicNavItems = [];
+  if (user) {
+    if (user.authoredMangaIds && user.authoredMangaIds.length > 0) {
+      dynamicNavItems.push({ href: '/author/dashboard', label: 'Author Dashboard', icon: <Edit3 className="h-5 w-5" /> });
+    }
+    dynamicNavItems.push(
+      { href: '/profile', label: 'Profile', icon: (
+        user.avatarUrl ? (
+          <Avatar className="h-6 w-6">
+            <AvatarImage src={user.avatarUrl} alt={user.name || 'User'} data-ai-hint="user avatar small" />
+            <AvatarFallback>{user.name?.[0]?.toUpperCase() || 'U'}</AvatarFallback>
+          </Avatar>
+        ) : <UserCircle className="h-5 w-5" />
+      )},
+      { onClick: logout, label: 'Logout', icon: <LogOut className="h-5 w-5" />, isButton: true }
+    );
+  } else {
+    dynamicNavItems.push(
+      { href: '/login', label: 'Login', icon: <LogIn className="h-5 w-5" /> },
+      { href: '/signup', label: 'Sign Up', icon: <UserCircle className="h-5 w-5" /> }
+    );
+  }
   
-  // Render a consistent set of nav items on SSR and initial client render
-  // Then update on client once user state is confirmed
-  const ssrAuthNavItems = [ // Always show logged-out state for SSR consistency
+  const ssrAuthNavItems = [ 
       { href: '/login', label: 'Login', icon: <LogIn className="h-5 w-5" /> },
       { href: '/signup', label: 'Sign Up', icon: <UserCircle className="h-5 w-5" /> },
   ];
   
-  const navItems = isClient ? [...baseNavItems, ...authNavItems] : [...baseNavItems, ...ssrAuthNavItems];
-
+  const navItems = isClient ? [...baseNavItems, ...dynamicNavItems] : [...baseNavItems, ...ssrAuthNavItems];
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">

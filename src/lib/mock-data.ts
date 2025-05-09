@@ -9,17 +9,40 @@ const generatePages = (chapterId: string, count: number): MangaPage[] => {
 };
 
 const mockAuthors: AuthorInfo[] = [
-  { id: 'author-1', name: 'Kenji Tanaka', avatarUrl: 'https://picsum.photos/100/100?random=author1' },
-  { id: 'author-2', name: 'Yuki Sato', avatarUrl: 'https://picsum.photos/100/100?random=author2' },
-  { id: 'author-3', name: 'Aiko Suzuki', avatarUrl: 'https://picsum.photos/100/100?random=author3' },
-  { id: 'author-4', name: 'Haru Yamamoto', avatarUrl: 'https://picsum.photos/100/100?random=author4' },
+  { 
+    id: 'author-1', 
+    name: 'Kenji Tanaka', 
+    avatarUrl: 'https://picsum.photos/100/100?random=author1',
+    contactEmail: 'kenji.tanaka@example.com',
+    socialLinks: [{ platform: 'Twitter', url: 'https://twitter.com/kenji_manga' }]
+  },
+  { 
+    id: 'author-2', 
+    name: 'Yuki Sato', 
+    avatarUrl: 'https://picsum.photos/100/100?random=author2',
+    contactEmail: 'yuki.sato.art@example.com',
+    socialLinks: [{ platform: 'Instagram', url: 'https://instagram.com/yuki_draws' }]
+  },
+  { 
+    id: 'author-3', 
+    name: 'Aiko Suzuki', 
+    avatarUrl: 'https://picsum.photos/100/100?random=author3' 
+    // No contact info provided for this author
+  },
+  { 
+    id: 'user-123', // This ID matches MOCK_USER_VALID from AuthContext
+    name: 'Test User (Author)', 
+    avatarUrl: 'https://picsum.photos/100/100?random=user',
+    contactEmail: 'testuser.author@example.com',
+    socialLinks: [{ platform: 'Website', url: 'https://testuserauthor.com'}]
+  },
 ];
 
 const investmentOffer1: MangaInvestmentOffer = {
   sharesOfferedTotalPercent: 20,
-  totalSharesInOffer: 100, // 20% revenue share divided into 100 investable shares
-  pricePerShare: 50, // $50 per share
-  minSubscriptionRequirement: 5, // Must be subscribed to at least 5 manga
+  totalSharesInOffer: 100, 
+  pricePerShare: 50, 
+  minSubscriptionRequirement: 5, 
   description: "Invest in 'The Wandering Blade' and receive a share of its revenue from subscriptions, donations, and merchandise sales. You'll also own a part of the manga's IP for future adaptations (anime, movies, etc.).",
   isActive: true,
 };
@@ -34,7 +57,7 @@ const investmentOffer2: MangaInvestmentOffer = {
 };
 
 
-export const mockMangaSeries: MangaSeries[] = [
+export const mockMangaSeriesData: MangaSeries[] = [
   {
     id: 'manga-1',
     title: 'The Wandering Blade',
@@ -49,7 +72,7 @@ export const mockMangaSeries: MangaSeries[] = [
     ],
     freePreviewPageCount: 2,
     subscriptionPrice: 5,
-    totalRevenueFromSubscriptions: 1250, // Mock initial revenue
+    totalRevenueFromSubscriptions: 1250, 
     totalRevenueFromDonations: 350,
     totalRevenueFromMerchandise: 0,
     investmentOffer: investmentOffer1,
@@ -57,6 +80,10 @@ export const mockMangaSeries: MangaSeries[] = [
       { userId: 'investor-alpha', userName: 'Alpha Investor', sharesOwned: 10, totalAmountInvested: 500, joinedDate: new Date(Date.now() - 1000*60*60*24*30).toISOString()},
       { userId: 'investor-beta', userName: 'Beta Investor', sharesOwned: 5, totalAmountInvested: 250, joinedDate: new Date(Date.now() - 1000*60*60*24*15).toISOString()},
     ],
+    publishedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 60).toISOString(), // ~2 months ago
+    averageRating: 2.8,
+    ratingCount: 150,
+    viewCount: 12000,
   },
   {
     id: 'manga-2',
@@ -76,6 +103,10 @@ export const mockMangaSeries: MangaSeries[] = [
     totalRevenueFromMerchandise: 0,
     investmentOffer: investmentOffer2,
     investors: [],
+    publishedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).toISOString(), // ~1 month ago
+    averageRating: 2.5,
+    ratingCount: 95,
+    viewCount: 8500,
   },
   {
     id: 'manga-3',
@@ -91,52 +122,68 @@ export const mockMangaSeries: MangaSeries[] = [
       { id: 'manga-3-chapter-4', title: 'The Shadow Council', chapterNumber: 4, pages: generatePages('m3c4', 10) },
     ],
     freePreviewPageCount: 1,
-    // No subscription price, implies it might be fully free or has different model
     totalRevenueFromSubscriptions: 0,
     totalRevenueFromDonations: 50,
     totalRevenueFromMerchandise: 0,
-    // No investment offer for this one
     investors: [],
+    publishedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 90).toISOString(), // ~3 months ago
+    averageRating: 2.2,
+    ratingCount: 200,
+    viewCount: 15000,
   },
   {
-    id: 'manga-4',
-    title: 'Slice of Life Cafe',
-    author: mockAuthors[3],
-    summary: 'Warm and heartwarming stories centered around a small, cozy cafe and its regular customers. Each chapter explores the everyday lives, dreams, and relationships of different characters.',
-    coverImage: 'https://picsum.photos/400/600?random=cover4',
-    genres: ['Slice of Life', 'Comedy', 'Romance', 'Contemporary'],
+    id: 'manga-4', // This manga will be authored by MOCK_USER_VALID
+    title: 'My Author Adventure',
+    author: mockAuthors[3], // Corresponds to 'user-123' Test User (Author)
+    summary: 'A special manga series created by our platform\'s Test User! Follow their creative journey.',
+    coverImage: 'https://picsum.photos/400/600?random=cover-user-author',
+    genres: ['Slice of Life', 'Meta', 'Comedy'],
     chapters: [
-      { id: 'manga-4-chapter-1', title: 'The Usual Order', chapterNumber: 1, pages: generatePages('m4c1', 7) },
-      { id: 'manga-4-chapter-2', title: 'Rainy Day Musings', chapterNumber: 2, pages: generatePages('m4c2', 8) },
+      { id: 'manga-4-chapter-1', title: 'The First Spark', chapterNumber: 1, pages: generatePages('m4c1', 5) },
     ],
-    freePreviewPageCount: 5,
-    subscriptionPrice: 3,
-    totalRevenueFromSubscriptions: 300,
-    totalRevenueFromDonations: 75,
+    freePreviewPageCount: 2,
+    subscriptionPrice: 2,
+    totalRevenueFromSubscriptions: 50,
+    totalRevenueFromDonations: 10,
     totalRevenueFromMerchandise: 0,
     investors: [],
-    // No investment details, implying not open for investment
+    publishedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(), // ~5 days ago
+    averageRating: undefined, // No ratings yet
+    ratingCount: 0,
+    viewCount: 100,
   },
 ];
 
-// In a real app, manga data including financials would be fetched from a database
-// For this mock setup, we'll allow modification of this array by other parts of the app (e.g., AuthContext for simulations)
-// This is not ideal for a real app but helps for demonstration.
-export let modifiableMockMangaSeries = [...mockMangaSeries];
+
+export let modifiableMockMangaSeries = [...mockMangaSeriesData];
 
 export const getMangaById = (id: string): MangaSeries | undefined => {
   return modifiableMockMangaSeries.find(manga => manga.id === id);
 };
+
+export const getAuthorById = (id: string): AuthorInfo | undefined => {
+  return mockAuthors.find(author => author.id === id);
+}
 
 export const getChapterById = (mangaId: string, chapterId: string) => {
   const manga = getMangaById(mangaId);
   return manga?.chapters.find(chapter => chapter.id === chapterId);
 };
 
-// Function to update manga data (for simulation purposes)
 export const updateMockMangaData = (mangaId: string, updates: Partial<MangaSeries>) => {
   const mangaIndex = modifiableMockMangaSeries.findIndex(m => m.id === mangaId);
   if (mangaIndex !== -1) {
     modifiableMockMangaSeries[mangaIndex] = { ...modifiableMockMangaSeries[mangaIndex], ...updates };
+    console.log("Mock manga data updated:", modifiableMockMangaSeries[mangaIndex]);
   }
+};
+
+export const addMockMangaSeries = (newManga: MangaSeries) => {
+  // Check if author exists, if not, add to mockAuthors (simple version)
+  const authorExists = mockAuthors.some(a => a.id === newManga.author.id);
+  if (!authorExists) {
+    mockAuthors.push(newManga.author);
+  }
+  modifiableMockMangaSeries.unshift(newManga); // Add to the beginning to show it as "newest"
+  console.log("New mock manga added:", newManga);
 };

@@ -5,8 +5,8 @@ import type { MangaSeries } from '@/lib/types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'; // Added Avatar
+import { ArrowRight, Star } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 interface MangaCardProps {
   manga: MangaSeries;
@@ -33,12 +33,21 @@ export function MangaCard({ manga }: MangaCardProps) {
             {manga.title}
           </Link>
         </CardTitle>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-          <Avatar className="h-5 w-5">
-            <AvatarImage src={manga.author.avatarUrl} alt={manga.author.name} data-ai-hint="author avatar small" />
-            <AvatarFallback>{manga.author.name[0]}</AvatarFallback>
-          </Avatar>
-          <span>{manga.author.name}</span>
+        <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+          <div className="flex items-center gap-2">
+            <Avatar className="h-5 w-5">
+              <AvatarImage src={manga.author.avatarUrl} alt={manga.author.name} data-ai-hint="author avatar small" />
+              <AvatarFallback>{manga.author.name[0]}</AvatarFallback>
+            </Avatar>
+            <span>{manga.author.name}</span>
+          </div>
+          {manga.averageRating !== undefined && manga.ratingCount !== undefined && manga.ratingCount > 0 && (
+            <div className="flex items-center gap-1 text-yellow-500">
+              <Star className="h-3.5 w-3.5 fill-current" />
+              <span className="font-semibold">{manga.averageRating.toFixed(1)}</span>
+              <span className="text-muted-foreground">({manga.ratingCount})</span>
+            </div>
+          )}
         </div>
         <p className="text-sm text-muted-foreground line-clamp-3 mb-3">
           {manga.summary}

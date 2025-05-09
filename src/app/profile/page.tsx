@@ -1,4 +1,3 @@
-
 "use client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -10,10 +9,10 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from "@/components/ui/table";
-import { DollarSign, BookOpenCheck, BarChart3, Briefcase, LogOut, Landmark, Receipt } from "lucide-react";
+import { DollarSign, BookOpenCheck, BarChart3, Briefcase, LogOut, Landmark, Receipt, Edit3 } from "lucide-react";
 
 export default function ProfilePage() {
-  const { user, logout, viewingHistory, transactions } = useAuth(); // Added transactions
+  const { user, logout, viewingHistory, transactions } = useAuth(); 
   const router = useRouter();
 
   useEffect(() => {
@@ -37,18 +36,17 @@ export default function ProfilePage() {
     .sort(([, a], [, b]) => b.date.getTime() - a.date.getTime())
     .slice(0, 5);
 
-  // Mock calculating ROI for display
   const investmentsWithMockROI = user.investments.map(inv => ({
     ...inv,
-    // Simple mock ROI: 5-15% of amount invested, random for display
     mockCurrentValue: inv.amountInvested * (1 + (Math.random() * 0.10 + 0.05)), 
     mockProfit: (inv.amountInvested * (1 + (Math.random() * 0.10 + 0.05))) - inv.amountInvested,
   }));
 
   const handleWithdraw = () => {
-    // Mock withdrawal
     alert("Withdrawal feature is conceptual. In a real app, this would initiate a payout process.");
   };
+
+  const isAuthor = user.authoredMangaIds && user.authoredMangaIds.length > 0;
 
   return (
     <div className="space-y-8">
@@ -60,6 +58,7 @@ export default function ProfilePage() {
           </Avatar>
           <CardTitle className="text-3xl">{user.name}</CardTitle>
           <CardDescription className="text-lg">{user.email}</CardDescription>
+          {isAuthor && <Badge variant="secondary" className="mx-auto mt-2">Author</Badge>}
         </CardHeader>
         <CardContent className="text-center space-y-2">
             <div className="flex items-center justify-center text-2xl font-semibold text-primary">
@@ -68,11 +67,16 @@ export default function ProfilePage() {
             </div>
           <p className="text-muted-foreground">Manage your profile, subscriptions, and investments.</p>
         </CardContent>
-        <CardFooter className="flex justify-center gap-4">
-            <Button onClick={handleWithdraw} variant="outline">
+        <CardFooter className="flex flex-wrap justify-center gap-4">
+            {isAuthor && (
+              <Button asChild variant="default" className="w-full sm:w-auto">
+                <Link href="/author/dashboard"><Edit3 className="mr-2 h-4 w-4"/> Author Dashboard</Link>
+              </Button>
+            )}
+            <Button onClick={handleWithdraw} variant="outline" className="w-full sm:w-auto">
               <Landmark className="mr-2 h-4 w-4" /> Withdraw Funds (Mock)
             </Button>
-            <Button onClick={logout} variant="destructive">
+            <Button onClick={logout} variant="destructive" className="w-full sm:w-auto">
                 <LogOut className="mr-2 h-4 w-4" /> Logout
             </Button>
         </CardFooter>
@@ -150,8 +154,8 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
       
-      {/* Authored Manga - Conceptual */}
-      {user.authoredMangaIds.length > 0 && (
+      {/* Authored Manga - Conceptual - now replaced by Author Dashboard link */}
+      {/* {isAuthor && (
         <Card className="w-full max-w-2xl mx-auto">
           <CardHeader>
             <CardTitle className="flex items-center"><Briefcase className="mr-2 h-6 w-6 text-primary"/>My Authored Manga</CardTitle>
@@ -159,10 +163,9 @@ export default function ProfilePage() {
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground">Author dashboard features (setting prices, viewing detailed analytics, managing payouts) would appear here.</p>
-            {/* List authored manga with links to a dedicated author management page */}
           </CardContent>
         </Card>
-      )}
+      )} */}
 
 
       <Card className="w-full max-w-2xl mx-auto">

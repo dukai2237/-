@@ -1,18 +1,18 @@
 "use client";
 import Image from 'next/image';
 import { notFound, useRouter } from 'next/navigation';
-import { getMangaById, updateMockMangaData } from '@/lib/mock-data';
+import { getMangaById, getAuthorById, updateMockMangaData } from '@/lib/mock-data';
 import { ChapterListItem } from '@/components/manga/ChapterListItem';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { DollarSign, Gift, TrendingUp, CheckCircle, Landmark, Users, Percent, Info, PiggyBank, Ticket } from 'lucide-react';
+import { DollarSign, Gift, TrendingUp, CheckCircle, Landmark, Users, Percent, Info, PiggyBank, Ticket, Mail, Link as LinkIcon, ThumbsUp, ThumbsDown, Meh } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
-import { useState, useEffect, use as useReact } from 'react'; // Import React.use
+import { useState, useEffect, use as useReact } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -25,22 +25,20 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import type { MangaSeries } from '@/lib/types';
+import type { MangaSeries, AuthorInfo } from '@/lib/types';
 
 
 interface MangaDetailPageProps {
-  params: { mangaId: string }; // This represents the resolved params structure
+  params: { mangaId: string };
 }
 
 export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageProps) {
-  // Unwrap the params prop using React.use as suggested by Next.js warning
-  // The paramsProp might be a special promise-like object from Next.js
-  const resolvedParams = useReact(paramsProp as any); // Cast to any as the exact promise-like type is internal
+  const resolvedParams = useReact(paramsProp as any);
   const mangaId = resolvedParams.mangaId;
 
-  // Use local state for manga data to reflect simulated updates
   const [manga, setManga] = useState<MangaSeries | undefined>(() => getMangaById(mangaId));
-  const { user, isSubscribedToManga, subscribeToManga, donateToManga, investInManga } = useAuth();
+  const [authorDetails, setAuthorDetails] = useState<AuthorInfo | undefined>(undefined);
+  const { user, isSubscribedToManga, subscribeToManga, donateToManga, investInManga, rateManga } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -50,15 +48,21 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
   const [isInvestmentDialogOpen, setIsInvestmentDialogOpen] = useState(false);
 
   useEffect(() => {
-    // This effect ensures that if the underlying mock data changes (e.g. by AuthContext elsewhere),
-    // this component re-fetches it. This is for demonstration with mock data.
-    // In a real app with a DB, you might use a query library that handles re-fetching or updates.
+    const currentManga = getMangaById(mangaId);
+    setManga(currentManga);
+    if (currentManga) {
+      setAuthorDetails(getAuthorById(currentManga.author.id));
+    }
+
     const interval = setInterval(() => {
-      const freshManga = getMangaById(mangaId); // Use the resolved mangaId
+      const freshManga = getMangaById(mangaId);
       if (JSON.stringify(freshManga) !== JSON.stringify(manga)) {
         setManga(freshManga);
+        if (freshManga) {
+          setAuthorDetails(getAuthorById(freshManga.author.id));
+        }
       }
-    }, 1000); // Check for updates periodically
+    }, 1000); 
     return () => clearInterval(interval);
   }, [mangaId, manga]);
 
@@ -69,20 +73,11 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
 
   const handleSubscribe = async () => {
     if (!user) {
-      toast({
-        title: "Login Required",
-        description: "Please log in to subscribe.",
-        variant: "destructive",
-        action: <Button onClick={() => router.push('/login')}>Login</Button>
-      });
+      toast({ title: "Login Required", description: "Please log in to subscribe.", variant: "destructive", action: <Button onClick={() => router.push('/login')}>Login</Button> });
       return;
     }
     if (manga.subscriptionPrice) {
-      const success = await subscribeToManga(manga.id, manga.title, manga.subscriptionPrice);
-      if (success) {
-        // Refresh local manga state if needed, though AuthContext might handle this conceptually
-        setManga(getMangaById(manga.id)); 
-      }
+      await subscribeToManga(manga.id, manga.title, manga.subscriptionPrice);
     }
   };
 
@@ -95,7 +90,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
   }
 
   const handleDonate = async () => {
-    if (!user) return; // Should be caught by dialog trigger logic
+    if (!user) return; 
     const amount = parseFloat(donationAmount);
     if (isNaN(amount) || amount <= 0) {
       toast({ title: "Invalid Amount", description: "Please enter a valid positive amount to donate.", variant: "destructive" });
@@ -105,7 +100,6 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
     if (success) {
       setDonationAmount("");
       setIsDonationDialogOpen(false);
-      setManga(getMangaById(manga.id));
     }
   };
 
@@ -118,14 +112,8 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
       toast({ title: "Investment Closed", description: "This manga is not currently open for investment.", variant: "destructive" });
       return;
     }
-    // Check subscription requirement
     if (manga.investmentOffer.minSubscriptionRequirement && (!user.subscriptions || user.subscriptions.length < manga.investmentOffer.minSubscriptionRequirement)) {
-        toast({
-            title: "Investment Requirement Not Met",
-            description: `You must be subscribed to at least ${manga.investmentOffer.minSubscriptionRequirement} manga series to invest. You are currently subscribed to ${user.subscriptions?.length || 0}.`,
-            variant: "destructive",
-            duration: 7000,
-        });
+        toast({ title: "Investment Requirement Not Met", description: `You must be subscribed to at least ${manga.investmentOffer.minSubscriptionRequirement} manga series to invest. You are currently subscribed to ${user.subscriptions?.length || 0}.`, variant: "destructive", duration: 7000 });
         return;
     }
     setIsInvestmentDialogOpen(true);
@@ -143,8 +131,15 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
     if (success) {
       setInvestmentShares("");
       setIsInvestmentDialogOpen(false);
-      setManga(getMangaById(manga.id));
     }
+  };
+
+  const handleRating = async (score: 1 | 2 | 3) => {
+    if (!user) {
+      toast({ title: "Login Required", description: "Please log in to rate.", variant: "destructive", action: <Button onClick={() => router.push('/login')}>Login</Button> });
+      return;
+    }
+    await rateManga(manga.id, score);
   };
   
   const isUserAlreadySubscribed = user ? isSubscribedToManga(manga.id) : false;
@@ -169,13 +164,30 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
           </div>
           <div className="md:w-2/3 p-6 md:p-0 flex flex-col">
             <h1 className="text-3xl lg:text-4xl font-bold mb-2">{manga.title}</h1>
-            <div className="flex items-center gap-3 mb-3 text-muted-foreground">
+            <div className="flex items-center gap-3 mb-1 text-muted-foreground">
               <Avatar className="h-10 w-10">
                 <AvatarImage src={manga.author.avatarUrl} alt={manga.author.name} data-ai-hint="author avatar" />
                 <AvatarFallback>{manga.author.name[0]}</AvatarFallback>
               </Avatar>
               <span className="text-lg font-medium">{manga.author.name}</span>
             </div>
+
+            {authorDetails && (authorDetails.contactEmail || (authorDetails.socialLinks && authorDetails.socialLinks.length > 0)) && (
+              <div className="mb-3 text-sm text-muted-foreground space-y-1">
+                {authorDetails.contactEmail && (
+                  <div className="flex items-center gap-1.5">
+                    <Mail className="h-4 w-4" /> 
+                    <a href={`mailto:${authorDetails.contactEmail}`} className="hover:text-primary">{authorDetails.contactEmail}</a>
+                  </div>
+                )}
+                {authorDetails.socialLinks?.map(link => (
+                  <div key={link.platform} className="flex items-center gap-1.5">
+                    <LinkIcon className="h-4 w-4" />
+                    <a href={link.url} target="_blank" rel="noopener noreferrer" className="hover:text-primary">{link.platform}</a>
+                  </div>
+                ))}
+              </div>
+            )}
             
             <div className="flex flex-wrap gap-2 mb-4">
               {manga.genres.map((genre) => (
@@ -185,6 +197,32 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
             
             <p className="text-sm text-foreground leading-relaxed mb-6">{manga.summary}</p>
 
+             {/* Rating Section */}
+            <Card className="mb-4 bg-secondary/20">
+              <CardHeader className="p-3 pb-2">
+                <CardTitle className="text-md">Rate this Manga</CardTitle>
+              </CardHeader>
+              <CardContent className="p-3 pt-0 flex items-center justify-between">
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => handleRating(3)} title="Good">
+                    <ThumbsUp className="h-4 w-4 mr-1 text-green-500" /> Good
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => handleRating(2)} title="Neutral">
+                    <Meh className="h-4 w-4 mr-1 text-yellow-500" /> Neutral
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => handleRating(1)} title="Bad">
+                    <ThumbsDown className="h-4 w-4 mr-1 text-red-500" /> Bad
+                  </Button>
+                </div>
+                {manga.averageRating !== undefined && manga.ratingCount !== undefined && (
+                  <div className="text-sm text-muted-foreground">
+                    Avg: <span className="font-semibold text-primary">{manga.averageRating.toFixed(1)}</span> ({manga.ratingCount} ratings)
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+
             <Card className="mb-6 bg-secondary/30 p-4">
               <CardHeader className="p-0 pb-2">
                 <CardTitle className="text-lg flex items-center"><Landmark className="mr-2 h-5 w-5 text-primary" />Manga Financials (Mock)</CardTitle>
@@ -192,8 +230,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
               <CardContent className="p-0 text-sm space-y-1">
                 <p>Revenue from Subscriptions: <span className="font-semibold">${(manga.totalRevenueFromSubscriptions || 0).toFixed(2)}</span></p>
                 <p>Revenue from Donations: <span className="font-semibold">${(manga.totalRevenueFromDonations || 0).toFixed(2)}</span></p>
-                 {/* <p>Conceptual Platform Share (10%): $XXX.XX</p>
-                <p>Conceptual Investor Pool Share (YY%): $YYY.YY</p> */}
+                 <p>Views: <span className="font-semibold">{manga.viewCount.toLocaleString()}</span></p>
               </CardContent>
             </Card>
 
@@ -297,7 +334,6 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
         )}
       </div>
 
-      {/* Donation Dialog */}
       <Dialog open={isDonationDialogOpen} onOpenChange={setIsDonationDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -326,7 +362,6 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
         </DialogContent>
       </Dialog>
 
-      {/* Investment Dialog */}
       {currentInvestmentOffer && (
       <Dialog open={isInvestmentDialogOpen} onOpenChange={setIsInvestmentDialogOpen}>
         <DialogContent>
@@ -366,6 +401,6 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
         </DialogContent>
       </Dialog>
       )}
-
     </div>
   );
+}
