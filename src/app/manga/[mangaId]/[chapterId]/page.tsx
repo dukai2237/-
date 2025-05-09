@@ -24,9 +24,6 @@ export async function generateMetadata({ params }: MangaReaderPageProps) {
 
 export default function MangaReaderPage({ params }: MangaReaderPageProps) {
   const { mangaId, chapterId } = params;
-  // manga and chapter data will be passed to MangaReaderView which is a client component
-  // and can fetch fresh data or use data passed as props.
-  // For this server component, we fetch once.
   const chapter = getChapterById(mangaId, chapterId);
   const manga = getMangaById(mangaId);
 
@@ -53,8 +50,13 @@ export default function MangaReaderPage({ params }: MangaReaderPageProps) {
             <span>{manga.author.name}</span>
         </Link>
       </div>
-      {/* Pass initial manga and chapter data. MangaReaderView will handle subscription checks. */}
-      <MangaReaderView pages={chapter.pages} mangaId={mangaId} chapterId={chapterId} initialManga={manga} />
+      <MangaReaderView 
+        pages={chapter.pages} 
+        mangaId={mangaId} 
+        chapterId={chapterId} 
+        initialManga={manga}
+        initialChapterNumber={chapter.chapterNumber}
+      />
     </div>
   );
 }

@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import type { MangaPage, MangaSeries } from '@/lib/types';
 import { MangaReaderControls } from './MangaReaderControls';
@@ -9,9 +10,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { XCircle, Lock, ShoppingCart } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
-// import { getMangaById as fetchMangaById } from '@/lib/mock-data'; // Not needed directly if initialManga is robust
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 
 
@@ -20,9 +20,10 @@ interface MangaReaderViewProps {
   mangaId: string;
   chapterId: string;
   initialManga: MangaSeries; 
+  initialChapterNumber: number;
 }
 
-export function MangaReaderView({ pages, mangaId, chapterId, initialManga }: MangaReaderViewProps) {
+export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initialChapterNumber }: MangaReaderViewProps) {
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +31,8 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga }: Man
   
   const [manga, setManga] = useState<MangaSeries>(initialManga); 
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
 
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
@@ -44,6 +47,15 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga }: Man
     const history = getViewingHistory(mangaId);
     if (history && history.chapterId === chapterId && history.pageIndex < pages.length) {
       setCurrentPageIndex(history.pageIndex);
+    } else {
+       // Check for #page=N in URL for initial load
+      const hash = window.location.hash;
+      if (hash.startsWith("#page=")) {
+        const pageNum = parseInt(hash.substring(6), 10);
+        if (!isNaN(pageNum) && pageNum > 0 && pageNum <= pages.length) {
+          setCurrentPageIndex(pageNum - 1);
+        }
+      }
     }
   }, [mangaId, chapterId, getViewingHistory, pages.length]);
 
@@ -68,6 +80,9 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga }: Man
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
+        return; // Don't interfere with form inputs
+      }
       if (event.key === 'ArrowRight') {
         handleNextPage();
       } else if (event.key === 'ArrowLeft') {
@@ -84,14 +99,7 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga }: Man
     if (!currentPageData) {
         setError("Page data not found.");
     }
-    const hash = window.location.hash;
-    if (hash.startsWith("#page=")) {
-      const pageNum = parseInt(hash.substring(6), 10);
-      if (!isNaN(pageNum) && pageNum > 0 && pageNum <= totalPages) {
-        setCurrentPageIndex(pageNum - 1);
-      }
-    }
-    // Ensure isLoading is set to false if there's no page data to load an image for.
+    
     if (!currentPageData || totalPages === 0) {
         setIsLoading(false);
     }
@@ -100,9 +108,10 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga }: Man
 
   useEffect(() => {
     if (totalPages > 0) {
-       router.replace(`#page=${currentPageIndex + 1}`, { scroll: false });
+      const newUrl = `${pathname}${searchParams.toString() ? '?' + searchParams.toString() : ''}#page=${currentPageIndex + 1}`;
+      router.replace(newUrl, { scroll: false });
     }
-  }, [currentPageIndex, router, totalPages]);
+  }, [currentPageIndex, router, totalPages, pathname, searchParams]);
 
   const onTouchStart = (e: React.TouchEvent) => {
     setTouchEndX(null); 
@@ -140,9 +149,15 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga }: Man
     );
   }
 
-  const freePreviewPageCount = manga.freePreviewPageCount || 0;
+  const freePreviewTotalPageCount = manga.freePreviewPageCount || 0;
+  const freePreviewChapterCount = manga.freePreviewChapterCount || 0;
+
+  const isChapterFree = initialChapterNumber <= freePreviewChapterCount;
+  const isPageInFreePreview = isChapterFree || currentPageIndex < freePreviewTotalPageCount;
+  
   const userIsSubscribed = isSubscribedToManga(mangaId); 
-  const needsSubscription = currentPageIndex >= freePreviewPageCount && !userIsSubscribed;
+  const needsSubscription = !isPageInFreePreview && !userIsSubscribed;
+
 
   if (!totalPages) {
     return (
@@ -184,7 +199,7 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga }: Man
                         title: "Login Required",
                         description: "Please log in to subscribe.",
                         variant: "destructive",
-                        action: <Button onClick={() => router.push('/login')}>Login</Button>
+                        action: <Button onClick={() => router.push('/login?redirect=' + `/manga/${mangaId}/${chapterId}`)}>Login</Button>
                     });
                     return;
                 }
@@ -208,16 +223,17 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga }: Man
   return (
     <div className="flex flex-col items-center pb-24"> 
       <div 
-        className="w-full max-w-3xl aspect-[800/1200] relative my-4 bg-muted rounded-md overflow-hidden shadow-lg touch-manipulation select-none"
+        className="w-full max-w-3xl aspect-[800/1200] relative my-4 bg-muted rounded-md overflow-hidden shadow-lg touch-manipulation select-none prevent-selection prevent-right-click"
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
         style={{ touchAction: 'pan-y' }} // Allow vertical scroll if content overflows, but prioritize horizontal for swipe
       >
-        {isLoading && currentPageData && ( // Only show skeleton if there's a page to load
+        {isLoading && currentPageData && ( 
             <Skeleton className="absolute inset-0 w-full h-full" />
         )}
         {currentPageData && (
+          <>
             <Image
                 key={currentPageData.id}
                 src={currentPageData.imageUrl}
@@ -230,11 +246,15 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga }: Man
                   setError(`Failed to load image for page ${currentPageIndex + 1}.`);
                   setIsLoading(false);
                 }}
-                className={`transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
+                className={`transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'} `}
                 data-ai-hint="manga page comic"
+                unoptimized={true} // Can help with some image optimization issues if they cause problems with context menu prevention
             />
+            {/* Transparent overlay to make direct image saving/interaction harder */}
+            <div className="absolute inset-0 w-full h-full z-10"></div>
+          </>
         )}
-        {!currentPageData && !isLoading && ( // If no page data and not loading, show a message
+        {!currentPageData && !isLoading && ( 
             <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
                 <p>Page not available.</p>
             </div>

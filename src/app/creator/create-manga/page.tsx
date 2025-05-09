@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, type FormEvent, useEffect, useMemo, useRef } from 'react';
@@ -41,6 +42,7 @@ export default function CreateMangaPage() {
 
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [freePreviewPageCount, setFreePreviewPageCount] = useState('2');
+  const [freePreviewChapterCount, setFreePreviewChapterCount] = useState('0');
   const [subscriptionPrice, setSubscriptionPrice] = useState('');
 
   const [chaptersInput, setChaptersInput] = useState<EditableChapterInput[]>([]);
@@ -132,7 +134,7 @@ export default function CreateMangaPage() {
     setChaptersInput([...chaptersInput, { 
       localId: `new-chapter-${Date.now()}`, 
       title: `第 ${chaptersInput.length + 1} 章`, 
-      pages: [] // Start with zero pages, user adds them
+      pages: [] 
     }]);
   };
 
@@ -144,20 +146,6 @@ export default function CreateMangaPage() {
 
   const removeChapterInput = (chapterLocalId: string) => {
     setChaptersInput(chaptersInput.filter(ch => ch.localId !== chapterLocalId));
-  };
-
-  // Adds a single blank page slot
-  const addSinglePageToChapterInput = (chapterLocalId: string) => {
-    setChaptersInput(chaptersInput.map(ch => {
-      if (ch.localId === chapterLocalId) {
-        if (ch.pages.length >= MAX_PAGES_PER_CHAPTER) {
-          toast({ title: "页面已达上限", description: `每章节最多只能有 ${MAX_PAGES_PER_CHAPTER} 页。`, variant: "destructive" });
-          return ch;
-        }
-        return { ...ch, pages: [...ch.pages, { localId: `new-page-${Date.now()}-${Math.random().toString(16).slice(2)}`, file: null, previewUrl: null }] };
-      }
-      return ch;
-    }));
   };
   
   const triggerPageUpload = (chapterLocalId: string) => {
@@ -177,62 +165,43 @@ export default function CreateMangaPage() {
         return;
       }
   
-      if (chapterToUpdate.pages.length + files.length > MAX_PAGES_PER_CHAPTER) {
-        toast({ title: "页面已达上限", description: `添加这些图片将超过每章节 ${MAX_PAGES_PER_CHAPTER} 页的限制。已添加 ${MAX_PAGES_PER_CHAPTER - chapterToUpdate.pages.length} 张图片。`, variant: "destructive" });
-        // Allow adding up to the limit
-        const filesToAddCount = MAX_PAGES_PER_CHAPTER - chapterToUpdate.pages.length;
-        if (filesToAddCount <= 0) {
-            if (event.target) event.target.value = "";
-            setTargetChapterForPageUpload(null);
-            return;
-        }
-        const filesToAdd = Array.from(files).slice(0, filesToAddCount);
-        if (filesToAdd.length === 0) {
-            if (event.target) event.target.value = "";
-            setTargetChapterForPageUpload(null);
-            return;
-        }
-        // Process only allowed number of files
-        const newPagePromises = filesToAdd.map(file => {
-            return new Promise<EditablePageInput>((resolve) => {
-              const reader = new FileReader();
-              const pageLocalId = `new-page-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-              reader.onloadend = () => {
-                resolve({ localId: pageLocalId, file: file, previewUrl: reader.result as string });
-              };
-              reader.readAsDataURL(file);
-            });
-          });
+      const filesToProcess = Array.from(files);
+      const remainingPageSlots = MAX_PAGES_PER_CHAPTER - chapterToUpdate.pages.length;
       
-          const newPages = await Promise.all(newPagePromises);
-      
-          setChaptersInput(prevChapters => prevChapters.map(ch =>
-            ch.localId === targetChapterForPageUpload
-              ? { ...ch, pages: [...ch.pages, ...newPages] }
-              : ch
-          ));
-
-      } else {
-        // Process all files
-        const newPagePromises = Array.from(files).map(file => {
-            return new Promise<EditablePageInput>((resolve) => {
-              const reader = new FileReader();
-              const pageLocalId = `new-page-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-              reader.onloadend = () => {
-                resolve({ localId: pageLocalId, file: file, previewUrl: reader.result as string });
-              };
-              reader.readAsDataURL(file);
-            });
-          });
-      
-          const newPages = await Promise.all(newPagePromises);
-      
-          setChaptersInput(prevChapters => prevChapters.map(ch =>
-            ch.localId === targetChapterForPageUpload
-              ? { ...ch, pages: [...ch.pages, ...newPages].slice(0, MAX_PAGES_PER_CHAPTER) } // Ensure not exceeding max
-              : ch
-          ));
+      if (filesToProcess.length > remainingPageSlots) {
+        toast({ 
+          title: "页面数量超出限制", 
+          description: `您尝试上传 ${filesToProcess.length} 张图片，但此章节仅剩 ${remainingPageSlots} 个空位 (总共 ${MAX_PAGES_PER_CHAPTER} 页)。已添加允许数量的图片。`, 
+          variant: "destructive",
+          duration: 7000
+        });
+        filesToProcess.splice(remainingPageSlots); // Keep only allowed number of files
       }
+
+      if (filesToProcess.length === 0) {
+        if (event.target) event.target.value = "";
+        setTargetChapterForPageUpload(null);
+        return;
+      }
+  
+      const newPagePromises = filesToProcess.map(file => {
+          return new Promise<EditablePageInput>((resolve) => {
+            const reader = new FileReader();
+            const pageLocalId = `new-page-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+            reader.onloadend = () => {
+              resolve({ localId: pageLocalId, file: file, previewUrl: reader.result as string });
+            };
+            reader.readAsDataURL(file);
+          });
+        });
+    
+        const newPages = await Promise.all(newPagePromises);
+    
+        setChaptersInput(prevChapters => prevChapters.map(ch =>
+          ch.localId === targetChapterForPageUpload
+            ? { ...ch, pages: [...ch.pages, ...newPages] }
+            : ch
+        ));
     }
   
     if (event.target) {
@@ -305,10 +274,18 @@ export default function CreateMangaPage() {
       toast({ title: "章节不完整", description: "所有章节必须至少有一页，并且所有页面都必须上传图片。", variant: "destructive" });
       return;
     }
-    if (parseInt(freePreviewPageCount, 10) > totalPagesInManga && totalPagesInManga > 0) { 
+    const parsedFreePageCount = parseInt(freePreviewPageCount, 10);
+    const parsedFreeChapterCount = parseInt(freePreviewChapterCount, 10);
+
+    if (parsedFreePageCount > totalPagesInManga && totalPagesInManga > 0) { 
       toast({ title: "免费预览页数无效", description: "免费预览页数不能超过漫画总页数。", variant: "destructive" });
       return;
     }
+    if (parsedFreeChapterCount > chaptersInput.length && chaptersInput.length > 0) {
+      toast({ title: "免费预览章节数无效", description: "免费预览章节数不能超过漫画总章节数。", variant: "destructive" });
+      return;
+    }
+
 
     let investmentOfferData: MangaInvestmentOffer | undefined = undefined;
     if (enableCrowdfunding) {
@@ -337,7 +314,8 @@ export default function CreateMangaPage() {
       summary,
       coverImage: coverImagePreview, 
       genres: selectedGenres,
-      freePreviewPageCount: parseInt(freePreviewPageCount, 10) || 0,
+      freePreviewPageCount: parsedFreePageCount || 0,
+      freePreviewChapterCount: parsedFreeChapterCount || 0,
       subscriptionPrice: subscriptionPrice ? parseFloat(subscriptionPrice) : undefined,
       investmentOffer: investmentOfferData,
       chaptersInput: chaptersInput.map(ch => ({ 
@@ -382,7 +360,7 @@ export default function CreateMangaPage() {
               <Textarea id="summary" value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="您的漫画的简要描述。" rows={4} required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="coverImageFile" suppressHydrationWarning>封面图片 * (模拟本地上传)</Label>
+              <Label htmlFor="coverImageFile" suppressHydrationWarning>封面图片 * (本地上传)</Label>
               <Input id="coverImageFile" type="file" accept="image/*" onChange={handleCoverImageChange} className="text-sm"/>
               {coverImagePreview && (
                 <div className="mt-2 relative aspect-[2/3] w-full max-w-[200px] rounded-md overflow-hidden border">
@@ -394,7 +372,6 @@ export default function CreateMangaPage() {
                     <UploadCloud className="h-10 w-10 text-muted-foreground" />
                  </div>
               )}
-              <p className="text-xs text-muted-foreground" suppressHydrationWarning>选择本地图片文件作为封面。实际应用中会上传到服务器。</p>
             </div>
             
             <div className="space-y-2">
@@ -475,15 +452,6 @@ export default function CreateMangaPage() {
                     />
                     <div className="flex items-center gap-2">
                       <Label className="text-sm font-medium" suppressHydrationWarning>页面 ({chapter.pages.length}/{MAX_PAGES_PER_CHAPTER})</Label>
-                       <Button 
-                          type="button" 
-                          variant="outline" 
-                          size="xs" 
-                          onClick={() => addSinglePageToChapterInput(chapter.localId)} 
-                          disabled={chapter.pages.length >= MAX_PAGES_PER_CHAPTER}
-                        >
-                          <PlusCircle className="mr-1 h-3 w-3.5" /> 添加单页
-                        </Button>
                         <Button 
                           type="button" 
                           variant="outline" 
@@ -491,7 +459,7 @@ export default function CreateMangaPage() {
                           onClick={() => triggerPageUpload(chapter.localId)}
                           disabled={chapter.pages.length >= MAX_PAGES_PER_CHAPTER}
                         >
-                          <Images className="mr-1 h-3 w-3.5" /> 批量添加图片
+                          <Images className="mr-1 h-3 w-3.5" /> 批量添加图片页
                         </Button>
                     </div>
                      {chapter.pages.length === 0 && <p className="text-xs text-muted-foreground">此章节没有页面。点击按钮添加图片。</p>}
@@ -504,7 +472,7 @@ export default function CreateMangaPage() {
                               <Trash2 className="h-3 w-3" />
                             </Button>
                           </div>
-                          {!page.previewUrl && !page.file && ( // Only show input if no image is set yet
+                          {!page.previewUrl && !page.file && ( 
                             <Input 
                               id={`page-image-upload-${chapter.localId}-${page.localId}`}
                               type="file" 
@@ -518,7 +486,7 @@ export default function CreateMangaPage() {
                               <Image src={page.previewUrl} alt={`Page ${pageIndex + 1} preview`} layout="fill" objectFit="contain" data-ai-hint="manga page create"/>
                             </div>
                           )}
-                          {!page.previewUrl && ( // Show placeholder if no preview (might be after blank add)
+                          {!page.previewUrl && ( 
                             <div className="flex items-center justify-center aspect-[2/3] w-full max-w-[150px] rounded border border-dashed bg-muted/30 mx-auto">
                               <FileImage className="h-8 w-8 text-muted-foreground" />
                             </div>
@@ -532,15 +500,22 @@ export default function CreateMangaPage() {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
-              <div className="space-y-2">
-                <Label htmlFor="freePreviewPageCount" suppressHydrationWarning>免费预览页数 * (最多 {totalPagesInManga})</Label>
-                <Input id="freePreviewPageCount" type="number" value={freePreviewPageCount} onChange={(e) => setFreePreviewPageCount(e.target.value)} min="0" max={totalPagesInManga > 0 ? totalPagesInManga.toString() : '0'} required />
+               <div className="space-y-2">
+                <Label htmlFor="freePreviewChapterCount" suppressHydrationWarning>免费预览章节数 * (最多 {chaptersInput.length})</Label>
+                <Input id="freePreviewChapterCount" type="number" value={freePreviewChapterCount} onChange={(e) => setFreePreviewChapterCount(e.target.value)} min="0" max={chaptersInput.length > 0 ? chaptersInput.length.toString() : '0'} required />
+                <p className="text-xs text-muted-foreground" suppressHydrationWarning>设置漫画系列开头有多少章节可以免费阅读。</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="subscriptionPrice" suppressHydrationWarning>订阅价格 (美元/月, 可选)</Label>
-                <Input id="subscriptionPrice" type="number" value={subscriptionPrice} onChange={(e) => setSubscriptionPrice(e.target.value)} placeholder="例如：4.99" step="0.01" min="0" />
+                <Label htmlFor="freePreviewPageCount" suppressHydrationWarning>免费预览总页数 * (最多 {totalPagesInManga})</Label>
+                <Input id="freePreviewPageCount" type="number" value={freePreviewPageCount} onChange={(e) => setFreePreviewPageCount(e.target.value)} min="0" max={totalPagesInManga > 0 ? totalPagesInManga.toString() : '0'} required />
+                <p className="text-xs text-muted-foreground" suppressHydrationWarning>除了免费章节外，额外可免费阅读的总页数 (在付费章节的开头)。</p>
               </div>
             </div>
+             <div className="space-y-2">
+                <Label htmlFor="subscriptionPrice" suppressHydrationWarning>订阅价格 (美元/月, 可选)</Label>
+                <Input id="subscriptionPrice" type="number" value={subscriptionPrice} onChange={(e) => setSubscriptionPrice(e.target.value)} placeholder="例如：4.99" step="0.01" min="0" />
+            </div>
+
 
             <div className="space-y-4 pt-4 border-t">
               <div className="flex items-center space-x-3">
@@ -594,3 +569,4 @@ export default function CreateMangaPage() {
     </div>
   );
 }
+

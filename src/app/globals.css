@@ -82,4 +82,25 @@
     @apply bg-background text-foreground;
     /* font-family removed to defer to Geist font variables set in layout.tsx */
   }
+  /* Prevent image selection and context menu */
+  .prevent-selection {
+    -webkit-user-select: none; /* Safari */
+    -ms-user-select: none; /* IE 10+ and Edge */
+    user-select: none; /* Standard syntax */
+    -webkit-touch-callout: none; /* iOS Safari */
+  }
+  .prevent-right-click img, .prevent-right-click div {
+    pointer-events: none; /* Disables right-click on images and divs with this class */
+  }
+   /* Attempt to disable screenshot functionality via CSS (very limited effectiveness) */
+  @media print {
+    .prevent-screenshot {
+      display: none !important;
+    }
+  }
+  .prevent-screenshot {
+    /* This is more of a deterrent, not foolproof */
+    -webkit-filter: blur(5px); filter: blur(5px); 
+  }
+
 }
