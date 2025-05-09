@@ -16,8 +16,8 @@ export function ChapterListItem({ mangaId, chapter }: ChapterListItemProps) {
           <div className="flex items-center gap-3">
             <BookText className="h-5 w-5 text-primary" />
             <div>
-              <h3 className="font-medium text-base">Chapter {chapter.chapterNumber}: {chapter.title}</h3>
-              <p className="text-sm text-muted-foreground">{chapter.pages.length} pages</p>
+              <h3 className="font-medium text-base" suppressHydrationWarning>Chapter {chapter.chapterNumber}: {chapter.title}</h3>
+              <p className="text-sm text-muted-foreground" suppressHydrationWarning>{chapter.pages.length} pages</p>
             </div>
           </div>
           <Button variant="ghost" size="icon" asChild className="text-muted-foreground hover:text-primary">
@@ -28,3 +28,5 @@ export function ChapterListItem({ mangaId, chapter }: ChapterListItemProps) {
     </li>
   );
 }
+
+    

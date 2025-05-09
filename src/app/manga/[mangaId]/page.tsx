@@ -163,13 +163,13 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
             />
           </div>
           <div className="md:w-2/3 p-6 md:p-0 flex flex-col">
-            <h1 className="text-3xl lg:text-4xl font-bold mb-2">{manga.title}</h1>
+            <h1 className="text-3xl lg:text-4xl font-bold mb-2" suppressHydrationWarning>{manga.title}</h1>
             <div className="flex items-center gap-3 mb-1 text-muted-foreground">
               <Avatar className="h-10 w-10">
                 <AvatarImage src={manga.author.avatarUrl} alt={manga.author.name} data-ai-hint="author avatar" />
                 <AvatarFallback>{manga.author.name[0]}</AvatarFallback>
               </Avatar>
-              <span className="text-lg font-medium">{manga.author.name}</span>
+              <span className="text-lg font-medium" suppressHydrationWarning>{manga.author.name}</span>
             </div>
 
             {authorDetails && (authorDetails.contactEmail || (authorDetails.socialLinks && authorDetails.socialLinks.length > 0)) && (
@@ -177,13 +177,13 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
                 {authorDetails.contactEmail && (
                   <div className="flex items-center gap-1.5">
                     <Mail className="h-4 w-4" /> 
-                    <a href={`mailto:${authorDetails.contactEmail}`} className="hover:text-primary">{authorDetails.contactEmail}</a>
+                    <a href={`mailto:${authorDetails.contactEmail}`} className="hover:text-primary" suppressHydrationWarning>{authorDetails.contactEmail}</a>
                   </div>
                 )}
                 {authorDetails.socialLinks?.map(link => (
                   <div key={link.platform} className="flex items-center gap-1.5">
                     <LinkIcon className="h-4 w-4" />
-                    <a href={link.url} target="_blank" rel="noopener noreferrer" className="hover:text-primary">{link.platform}</a>
+                    <a href={link.url} target="_blank" rel="noopener noreferrer" className="hover:text-primary" suppressHydrationWarning>{link.platform}</a>
                   </div>
                 ))}
               </div>
@@ -191,31 +191,31 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
             
             <div className="flex flex-wrap gap-2 mb-4">
               {manga.genres.map((genre) => (
-                <Badge key={genre} variant="outline">{genre}</Badge>
+                <Badge key={genre} variant="outline" suppressHydrationWarning>{genre}</Badge>
               ))}
             </div>
             
-            <p className="text-sm text-foreground leading-relaxed mb-6">{manga.summary}</p>
+            <p className="text-sm text-foreground leading-relaxed mb-6" suppressHydrationWarning>{manga.summary}</p>
 
              {/* Rating Section */}
             <Card className="mb-4 bg-secondary/20">
               <CardHeader className="p-3 pb-2">
-                <CardTitle className="text-md">Rate this Manga</CardTitle>
+                <CardTitle className="text-md" suppressHydrationWarning>Rate this Manga</CardTitle>
               </CardHeader>
               <CardContent className="p-3 pt-0 flex items-center justify-between">
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" onClick={() => handleRating(3)} title="Good">
-                    <ThumbsUp className="h-4 w-4 mr-1 text-green-500" /> Good
+                    <ThumbsUp className="h-4 w-4 mr-1 text-green-500" /> <span suppressHydrationWarning>Good</span>
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => handleRating(2)} title="Neutral">
-                    <Meh className="h-4 w-4 mr-1 text-yellow-500" /> Neutral
+                    <Meh className="h-4 w-4 mr-1 text-yellow-500" /> <span suppressHydrationWarning>Neutral</span>
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => handleRating(1)} title="Bad">
-                    <ThumbsDown className="h-4 w-4 mr-1 text-red-500" /> Bad
+                    <ThumbsDown className="h-4 w-4 mr-1 text-red-500" /> <span suppressHydrationWarning>Bad</span>
                   </Button>
                 </div>
                 {manga.averageRating !== undefined && manga.ratingCount !== undefined && (
-                  <div className="text-sm text-muted-foreground">
+                  <div className="text-sm text-muted-foreground" suppressHydrationWarning>
                     Avg: <span className="font-semibold text-primary">{manga.averageRating.toFixed(1)}</span> ({manga.ratingCount} ratings)
                   </div>
                 )}
@@ -225,12 +225,12 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
 
             <Card className="mb-6 bg-secondary/30 p-4">
               <CardHeader className="p-0 pb-2">
-                <CardTitle className="text-lg flex items-center"><Landmark className="mr-2 h-5 w-5 text-primary" />Manga Financials (Mock)</CardTitle>
+                <CardTitle className="text-lg flex items-center"><Landmark className="mr-2 h-5 w-5 text-primary" /><span suppressHydrationWarning>Manga Financials (Mock)</span></CardTitle>
               </CardHeader>
               <CardContent className="p-0 text-sm space-y-1">
-                <p>Revenue from Subscriptions: <span className="font-semibold">${(manga.totalRevenueFromSubscriptions || 0).toFixed(2)}</span></p>
-                <p>Revenue from Donations: <span className="font-semibold">${(manga.totalRevenueFromDonations || 0).toFixed(2)}</span></p>
-                 <p>Views: <span className="font-semibold">{manga.viewCount.toLocaleString()}</span></p>
+                <p suppressHydrationWarning>Revenue from Subscriptions: <span className="font-semibold">${(manga.totalRevenueFromSubscriptions || 0).toFixed(2)}</span></p>
+                <p suppressHydrationWarning>Revenue from Donations: <span className="font-semibold">${(manga.totalRevenueFromDonations || 0).toFixed(2)}</span></p>
+                 <p suppressHydrationWarning>Views: <span className="font-semibold">{manga.viewCount.toLocaleString()}</span></p>
               </CardContent>
             </Card>
 
@@ -244,17 +244,17 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
                 >
                   {isUserAlreadySubscribed ? (
                     <>
-                      <CheckCircle className="mr-2 h-5 w-5" /> Subscribed
+                      <CheckCircle className="mr-2 h-5 w-5" /> <span suppressHydrationWarning>Subscribed</span>
                     </>
                   ) : (
                     <>
-                     <DollarSign className="mr-2 h-5 w-5" /> Subscribe (${manga.subscriptionPrice.toFixed(2)}/month)
+                     <DollarSign className="mr-2 h-5 w-5" /> <span suppressHydrationWarning>Subscribe (${manga.subscriptionPrice.toFixed(2)}/month)</span>
                     </>
                   )}
                 </Button>
               )}
               <Button onClick={handleOpenDonationDialog} variant="outline" className="w-full text-lg py-6">
-                <Gift className="mr-2 h-5 w-5" /> Donate to Author
+                <Gift className="mr-2 h-5 w-5" /> <span suppressHydrationWarning>Donate to Author</span>
               </Button>
             </div>
           </div>
@@ -269,41 +269,41 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
             <CardHeader>
               <CardTitle className="text-2xl flex items-center">
                 <TrendingUp className="mr-3 h-7 w-7 text-primary" />
-                Investment Opportunity
+                <span suppressHydrationWarning>Investment Opportunity</span>
               </CardTitle>
-              <CardDescription>{currentInvestmentOffer.description}</CardDescription>
+              <CardDescription suppressHydrationWarning>{currentInvestmentOffer.description}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <p className="font-semibold flex items-center"><Percent className="mr-2 h-4 w-4 text-muted-foreground" />Revenue Share for Investors:</p>
-                  <p className="text-lg text-primary">{currentInvestmentOffer.sharesOfferedTotalPercent}%</p>
+                  <p className="font-semibold flex items-center"><Percent className="mr-2 h-4 w-4 text-muted-foreground" /><span suppressHydrationWarning>Revenue Share for Investors (%):</span></p>
+                  <p className="text-lg text-primary" suppressHydrationWarning>{currentInvestmentOffer.sharesOfferedTotalPercent}%</p>
                 </div>
                 <div>
-                  <p className="font-semibold flex items-center"><Ticket className="mr-2 h-4 w-4 text-muted-foreground" />Total Shares in Offer:</p>
-                  <p className="text-lg">{currentInvestmentOffer.totalSharesInOffer}</p>
+                  <p className="font-semibold flex items-center"><Ticket className="mr-2 h-4 w-4 text-muted-foreground" /><span suppressHydrationWarning>Total Shares in Offer:</span></p>
+                  <p className="text-lg" suppressHydrationWarning>{currentInvestmentOffer.totalSharesInOffer}</p>
                 </div>
                 <div>
-                  <p className="font-semibold flex items-center"><DollarSign className="mr-2 h-4 w-4 text-muted-foreground" />Price Per Share:</p>
-                  <p className="text-lg">${currentInvestmentOffer.pricePerShare.toFixed(2)}</p>
+                  <p className="font-semibold flex items-center"><DollarSign className="mr-2 h-4 w-4 text-muted-foreground" /><span suppressHydrationWarning>Price Per Share:</span></p>
+                  <p className="text-lg" suppressHydrationWarning>${currentInvestmentOffer.pricePerShare.toFixed(2)}</p>
                 </div>
                  <div>
-                  <p className="font-semibold flex items-center"><PiggyBank className="mr-2 h-4 w-4 text-muted-foreground" />Shares Remaining:</p>
-                  <p className="text-lg">{sharesRemaining > 0 ? sharesRemaining : 'Offer Fully Vested'}</p>
+                  <p className="font-semibold flex items-center"><PiggyBank className="mr-2 h-4 w-4 text-muted-foreground" /><span suppressHydrationWarning>Shares Remaining:</span></p>
+                  <p className="text-lg" suppressHydrationWarning>{sharesRemaining > 0 ? sharesRemaining : 'Offer Fully Vested'}</p>
                 </div>
               </div>
                {currentInvestmentOffer.minSubscriptionRequirement && (
-                <p className="text-xs text-muted-foreground flex items-center">
+                <p className="text-xs text-muted-foreground flex items-center" suppressHydrationWarning>
                   <Info className="mr-1 h-3 w-3"/> Requires subscription to {currentInvestmentOffer.minSubscriptionRequirement} manga series.
                   {user && user.subscriptions && ` You are subscribed to ${user.subscriptions.length}.`}
                 </p>
               )}
               {manga.investors.length > 0 && (
                 <div>
-                  <h4 className="font-semibold mb-2 flex items-center"><Users className="mr-2 h-5 w-5 text-muted-foreground"/>Current Investors ({manga.investors.length}):</h4>
+                  <h4 className="font-semibold mb-2 flex items-center"><Users className="mr-2 h-5 w-5 text-muted-foreground"/><span suppressHydrationWarning>Current Investors ({manga.investors.length}):</span></h4>
                   <ul className="list-disc list-inside pl-2 text-sm space-y-1 max-h-24 overflow-y-auto">
                     {manga.investors.map(inv => (
-                      <li key={inv.userId}>{inv.userName} ({inv.sharesOwned} shares)</li>
+                      <li key={inv.userId} suppressHydrationWarning>{inv.userName} ({inv.sharesOwned} shares)</li>
                     ))}
                   </ul>
                 </div>
@@ -311,7 +311,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
             </CardContent>
             <CardFooter>
               <Button onClick={handleOpenInvestmentDialog} className="w-full text-lg py-6" disabled={sharesRemaining <= 0}>
-                <TrendingUp className="mr-2 h-5 w-5" /> Invest Now
+                <TrendingUp className="mr-2 h-5 w-5" /> <span suppressHydrationWarning>Invest Now</span>
               </Button>
             </CardFooter>
           </Card>
@@ -322,7 +322,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
       <Separator className="my-8" />
 
       <div>
-        <h2 className="text-2xl font-semibold mb-4">Chapters</h2>
+        <h2 className="text-2xl font-semibold mb-4" suppressHydrationWarning>Chapters</h2>
         {manga.chapters.length > 0 ? (
           <ul className="border rounded-lg overflow-hidden bg-card shadow">
             {manga.chapters.sort((a,b) => a.chapterNumber - b.chapterNumber).map((chapter) => (
@@ -330,21 +330,21 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
             ))}
           </ul>
         ) : (
-          <p className="text-muted-foreground">No chapters available yet.</p>
+          <p className="text-muted-foreground" suppressHydrationWarning>No chapters available yet.</p>
         )}
       </div>
 
       <Dialog open={isDonationDialogOpen} onOpenChange={setIsDonationDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Donate to {manga.author.name} for {manga.title}</DialogTitle>
-            <DialogDescription>
+            <DialogTitle suppressHydrationWarning>Donate to {manga.author.name} for {manga.title}</DialogTitle>
+            <DialogDescription suppressHydrationWarning>
               Show your support for the creator! Your donation (minus platform fees) goes towards supporting their work.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="donationAmount" className="text-right">Amount ($)</Label>
+              <Label htmlFor="donationAmount" className="text-right" suppressHydrationWarning>Amount ($)</Label>
               <Input
                 id="donationAmount"
                 type="number"
@@ -356,8 +356,8 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
             </div>
           </div>
           <DialogFooter>
-            <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-            <Button onClick={handleDonate}>Donate</Button>
+            <DialogClose asChild><Button variant="outline"><span suppressHydrationWarning>Cancel</span></Button></DialogClose>
+            <Button onClick={handleDonate}><span suppressHydrationWarning>Donate</span></Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -366,8 +366,8 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
       <Dialog open={isInvestmentDialogOpen} onOpenChange={setIsInvestmentDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Invest in {manga.title}</DialogTitle>
-            <DialogDescription>
+            <DialogTitle suppressHydrationWarning>Invest in {manga.title}</DialogTitle>
+            <DialogDescription suppressHydrationWarning>
               Purchase shares and become a part of this manga's success.
               Price per share: ${currentInvestmentOffer.pricePerShare.toFixed(2)}. Shares remaining: {sharesRemaining}.
               {currentInvestmentOffer.maxSharesPerUser && ` Max ${currentInvestmentOffer.maxSharesPerUser} shares per user.`}
@@ -375,7 +375,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="investmentShares" className="text-right">Shares</Label>
+              <Label htmlFor="investmentShares" className="text-right" suppressHydrationWarning>Shares</Label>
               <Input
                 id="investmentShares"
                 type="number"
@@ -388,15 +388,15 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
               />
             </div>
             {investmentShares && parseInt(investmentShares) > 0 && (
-              <p className="text-sm text-center text-muted-foreground col-span-4">
+              <p className="text-sm text-center text-muted-foreground col-span-4" suppressHydrationWarning>
                 Total Cost: {parseInt(investmentShares)} shares * ${currentInvestmentOffer.pricePerShare.toFixed(2)} = 
                 <span className="font-semibold text-primary"> ${(parseInt(investmentShares) * currentInvestmentOffer.pricePerShare).toFixed(2)}</span>
               </p>
             )}
           </div>
           <DialogFooter>
-            <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-            <Button onClick={handleInvest} disabled={!investmentShares || parseInt(investmentShares) <=0 || parseInt(investmentShares) > sharesRemaining}>Invest</Button>
+            <DialogClose asChild><Button variant="outline"><span suppressHydrationWarning>Cancel</span></Button></DialogClose>
+            <Button onClick={handleInvest} disabled={!investmentShares || parseInt(investmentShares) <=0 || parseInt(investmentShares) > sharesRemaining}><span suppressHydrationWarning>Invest</span></Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -404,3 +404,5 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
     </div>
   );
 }
+
+    
