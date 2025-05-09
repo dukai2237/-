@@ -1,4 +1,5 @@
 import type { MangaSeries, MangaPage, AuthorInfo, MangaInvestmentOffer } from './types';
+import { MANGA_GENRES_DETAILS } from './constants'; // Import genres
 
 const generatePages = (chapterId: string, count: number): MangaPage[] => {
   return Array.from({ length: count }, (_, i) => ({
@@ -27,14 +28,13 @@ const mockAuthors: AuthorInfo[] = [
     id: 'author-3', 
     name: 'Aiko Suzuki', 
     avatarUrl: 'https://picsum.photos/100/100?random=author3' 
-    // No contact info provided for this author
   },
   { 
-    id: 'user-123', // This ID matches MOCK_USER_VALID from AuthContext
-    name: 'Test User (Author)', 
-    avatarUrl: 'https://picsum.photos/100/100?random=user',
-    contactEmail: 'testuser.author@example.com',
-    socialLinks: [{ platform: 'Website', url: 'https://testuserauthor.com'}]
+    id: 'user-123', 
+    name: 'Test Creator', // Matched MOCK_USER_VALID name
+    avatarUrl: 'https://picsum.photos/100/100?random=creator', // Matched MOCK_USER_VALID avatar
+    contactEmail: 'test@example.com', // Matched MOCK_USER_VALID email
+    socialLinks: [{ platform: 'Website', url: 'https://testcreator.com'}]
   },
 ];
 
@@ -63,8 +63,8 @@ export const mockMangaSeriesData: MangaSeries[] = [
     title: 'The Wandering Blade',
     author: mockAuthors[0],
     summary: 'A lone swordsman travels a war-torn land, seeking redemption and a lost artifact of immense power. His journey is filled with perilous encounters and moral dilemmas.',
-    coverImage: 'https://picsum.photos/400/600?random=cover1',
-    genres: ['Action', 'Adventure', 'Fantasy', 'Samurai'],
+    coverImage: 'https://picsum.photos/400/600?random=manga1',
+    genres: [MANGA_GENRES_DETAILS.find(g=>g.id==='action')!.id, MANGA_GENRES_DETAILS.find(g=>g.id==='adventure')!.id, MANGA_GENRES_DETAILS.find(g=>g.id==='fantasy')!.id],
     chapters: [
       { id: 'manga-1-chapter-1', title: 'The Crossroads', chapterNumber: 1, pages: generatePages('m1c1', 8) },
       { id: 'manga-1-chapter-2', title: 'Whispers in the Woods', chapterNumber: 2, pages: generatePages('m1c2', 10) },
@@ -80,7 +80,7 @@ export const mockMangaSeriesData: MangaSeries[] = [
       { userId: 'investor-alpha', userName: 'Alpha Investor', sharesOwned: 10, totalAmountInvested: 500, joinedDate: new Date(Date.now() - 1000*60*60*24*30).toISOString()},
       { userId: 'investor-beta', userName: 'Beta Investor', sharesOwned: 5, totalAmountInvested: 250, joinedDate: new Date(Date.now() - 1000*60*60*24*15).toISOString()},
     ],
-    publishedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 60).toISOString(), // ~2 months ago
+    publishedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 60).toISOString(), 
     averageRating: 2.8,
     ratingCount: 150,
     viewCount: 12000,
@@ -90,8 +90,8 @@ export const mockMangaSeriesData: MangaSeries[] = [
     title: 'Cybernetic Heart',
     author: mockAuthors[1],
     summary: 'In a futuristic city, a detective with cybernetic enhancements uncovers a conspiracy that reaches the highest levels of society while grappling with her own humanity.',
-    coverImage: 'https://picsum.photos/400/600?random=cover2',
-    genres: ['Sci-Fi', 'Mystery', 'Cyberpunk', 'Action'],
+    coverImage: 'https://picsum.photos/400/600?random=manga2',
+    genres: [MANGA_GENRES_DETAILS.find(g=>g.id==='sci-fi')!.id, MANGA_GENRES_DETAILS.find(g=>g.id==='mystery')!.id, MANGA_GENRES_DETAILS.find(g=>g.id==='action')!.id],
     chapters: [
       { id: 'manga-2-chapter-1', title: 'Neon Dreams', chapterNumber: 1, pages: generatePages('m2c1', 10) },
       { id: 'manga-2-chapter-2', title: 'Data Ghost', chapterNumber: 2, pages: generatePages('m2c2', 9) },
@@ -103,7 +103,7 @@ export const mockMangaSeriesData: MangaSeries[] = [
     totalRevenueFromMerchandise: 0,
     investmentOffer: investmentOffer2,
     investors: [],
-    publishedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).toISOString(), // ~1 month ago
+    publishedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).toISOString(), 
     averageRating: 2.5,
     ratingCount: 95,
     viewCount: 8500,
@@ -113,8 +113,8 @@ export const mockMangaSeriesData: MangaSeries[] = [
     title: 'Chronicles of Eldoria',
     author: mockAuthors[2],
     summary: 'A young mage discovers her latent powers and must embark on a quest to save the magical kingdom of Eldoria from an ancient evil. Along the way, she meets brave companions and uncovers forgotten lore.',
-    coverImage: 'https://picsum.photos/400/600?random=cover3',
-    genres: ['Fantasy', 'Magic', 'Adventure', 'Coming-of-Age'],
+    coverImage: 'https://picsum.photos/400/600?random=manga3',
+    genres: [MANGA_GENRES_DETAILS.find(g=>g.id==='fantasy')!.id, MANGA_GENRES_DETAILS.find(g=>g.id==='adventure')!.id],
     chapters: [
       { id: 'manga-3-chapter-1', title: 'The Awakening', chapterNumber: 1, pages: generatePages('m3c1', 15) },
       { id: 'manga-3-chapter-2', title: 'The Forbidden Forest', chapterNumber: 2, pages: generatePages('m3c2', 11) },
@@ -126,18 +126,18 @@ export const mockMangaSeriesData: MangaSeries[] = [
     totalRevenueFromDonations: 50,
     totalRevenueFromMerchandise: 0,
     investors: [],
-    publishedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 90).toISOString(), // ~3 months ago
+    publishedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 90).toISOString(), 
     averageRating: 2.2,
     ratingCount: 200,
     viewCount: 15000,
   },
   {
-    id: 'manga-4', // This manga will be authored by MOCK_USER_VALID
+    id: 'manga-4',
     title: 'My Author Adventure',
-    author: mockAuthors[3], // Corresponds to 'user-123' Test User (Author)
-    summary: 'A special manga series created by our platform\'s Test User! Follow their creative journey.',
-    coverImage: 'https://picsum.photos/400/600?random=cover-user-author',
-    genres: ['Slice of Life', 'Meta', 'Comedy'],
+    author: mockAuthors[3], 
+    summary: 'A special manga series created by our platform\'s Test Creator! Follow their creative journey.',
+    coverImage: 'https://picsum.photos/400/600?random=manga4',
+    genres: [MANGA_GENRES_DETAILS.find(g=>g.id==='comedy')!.id, MANGA_GENRES_DETAILS.find(g=>g.id==='healing')!.id],
     chapters: [
       { id: 'manga-4-chapter-1', title: 'The First Spark', chapterNumber: 1, pages: generatePages('m4c1', 5) },
     ],
@@ -147,13 +147,12 @@ export const mockMangaSeriesData: MangaSeries[] = [
     totalRevenueFromDonations: 10,
     totalRevenueFromMerchandise: 0,
     investors: [],
-    publishedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(), // ~5 days ago
-    averageRating: undefined, // No ratings yet
+    publishedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(), 
+    averageRating: undefined, 
     ratingCount: 0,
     viewCount: 100,
   },
 ];
-
 
 export let modifiableMockMangaSeries = [...mockMangaSeriesData];
 
@@ -173,17 +172,44 @@ export const getChapterById = (mangaId: string, chapterId: string) => {
 export const updateMockMangaData = (mangaId: string, updates: Partial<MangaSeries>) => {
   const mangaIndex = modifiableMockMangaSeries.findIndex(m => m.id === mangaId);
   if (mangaIndex !== -1) {
+    // If chapters are being updated, ensure page arrays are correctly generated
+    if (updates.chapters) {
+      updates.chapters = updates.chapters.map((ch, index) => {
+        // If pages are passed directly, use them. Otherwise, generate based on a pageCount if provided.
+        // This assumes the update structure for chapters might change page counts or titles.
+        // For simplicity, if `ch.pages` is not provided or is just a number (pageCount), regenerate.
+        let pagesArray: MangaPage[];
+        if (Array.isArray(ch.pages) && ch.pages.every(p => typeof p === 'object' && p.id && p.imageUrl)) {
+          pagesArray = ch.pages; // Use existing pages array if valid
+        } else {
+          // Assume ch.pages might be a pageCount or needs regeneration
+          // If pages is a number, it means pageCount. Otherwise, it's an array of MangaPage.
+          const pageCount = Array.isArray(ch.pages) ? ch.pages.length : (typeof (ch as any).pageCount === 'number' ? (ch as any).pageCount : 10);
+          pagesArray = generatePages(ch.id || `${mangaId}-chapter-${index + 1}-regen`, pageCount);
+        }
+        return {
+          ...ch,
+          id: ch.id || `${mangaId}-chapter-${index + 1}-updated-${Date.now()}`, // Ensure ID
+          chapterNumber: ch.chapterNumber || index + 1, // Ensure chapter number
+          pages: pagesArray,
+        };
+      });
+    }
     modifiableMockMangaSeries[mangaIndex] = { ...modifiableMockMangaSeries[mangaIndex], ...updates };
     console.log("Mock manga data updated:", modifiableMockMangaSeries[mangaIndex]);
   }
 };
 
 export const addMockMangaSeries = (newManga: MangaSeries) => {
-  // Check if author exists, if not, add to mockAuthors (simple version)
   const authorExists = mockAuthors.some(a => a.id === newManga.author.id);
   if (!authorExists) {
     mockAuthors.push(newManga.author);
   }
-  modifiableMockMangaSeries.unshift(newManga); // Add to the beginning to show it as "newest"
+  modifiableMockMangaSeries.unshift(newManga); 
   console.log("New mock manga added:", newManga);
+};
+
+export const deleteMockMangaData = (mangaId: string) => {
+  modifiableMockMangaSeries = modifiableMockMangaSeries.filter(manga => manga.id !== mangaId);
+  console.log(`Mock manga data deleted: ${mangaId}`);
 };

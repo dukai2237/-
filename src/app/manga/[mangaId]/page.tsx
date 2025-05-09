@@ -2,7 +2,7 @@
 "use client";
 import Image from 'next/image';
 import { notFound, useRouter } from 'next/navigation';
-import { getMangaById, getAuthorById, updateMockMangaData } from '@/lib/mock-data';
+import { getMangaById, getAuthorById } from '@/lib/mock-data'; // Removed updateMockMangaData, not used here
 import { ChapterListItem } from '@/components/manga/ChapterListItem';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -27,17 +27,17 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { MangaSeries, AuthorInfo } from '@/lib/types';
-
+import { MANGA_GENRES_DETAILS } from '@/lib/constants';
 
 interface MangaDetailPageProps {
   params: { mangaId: string };
 }
 
 export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageProps) {
-  const resolvedParams = use(paramsProp as any); 
+  const resolvedParams = use(paramsProp); 
   const mangaId = resolvedParams.mangaId;
 
-  const [manga, setManga] = useState<MangaSeries | undefined>(() => getMangaById(mangaId));
+  const [manga, setManga] = useState<MangaSeries | undefined>(undefined);
   const [authorDetails, setAuthorDetails] = useState<AuthorInfo | undefined>(undefined);
   const { user, isSubscribedToManga, subscribeToManga, donateToManga, investInManga, rateManga } = useAuth();
   const { toast } = useToast();
@@ -48,13 +48,14 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
   const [isDonationDialogOpen, setIsDonationDialogOpen] = useState(false);
   const [isInvestmentDialogOpen, setIsInvestmentDialogOpen] = useState(false);
 
-  // Effect to update manga data if mangaId changes (e.g., navigation)
   useEffect(() => {
     const currentMangaData = getMangaById(mangaId);
     setManga(currentMangaData);
+    if (!currentMangaData) {
+      notFound();
+    }
   }, [mangaId]);
 
-  // Effect to update authorDetails when manga state changes
   useEffect(() => {
     if (manga) {
       setAuthorDetails(getAuthorById(manga.author.id));
@@ -63,27 +64,35 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
     }
   }, [manga]);
 
-  // Effect for polling manga data
   useEffect(() => {
+    if (!mangaId) return;
     const interval = setInterval(() => {
       const freshMangaData = getMangaById(mangaId);
-      setManga(prevManga => {
-        if (JSON.stringify(freshMangaData) !== JSON.stringify(prevManga)) {
-          return freshMangaData;
-        }
-        return prevManga;
-      });
+      if (freshMangaData) {
+        setManga(prevManga => {
+          if (JSON.stringify(freshMangaData) !== JSON.stringify(prevManga)) {
+            return freshMangaData;
+          }
+          return prevManga;
+        });
+      } else {
+         // If manga becomes null/undefined (e.g. deleted), reflect that
+        setManga(undefined);
+      }
     }, 1000); 
     return () => clearInterval(interval);
   }, [mangaId]);
 
 
   if (!manga) {
-    // Initial load might still be resolving or manga truly not found
-    // Consider a loading state here if getMangaById could be async in future
-    // For now, if useState initializes and it's still undefined, notFound is appropriate.
-    notFound();
+    return <div className="text-center py-10">Loading manga details or manga not found...</div>;
   }
+
+  const getGenreName = (genreId: string) => {
+    const genreDetail = MANGA_GENRES_DETAILS.find(g => g.id === genreId);
+    return genreDetail ? genreDetail.name : genreId; // Show full name or ID
+  };
+
 
   const handleSubscribe = async () => {
     if (!user) {
@@ -204,14 +213,13 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
             )}
             
             <div className="flex flex-wrap gap-2 mb-4">
-              {manga.genres.map((genre) => (
-                <Badge key={genre} variant="outline" suppressHydrationWarning>{genre}</Badge>
+              {manga.genres.map((genreId) => (
+                <Badge key={genreId} variant="outline" suppressHydrationWarning>{getGenreName(genreId)}</Badge>
               ))}
             </div>
             
             <p className="text-sm text-foreground leading-relaxed mb-6" suppressHydrationWarning>{manga.summary}</p>
 
-             {/* Rating Section */}
             <Card className="mb-4 bg-secondary/20">
               <CardHeader className="p-3 pb-2">
                 <CardTitle className="text-md" suppressHydrationWarning>Rate this Manga</CardTitle>
@@ -236,7 +244,6 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
               </CardContent>
             </Card>
 
-
             <Card className="mb-6 bg-secondary/30 p-4">
               <CardHeader className="p-0 pb-2">
                 <CardTitle className="text-lg flex items-center"><Landmark className="mr-2 h-5 w-5 text-primary" /><span suppressHydrationWarning>Manga Financials (Mock)</span></CardTitle>
@@ -247,7 +254,6 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
                  <p suppressHydrationWarning>Views: <span className="font-semibold">{manga.viewCount.toLocaleString()}</span></p>
               </CardContent>
             </Card>
-
 
             <div className="mt-auto space-y-3">
               {manga.subscriptionPrice && (
@@ -276,7 +282,6 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
         </CardContent>
       </Card>
 
-      {/* Investment Section */}
       {currentInvestmentOffer && currentInvestmentOffer.isActive && (
         <>
           <Separator className="my-8" />
@@ -332,7 +337,6 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
           </Card>
         </>
       )}
-
 
       <Separator className="my-8" />
 

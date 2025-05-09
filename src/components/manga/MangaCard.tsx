@@ -7,12 +7,18 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ArrowRight, Star } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { MANGA_GENRES_DETAILS } from '@/lib/constants';
 
 interface MangaCardProps {
   manga: MangaSeries;
 }
 
 export function MangaCard({ manga }: MangaCardProps) {
+  const getGenreName = (genreId: string) => {
+    const genreDetail = MANGA_GENRES_DETAILS.find(g => g.id === genreId);
+    return genreDetail ? genreDetail.name.split('(')[0].trim() : genreId; // Show only Chinese part or ID if not found
+  };
+
   return (
     <Card className="flex flex-col overflow-hidden h-full shadow-lg hover:shadow-xl transition-shadow duration-300">
       <CardHeader className="p-0">
@@ -29,7 +35,7 @@ export function MangaCard({ manga }: MangaCardProps) {
       </CardHeader>
       <CardContent className="p-4 flex-grow">
         <CardTitle className="text-lg mb-1 leading-tight">
-          <Link href={`/manga/${manga.id}`} className="hover:text-primary transition-colors">
+          <Link href={`/manga/${manga.id}`} className="hover:text-primary transition-colors" suppressHydrationWarning>
             {manga.title}
           </Link>
         </CardTitle>
@@ -37,24 +43,24 @@ export function MangaCard({ manga }: MangaCardProps) {
           <div className="flex items-center gap-2">
             <Avatar className="h-5 w-5">
               <AvatarImage src={manga.author.avatarUrl} alt={manga.author.name} data-ai-hint="author avatar small" />
-              <AvatarFallback>{manga.author.name[0]}</AvatarFallback>
+              <AvatarFallback suppressHydrationWarning>{manga.author.name[0]}</AvatarFallback>
             </Avatar>
-            <span>{manga.author.name}</span>
+            <span suppressHydrationWarning>{manga.author.name}</span>
           </div>
           {manga.averageRating !== undefined && manga.ratingCount !== undefined && manga.ratingCount > 0 && (
             <div className="flex items-center gap-1 text-yellow-500">
               <Star className="h-3.5 w-3.5 fill-current" />
-              <span className="font-semibold">{manga.averageRating.toFixed(1)}</span>
-              <span className="text-muted-foreground">({manga.ratingCount})</span>
+              <span className="font-semibold" suppressHydrationWarning>{manga.averageRating.toFixed(1)}</span>
+              <span className="text-muted-foreground" suppressHydrationWarning>({manga.ratingCount})</span>
             </div>
           )}
         </div>
-        <p className="text-sm text-muted-foreground line-clamp-3 mb-3">
+        <p className="text-sm text-muted-foreground line-clamp-3 mb-3" suppressHydrationWarning>
           {manga.summary}
         </p>
         <div className="flex flex-wrap gap-1">
-          {manga.genres.slice(0, 3).map((genre) => (
-            <Badge key={genre} variant="secondary" className="text-xs">{genre}</Badge>
+          {manga.genres.slice(0, 3).map((genreId) => (
+            <Badge key={genreId} variant="secondary" className="text-xs" suppressHydrationWarning>{getGenreName(genreId)}</Badge>
           ))}
         </div>
       </CardContent>

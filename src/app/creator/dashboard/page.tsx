@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,28 +11,20 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { PlusCircle, Edit, BarChart2, DollarSign, Eye, BookUp } from 'lucide-react';
 import Image from 'next/image';
+import { MANGA_GENRES_DETAILS } from '@/lib/constants';
 
 export default function CreatorDashboardPage() {
   const { user } = useAuth();
   const router = useRouter();
   const [authoredManga, setAuthoredManga] = useState<MangaSeries[]>([]);
 
-  // Effect for redirection and initial data load based on user
-  useEffect(() => {
-    if (!user) {
-      router.push('/login?redirect=/creator/dashboard');
-      return;
-    }
-    if (user.accountType !== 'creator') {
-      router.push('/'); // Redirect non-creators away
-      return;
-    }
-
-    // Initial load of authoredManga
-    if (user.authoredMangaIds) {
+  const fetchAuthoredManga = useCallback(() => {
+    if (user && user.accountType === 'creator' && user.authoredMangaIds) {
       const mangaList = user.authoredMangaIds
         .map(id => getMangaById(id))
         .filter(manga => manga !== undefined) as MangaSeries[];
+      
+      // Only update state if the content has actually changed to prevent infinite loops
       setAuthoredManga(prevList => {
         if (JSON.stringify(mangaList) !== JSON.stringify(prevList)) {
           return mangaList;
@@ -40,44 +32,46 @@ export default function CreatorDashboardPage() {
         return prevList;
       });
     } else {
-      setAuthoredManga([]);
+      setAuthoredManga(prevList => {
+        if (prevList.length > 0) { // If previous list had items, clear it
+          return [];
+        }
+        return prevList; // Otherwise, no change
+      });
     }
-  }, [user, router]);
+  }, [user]); // Dependencies: user object
 
-  // Effect for polling manga data
+  useEffect(() => {
+    if (!user) {
+      router.push('/login?redirect=/creator/dashboard');
+      return;
+    }
+    if (user.accountType !== 'creator') {
+      router.push('/'); 
+      return;
+    }
+    fetchAuthoredManga(); // Initial fetch
+  }, [user, router, fetchAuthoredManga]);
+
+
+  // Polling for updates
   useEffect(() => {
     if (!user || user.accountType !== 'creator') {
-      return; // Don't run interval if not a logged-in creator
+      return; 
     }
-
-    const interval = setInterval(() => {
-      if (user.authoredMangaIds) {
-        const freshMangaList = user.authoredMangaIds
-          .map(id => getMangaById(id))
-          .filter(manga => manga !== undefined) as MangaSeries[];
-        
-        setAuthoredManga(currentAuthoredManga => {
-          if (JSON.stringify(freshMangaList) !== JSON.stringify(currentAuthoredManga)) {
-            return freshMangaList;
-          }
-          return currentAuthoredManga;
-        });
-      } else {
-        setAuthoredManga(currentAuthoredManga => {
-          if (currentAuthoredManga.length > 0) {
-            return [];
-          }
-          return currentAuthoredManga;
-        });
-      }
-    }, 2000); // Check for updates every 2 seconds
-
+    const interval = setInterval(fetchAuthoredManga, 2000); // Poll every 2 seconds
     return () => clearInterval(interval);
-  }, [user]); // Re-setup interval if user changes
+  }, [user, fetchAuthoredManga]); 
 
+
+  const getGenreNames = (genreIds: string[]): string => {
+    return genreIds.map(id => {
+      const genre = MANGA_GENRES_DETAILS.find(g => g.id === id);
+      return genre ? genre.name.split('(')[0].trim() : id; // Show Chinese part or ID
+    }).join(', ');
+  };
 
   if (!user || user.accountType !== 'creator') {
-    // Show loading or redirect message while routing checks complete
     return <div className="text-center py-10" suppressHydrationWarning>Loading or redirecting...</div>;
   }
 
@@ -101,7 +95,7 @@ export default function CreatorDashboardPage() {
       </Card>
 
       <div className="space-y-6">
-        <h2 className="text-2xl font-semibold" suppressHydrationWarning>Your Manga Series</h2>
+        <h2 className="text-2xl font-semibold" suppressHydrationWarning>Your Manga Series ({authoredManga.length})</h2>
         {authoredManga.length === 0 ? (
           <Card>
             <CardContent className="pt-6">
@@ -121,7 +115,7 @@ export default function CreatorDashboardPage() {
                     <Image src={manga.coverImage} alt={manga.title} layout="fill" objectFit="cover" data-ai-hint="manga cover dashboard"/>
                   </div>
                   <CardTitle suppressHydrationWarning>{manga.title}</CardTitle>
-                  <CardDescription suppressHydrationWarning>{manga.genres.join(', ')}</CardDescription>
+                  <CardDescription suppressHydrationWarning>{getGenreNames(manga.genres)}</CardDescription>
                 </CardHeader>
                 <CardContent className="flex-grow space-y-2 text-sm">
                   <p className="flex items-center" suppressHydrationWarning><Eye className="mr-2 h-4 w-4 text-primary" /> Views: <span className="font-semibold ml-1">{manga.viewCount.toLocaleString()}</span></p>
@@ -132,6 +126,7 @@ export default function CreatorDashboardPage() {
                      <p className="flex items-center" suppressHydrationWarning>Rating: <span className="font-semibold ml-1">{manga.averageRating.toFixed(1)}/3 ({manga.ratingCount} ratings)</span></p>
                   )}
                    <p className="text-xs text-muted-foreground" suppressHydrationWarning>Published: {new Date(manga.publishedDate).toLocaleDateString()}</p>
+                   <p className="text-xs text-muted-foreground" suppressHydrationWarning>Chapters: {manga.chapters.length}</p>
                 </CardContent>
                 <CardFooter className="flex flex-col sm:flex-row gap-2">
                   <Button variant="outline" size="sm" asChild className="w-full sm:w-auto">
