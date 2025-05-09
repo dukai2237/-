@@ -1,4 +1,3 @@
-
 import Image from 'next/image';
 import Link from 'next/link';
 import type { MangaSeries } from '@/lib/types';
@@ -8,14 +7,14 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowRight, Star, Heart } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { MANGA_GENRES_DETAILS } from '@/lib/constants';
-import { useAuth } from '@/contexts/AuthContext'; // Added
+import { useAuth } from '@/contexts/AuthContext'; 
 
 interface MangaCardProps {
   manga: MangaSeries;
 }
 
 export function MangaCard({ manga }: MangaCardProps) {
-  const { user, isFavorited, toggleFavorite } = useAuth(); // Added
+  const { user, isFavorited, toggleFavorite } = useAuth(); 
 
   const getGenreName = (genreId: string) => {
     const genreDetail = MANGA_GENRES_DETAILS.find(g => g.id === genreId);
@@ -23,7 +22,7 @@ export function MangaCard({ manga }: MangaCardProps) {
   };
 
   const handleFavoriteToggle = (e: React.MouseEvent) => {
-    e.preventDefault(); // Prevent link navigation if button is inside a link
+    e.preventDefault(); 
     e.stopPropagation();
     toggleFavorite(manga.id, manga.title);
   };
@@ -49,7 +48,7 @@ export function MangaCard({ manga }: MangaCardProps) {
             size="icon"
             className="absolute top-2 right-2 bg-black/30 hover:bg-black/50 text-white hover:text-red-400 rounded-full z-10"
             onClick={handleFavoriteToggle}
-            title={userHasFavorited ? "取消收藏" : "收藏"}
+            title={userHasFavorited ? "Remove from Favorites" : "Add to Favorites"}
             suppressHydrationWarning
           >
             <Heart className={`h-5 w-5 ${userHasFavorited ? 'fill-red-500 text-red-500' : 'text-white'}`} />
@@ -90,10 +89,11 @@ export function MangaCard({ manga }: MangaCardProps) {
       <CardFooter className="p-4 pt-0">
         <Button asChild className="w-full" variant="outline">
           <Link href={`/manga/${manga.id}`}>
-            View Details <ArrowRight className="ml-2 h-4 w-4" />
+            <span suppressHydrationWarning>View Details</span> <ArrowRight className="ml-2 h-4 w-4" />
           </Link>
         </Button>
       </CardFooter>
     </Card>
   );
 }
+

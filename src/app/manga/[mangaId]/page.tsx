@@ -39,7 +39,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
   const mangaId = resolvedParams.mangaId;
 
   const [manga, setManga] = useState<MangaSeries | undefined>(undefined);
-  const { user, isSubscribedToManga, subscribeToManga, donateToManga, investInManga, rateManga, isFavorited, toggleFavorite } = useAuth();
+  const { user, isSubscribedToManga, purchaseAccess, donateToManga, investInManga, rateManga, isFavorited, toggleFavorite } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -84,7 +84,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
 
 
   if (!manga) {
-    return <div className="text-center py-10">Loading manga details or manga not found/unpublished...</div>;
+    return <div className="text-center py-10" suppressHydrationWarning={true}>Loading manga details or manga not found/unpublished...</div>;
   }
 
   const getGenreName = (genreId: string) => {
@@ -98,10 +98,10 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
       toast({ title: "Login Required", description: "Please login to subscribe.", variant: "destructive", action: <Button onClick={() => router.push('/login?redirect=/manga/' + mangaId)}>Login</Button> });
       return;
     }
-    if (manga.subscriptionPrice) {
-      await subscribeToManga(manga.id, manga.title, manga.subscriptionPrice);
+    if (manga.subscriptionPrice && manga.subscriptionModel === 'monthly') {
+      await purchaseAccess(manga.id, 'monthly', manga.id, manga.subscriptionPrice);
     } else {
-      toast({ title: "Cannot Subscribe", description: "This manga has no subscription price set.", variant: "destructive" });
+      toast({ title: "Cannot Subscribe", description: "This manga has no monthly subscription price set or is not on a monthly model.", variant: "destructive" });
     }
   };
 
@@ -193,7 +193,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
   const canUserInvestGlobally = user ? (user.subscriptions?.length || 0) >= MIN_SUBSCRIPTIONS_FOR_INVESTMENT : false;
   const canUserInvestAuthorSpecific = user && currentInvestmentOffer && currentInvestmentOffer.minSubscriptionRequirement
     ? (user.subscriptions?.filter(s => s.type === 'monthly' && s.mangaId === manga.id).length || 0) >= currentInvestmentOffer.minSubscriptionRequirement
-    : true; // If no author specific requirement, this part is true
+    : true; 
 
 
   return (
@@ -260,7 +260,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
              {manga.lastChapterUpdateInfo && (
                 <Card className="mb-4 bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-700">
                     <CardHeader className="p-3 pb-2">
-                        <CardTitle className="text-md flex items-center text-blue-700 dark:text-blue-300">
+                        <CardTitle className="text-md flex items-center text-blue-700 dark:text-blue-300" suppressHydrationWarning>
                             <Edit2 className="mr-2 h-4 w-4"/>Recent Update
                         </CardTitle>
                     </CardHeader>
@@ -301,12 +301,12 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
                   )}
                 </div>
                 {(!canRate && user) && (
-                  <p className="text-xs text-muted-foreground mt-2 flex items-center">
+                  <p className="text-xs text-muted-foreground mt-2 flex items-center" suppressHydrationWarning>
                     <Lock className="h-3 w-3 mr-1" /> {ratingDisabledReason()}
                   </p>
                 )}
                  {!user && (
-                  <p className="text-xs text-muted-foreground mt-2 flex items-center">
+                  <p className="text-xs text-muted-foreground mt-2 flex items-center" suppressHydrationWarning>
                     <Lock className="h-3 w-3 mr-1" /> Login and get access to rate.
                      <Button variant="link" size="xs" className="p-0 h-auto ml-1" onClick={() => router.push('/login?redirect=/manga/' + mangaId)}>Login</Button>
                   </p>
@@ -317,7 +317,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
 
             <Card className="mb-6 bg-secondary/30 p-4">
               <CardHeader className="p-0 pb-2">
-                <CardTitle className="text-lg flex items-center"><Landmark className="mr-2 h-5 w-5 text-primary" /><span suppressHydrationWarning>Manga Financials (Simulated)</span></CardTitle>
+                <CardTitle className="text-lg flex items-center" suppressHydrationWarning><Landmark className="mr-2 h-5 w-5 text-primary" />Manga Financials (Simulated)</CardTitle>
               </CardHeader>
               <CardContent className="p-0 text-sm space-y-1">
                 <p suppressHydrationWarning>Total Subscription Revenue: <span className="font-semibold">${(manga.totalRevenueFromSubscriptions || 0).toFixed(2)}</span></p>
@@ -346,7 +346,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
                 </Button>
               )}
                {manga.chapterSubscriptionPrice && manga.subscriptionModel === 'per_chapter' && (
-                 <p className="text-sm text-center text-muted-foreground">
+                 <p className="text-sm text-center text-muted-foreground" suppressHydrationWarning>
                     Chapters can be purchased individually from the chapter list.
                  </p>
                )}
@@ -521,3 +521,4 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
     </div>
   );
 }
+

@@ -1,7 +1,7 @@
 "use client";
 
 import { MangaCard } from '@/components/manga/MangaCard';
-import { getPublishedMangaSeries } from '@/lib/mock-data'; // Use new function
+import { getPublishedMangaSeries } from '@/lib/mock-data'; 
 import type { MangaSeries } from '@/lib/types';
 import { Separator } from '@/components/ui/separator';
 import { useSearchParams } from 'next/navigation';
@@ -24,6 +24,9 @@ export default function HomePage() {
   const [allPublishedManga, setAllPublishedManga] = useState<MangaSeries[]>([]);
   const [filteredManga, setFilteredManga] = useState<MangaSeries[]>([]);
   const [clientRandomManga, setClientRandomManga] = useState<MangaSeries[]>([]);
+  const [dailyNewReleases, setDailyNewReleases] = useState<MangaSeries[]>([]);
+  const [monthlyNewReleases, setMonthlyNewReleases] = useState<MangaSeries[]>([]);
+
 
   useEffect(() => {
     // Fetch all published manga once on client mount
@@ -37,7 +40,7 @@ export default function HomePage() {
     setGenreFilter(currentGenre);
   }, [searchParams]);
 
-  const memoizedUpdateUserSearchHistory = useCallback(updateUserSearchHistory, []);
+  const memoizedUpdateUserSearchHistory = useCallback(updateUserSearchHistory, [updateUserSearchHistory]);
 
   useEffect(() => {
     let mangaToDisplay = [...allPublishedManga];
@@ -57,11 +60,30 @@ export default function HomePage() {
         manga.genres.includes(genreFilter)
       );
     }
-
     setFilteredManga(mangaToDisplay);
+
+    // Calculate date-sensitive lists after allPublishedManga is set and filteredManga might change (though not directly dependent)
+    const now = new Date();
+    const twentyFourHoursAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+    setDailyNewReleases(
+      [...allPublishedManga] // Use allPublishedManga for new releases, not filteredManga
+        .filter(m => new Date(m.publishedDate) >= twentyFourHoursAgo)
+        .sort((a, b) => new Date(b.publishedDate).getTime() - new Date(a.publishedDate).getTime())
+        .slice(0, ITEMS_PER_SECTION)
+    );
+
+    const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+    setMonthlyNewReleases(
+      [...allPublishedManga] // Use allPublishedManga for new releases
+        .filter(m => new Date(m.publishedDate) >= thirtyDaysAgo)
+        .sort((a, b) => new Date(b.publishedDate).getTime() - new Date(a.publishedDate).getTime())
+        .slice(0, ITEMS_PER_SECTION)
+    );
+
   }, [searchTerm, genreFilter, user, memoizedUpdateUserSearchHistory, allPublishedManga]);
 
   useEffect(() => {
+    // Calculate clientRandomManga based on the final filteredManga
     setClientRandomManga(
       [...filteredManga].sort(() => 0.5 - Math.random()).slice(0, ITEMS_PER_SECTION)
     );
@@ -77,24 +99,6 @@ export default function HomePage() {
     [...filteredManga]
     .sort((a, b) => b.viewCount - a.viewCount)
     .slice(0, ITEMS_PER_SECTION), [filteredManga]);
-
-  const dailyNewReleases = useMemo(() => {
-    const now = new Date();
-    const twentyFourHoursAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000));
-    return [...allPublishedManga]
-      .filter(m => new Date(m.publishedDate) >= twentyFourHoursAgo)
-      .sort((a, b) => new Date(b.publishedDate).getTime() - new Date(a.publishedDate).getTime())
-      .slice(0, ITEMS_PER_SECTION);
-  }, [allPublishedManga]);
-
-  const monthlyNewReleases = useMemo(() => {
-    const now = new Date();
-    const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
-    return [...allPublishedManga]
-      .filter(m => new Date(m.publishedDate) >= thirtyDaysAgo)
-      .sort((a, b) => new Date(b.publishedDate).getTime() - new Date(a.publishedDate).getTime())
-      .slice(0, ITEMS_PER_SECTION);
-  }, [allPublishedManga]);
 
 
   const currentGenreName = genreFilter ? MANGA_GENRES_DETAILS.find(g => g.id === genreFilter)?.name : null;
@@ -153,7 +157,7 @@ export default function HomePage() {
         </div>
       )}
 
-      {filteredManga.length > 0 && (
+      { (dailyNewReleases.length > 0 || monthlyNewReleases.length > 0 || newestManga.length > 0 || popularManga.length > 0 || clientRandomManga.length > 0 || (allPublishedManga.length > 0 && !searchTerm && !genreFilter)) && (
         <>
           {dailyNewReleases.length > 0 && (
             <section>
@@ -221,7 +225,7 @@ export default function HomePage() {
       )}
 
 
-      {allPublishedManga.length === 0 && !searchTerm && !genreFilter && (
+      {allPublishedManga.length === 0 && !searchTerm && !genreFilter && dailyNewReleases.length === 0 && monthlyNewReleases.length === 0 && (
         <div className="text-center py-12">
           <p className="text-lg text-muted-foreground" suppressHydrationWarning>No manga series available at the moment. Check back later!</p>
         </div>
@@ -229,3 +233,4 @@ export default function HomePage() {
     </div>
   );
 }
+
