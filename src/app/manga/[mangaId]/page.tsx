@@ -8,7 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { DollarSign, Gift, TrendingUp, CheckCircle, Landmark, Users, Percent, Info, PiggyBank, Ticket, Mail, Link as LinkIcon, ThumbsUp, ThumbsDown, Meh } from 'lucide-react';
+import { DollarSign, Gift, TrendingUp, CheckCircle, Landmark, Users, Percent, Info, PiggyBank, Ticket, Mail, Link as LinkIcon, ThumbsUp, ThumbsDown, Meh, Lock } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
@@ -33,11 +33,10 @@ interface MangaDetailPageProps {
 }
 
 export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageProps) {
-  const resolvedParams = use(paramsProp); 
+  const resolvedParams = use(paramsProp);
   const mangaId = resolvedParams.mangaId;
 
   const [manga, setManga] = useState<MangaSeries | undefined>(undefined);
-  // Author details are now part of MangaSeries via manga.authorDetails
   const { user, isSubscribedToManga, subscribeToManga, donateToManga, investInManga, rateManga } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
@@ -50,7 +49,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
   useEffect(() => {
     const currentMangaData = getMangaById(mangaId);
     if (!currentMangaData) {
-      notFound(); // Or redirect, or show a specific "not found" component
+      notFound();
     }
     setManga(currentMangaData);
   }, [mangaId]);
@@ -68,9 +67,9 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
           return prevManga;
         });
       } else {
-        setManga(undefined); // Manga might have been deleted
+        setManga(undefined);
       }
-    }, 1000); 
+    }, 1000);
     return () => clearInterval(interval);
   }, [mangaId]);
 
@@ -106,7 +105,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
   }
 
   const handleDonate = async () => {
-    if (!user) return; 
+    if (!user) return;
     const amount = parseFloat(donationAmount);
     if (isNaN(amount) || amount <= 0) {
       toast({ title: "金额无效", description: "请输入有效的正数金额进行打赏。", variant: "destructive" });
@@ -134,9 +133,9 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
     }
     setIsInvestmentDialogOpen(true);
   }
-  
+
   const handleInvest = async () => {
-    if (!user || !manga.investmentOffer) return; 
+    if (!user || !manga.investmentOffer) return;
     const shares = parseInt(investmentShares);
     if (isNaN(shares) || shares <= 0) {
       toast({ title: "份数无效", description: "请输入有效的正数份数。", variant: "destructive" });
@@ -155,10 +154,20 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
       toast({ title: "需要登录", description: "请登录后评分。", variant: "destructive", action: <Button onClick={() => router.push('/login?redirect=/manga/' + mangaId)}>登录</Button> });
       return;
     }
+    // rateManga function in AuthContext will handle subscription and "rated once" checks.
     await rateManga(manga.id, score);
   };
-  
-  const isUserAlreadySubscribed = user ? isSubscribedToManga(manga.id) : false;
+
+  const isUserSubscribed = user ? isSubscribedToManga(manga.id) : false;
+  const userRating = user?.ratingsGiven?.[manga.id];
+  const canRate = user && isUserSubscribed && !userRating;
+  const ratingDisabledReason = () => {
+    if (!user) return "登录后可评价";
+    if (!isUserSubscribed) return "订阅后可评价";
+    if (userRating) return `您已评价过 (${userRating}分)`;
+    return "";
+  };
+
   const currentInvestmentOffer = manga.investmentOffer;
   const sharesRemaining = currentInvestmentOffer ? currentInvestmentOffer.totalSharesInOffer - manga.investors.reduce((sum, inv) => sum + inv.sharesOwned, 0) : 0;
 
@@ -192,7 +201,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
               <div className="mb-3 text-sm text-muted-foreground space-y-1">
                 {manga.authorDetails.email && (
                   <div className="flex items-center gap-1.5">
-                    <Mail className="h-4 w-4" /> 
+                    <Mail className="h-4 w-4" />
                     <a href={`mailto:${manga.authorDetails.email}`} className="hover:text-primary" suppressHydrationWarning>{manga.authorDetails.email}</a>
                   </div>
                 )}
@@ -204,38 +213,52 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
                 ))}
               </div>
             )}
-            
+
             <div className="flex flex-wrap gap-2 mb-4">
               {manga.genres.map((genreId) => (
                 <Badge key={genreId} variant="outline" suppressHydrationWarning>{getGenreName(genreId)}</Badge>
               ))}
             </div>
-            
+
             <p className="text-sm text-foreground leading-relaxed mb-6" suppressHydrationWarning>{manga.summary}</p>
 
             <Card className="mb-4 bg-secondary/20">
               <CardHeader className="p-3 pb-2">
                 <CardTitle className="text-md" suppressHydrationWarning>评价这部漫画</CardTitle>
               </CardHeader>
-              <CardContent className="p-3 pt-0 flex items-center justify-between">
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => handleRating(3)} title="好评">
-                    <ThumbsUp className="h-4 w-4 mr-1 text-green-500" /> <span suppressHydrationWarning>好评 (3分)</span>
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleRating(2)} title="中评">
-                    <Meh className="h-4 w-4 mr-1 text-yellow-500" /> <span suppressHydrationWarning>中评 (2分)</span>
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleRating(1)} title="差评">
-                    <ThumbsDown className="h-4 w-4 mr-1 text-red-500" /> <span suppressHydrationWarning>差评 (1分)</span>
-                  </Button>
-                </div>
-                {manga.averageRating !== undefined && manga.ratingCount !== undefined && (
-                  <div className="text-sm text-muted-foreground" suppressHydrationWarning>
-                    平均分: <span className="font-semibold text-primary">{manga.averageRating.toFixed(1)}</span> ({manga.ratingCount} 评价)
+              <CardContent className="p-3 pt-0">
+                <div className="flex items-center justify-between">
+                  <div className="flex gap-2">
+                    <Button variant={userRating === 3 ? "default" : "outline"} size="sm" onClick={() => handleRating(3)} title="好评" disabled={!canRate && userRating !==3}>
+                      <ThumbsUp className={`h-4 w-4 mr-1 ${userRating === 3 ? "" : "text-green-500"}`} /> <span suppressHydrationWarning>好评 (3分)</span>
+                    </Button>
+                    <Button variant={userRating === 2 ? "default" : "outline"} size="sm" onClick={() => handleRating(2)} title="中评" disabled={!canRate && userRating !==2}>
+                      <Meh className={`h-4 w-4 mr-1 ${userRating === 2 ? "" : "text-yellow-500"}`} /> <span suppressHydrationWarning>中评 (2分)</span>
+                    </Button>
+                    <Button variant={userRating === 1 ? "default" : "outline"} size="sm" onClick={() => handleRating(1)} title="差评" disabled={!canRate && userRating !==1}>
+                      <ThumbsDown className={`h-4 w-4 mr-1 ${userRating === 1 ? "" : "text-red-500"}`} /> <span suppressHydrationWarning>差评 (1分)</span>
+                    </Button>
                   </div>
+                  {manga.averageRating !== undefined && manga.ratingCount !== undefined && (
+                    <div className="text-sm text-muted-foreground" suppressHydrationWarning>
+                      平均分: <span className="font-semibold text-primary">{manga.averageRating.toFixed(1)}</span> ({manga.ratingCount} 评价)
+                    </div>
+                  )}
+                </div>
+                {(!canRate && user) && (
+                  <p className="text-xs text-muted-foreground mt-2 flex items-center">
+                    <Lock className="h-3 w-3 mr-1" /> {ratingDisabledReason()}
+                  </p>
+                )}
+                 {!user && (
+                  <p className="text-xs text-muted-foreground mt-2 flex items-center">
+                    <Lock className="h-3 w-3 mr-1" /> 登录并订阅后可评价。
+                     <Button variant="link" size="xs" className="p-0 h-auto ml-1" onClick={() => router.push('/login?redirect=/manga/' + mangaId)}>去登录</Button>
+                  </p>
                 )}
               </CardContent>
             </Card>
+
 
             <Card className="mb-6 bg-secondary/30 p-4">
               <CardHeader className="p-0 pb-2">
@@ -250,13 +273,13 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
 
             <div className="mt-auto space-y-3">
               {manga.subscriptionPrice && (
-                <Button 
-                  onClick={handleSubscribe} 
+                <Button
+                  onClick={handleSubscribe}
                   className="w-full text-lg py-6"
-                  disabled={isUserAlreadySubscribed}
+                  disabled={isUserSubscribed}
                   suppressHydrationWarning
                 >
-                  {isUserAlreadySubscribed ? (
+                  {isUserSubscribed ? (
                     <>
                       <CheckCircle className="mr-2 h-5 w-5" /> <span suppressHydrationWarning>已订阅</span>
                     </>
@@ -403,7 +426,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
             </div>
             {investmentShares && parseInt(investmentShares) > 0 && (
               <p className="text-sm text-center text-muted-foreground col-span-4" suppressHydrationWarning>
-                总计费用: {parseInt(investmentShares)} 份 * ${currentInvestmentOffer.pricePerShare.toFixed(2)} = 
+                总计费用: {parseInt(investmentShares)} 份 * ${currentInvestmentOffer.pricePerShare.toFixed(2)} =
                 <span className="font-semibold text-primary"> ${(parseInt(investmentShares) * currentInvestmentOffer.pricePerShare).toFixed(2)}</span>
               </p>
             )}
