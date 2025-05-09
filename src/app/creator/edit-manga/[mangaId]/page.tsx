@@ -31,9 +31,9 @@ import {
 } from "@/components/ui/alert-dialog";
 
 interface EditableChapterState {
-  id: string; // Existing ID or temporary new ID like 'new-timestamp'
+  id: string; 
   title: string;
-  pageCount: number; // Editable, affects simulated page generation
+  pageCount: number; 
   _isNew?: boolean;
   _toBeDeleted?: boolean;
 }
@@ -78,6 +78,17 @@ export default function EditMangaPage() {
     if (user.accountType !== 'creator') {
       toast({ title: "Access Denied", description: "Only creators can edit manga.", variant: "destructive" });
       router.push('/');
+      return;
+    }
+    if (!user.isApproved) {
+      toast({ 
+        title: "Account Pending Approval", 
+        description: "Your creator account must be approved by an admin before you can edit manga.", 
+        variant: "destructive",
+        duration: 7000
+      });
+      router.push('/creator/dashboard');
+      setIsLoading(false); 
       return;
     }
 
@@ -153,7 +164,7 @@ export default function EditMangaPage() {
   const markChapterForDeletion = (chapterId: string) => {
     setEditableChapters(prev => prev.map(ch =>
       ch.id === chapterId ? { ...ch, _toBeDeleted: true } : ch
-    ).filter(ch => !(ch._isNew && ch._toBeDeleted)) // Immediately remove new chapters marked for deletion
+    ).filter(ch => !(ch._isNew && ch._toBeDeleted)) 
     );
   };
   
@@ -164,9 +175,25 @@ export default function EditMangaPage() {
   };
 
 
-  if (isLoading || !mangaToEdit) {
+  if (isLoading) {
     return <div className="flex justify-center items-center min-h-[calc(100vh-200px)]"><LoadingSpinner size="lg" /></div>;
   }
+  
+  if (!mangaToEdit) {
+     // This handles the case where mangaId is invalid or user was redirected due to lack of approval/permissions
+     // and isLoading is set to false.
+    return (
+      <div className="flex flex-col items-center justify-center py-10 text-center">
+        <AlertTriangle className="w-12 h-12 text-destructive mb-4" />
+        <h2 className="text-2xl font-semibold mb-2">Cannot Edit Manga</h2>
+        <p className="text-muted-foreground">
+          The manga could not be loaded for editing, or your account requires approval.
+        </p>
+         <Button onClick={() => router.push('/creator/dashboard')} className="mt-4">Go to Dashboard</Button>
+      </div>
+    );
+  }
+
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -179,7 +206,7 @@ export default function EditMangaPage() {
       toast({ title: "No Chapters", description: "Manga must have at least one chapter.", variant: "destructive" });
       return;
     }
-     if (parseInt(freePreviewPageCount, 10) > totalPagesInManga) {
+     if (parseInt(freePreviewPageCount, 10) > totalPagesInManga && totalPagesInManga > 0) {
       toast({ title: "Invalid Free Preview", description: "Free preview pages cannot exceed total pages in the manga.", variant: "destructive" });
       return;
     }
@@ -191,6 +218,7 @@ export default function EditMangaPage() {
         return;
       }
       updatedInvestmentOffer = {
+        ...(mangaToEdit.investmentOffer || {}), // preserve any existing non-editable fields
         sharesOfferedTotalPercent: parseFloat(sharesOfferedTotalPercent),
         totalSharesInOffer: parseInt(totalSharesInOffer, 10),
         pricePerShare: parseFloat(pricePerShare),
@@ -199,21 +227,21 @@ export default function EditMangaPage() {
         maxSharesPerUser: maxSharesPerUser ? parseInt(maxSharesPerUser, 10) : undefined,
         isActive: true,
       };
-    } else if (mangaToEdit.investmentOffer) {
+    } else if (mangaToEdit.investmentOffer) { // if it was enabled and now it's not
       updatedInvestmentOffer = { ...mangaToEdit.investmentOffer, isActive: false };
     }
 
+
     const processedChapters: Chapter[] = finalChapters.map((editCh, index) => {
-      // Regenerate pages based on pageCount for simplicity in mock
       const pages: MangaPage[] = Array.from({ length: editCh.pageCount }, (_, i) => ({
-        id: `${mangaId}-${editCh.id}-page-${i + 1}`.replace('new-', 'ch-'), // make IDs somewhat consistent
+        id: `${mangaId}-${editCh.id}-page-${i + 1}`.replace('new-', 'ch-'), 
         imageUrl: `https://picsum.photos/800/1200?random=${mangaId}${editCh.id}${i + 1}`,
         altText: `Page ${i + 1}`,
       }));
       return {
         id: editCh._isNew ? `ch-${Date.now()}-${index}` : editCh.id,
         title: editCh.title,
-        chapterNumber: index + 1, // Re-number chapters based on final list
+        chapterNumber: index + 1, 
         pages: pages,
       };
     });
@@ -239,6 +267,10 @@ export default function EditMangaPage() {
   };
 
   const handleDeleteManga = async () => {
+    if (!user || !user.isApproved) {
+       toast({ title: "Action Denied", description: "Your account needs to be approved to perform this action.", variant: "destructive" });
+       return;
+    }
     const success = await deleteMangaSeries(mangaId);
     if (success) {
       router.push('/creator/dashboard');
@@ -256,7 +288,6 @@ export default function EditMangaPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Basic Info Fields */}
             <div className="space-y-2">
               <Label htmlFor="title" suppressHydrationWarning>Title *</Label>
               <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} required />
@@ -271,7 +302,6 @@ export default function EditMangaPage() {
               <p className="text-xs text-muted-foreground" suppressHydrationWarning>Simulated: In real app, a file upload.</p>
             </div>
             
-            {/* Genre Selection */}
             <div className="space-y-2">
               <Label suppressHydrationWarning>Genres * (Select at least one)</Label>
               <ScrollArea className="h-32 border rounded-md p-2">
@@ -291,7 +321,6 @@ export default function EditMangaPage() {
                {selectedGenres.length === 0 && <p className="text-xs text-destructive">Please select at least one genre.</p>}
             </div>
 
-            {/* Chapters Management */}
             <div className="space-y-4 pt-4 border-t">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-semibold" suppressHydrationWarning>Chapters ({editableChapters.filter(ch => !ch._toBeDeleted).length}/{MAX_CHAPTERS_PER_WORK})</h3>
@@ -341,11 +370,10 @@ export default function EditMangaPage() {
               </ScrollArea>
             </div>
             
-            {/* Other settings */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
               <div className="space-y-2">
                 <Label htmlFor="freePreviewPageCount" suppressHydrationWarning>Free Preview Pages * (max {totalPagesInManga})</Label>
-                <Input id="freePreviewPageCount" type="number" value={freePreviewPageCount} onChange={(e) => setFreePreviewPageCount(e.target.value)} min="0" max={totalPagesInManga.toString()} required />
+                <Input id="freePreviewPageCount" type="number" value={freePreviewPageCount} onChange={(e) => setFreePreviewPageCount(e.target.value)} min="0" max={totalPagesInManga > 0 ? totalPagesInManga.toString() : '0'} required />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="subscriptionPrice" suppressHydrationWarning>Subscription Price (USD/month, optional)</Label>
@@ -353,7 +381,6 @@ export default function EditMangaPage() {
               </div>
             </div>
 
-            {/* Investment Offer Section */}
             <div className="space-y-4 pt-4 border-t">
               <div className="flex items-center space-x-3">
                 <Switch id="enableInvestment" checked={enableInvestment} onCheckedChange={setEnableInvestment} aria-label="Enable Investment Offer"/>
@@ -361,7 +388,6 @@ export default function EditMangaPage() {
               </div>
               {enableInvestment && (
                 <div className="space-y-4 p-4 border rounded-md bg-secondary/30">
-                  {/* Investment fields identical to create page */}
                    <h3 className="text-lg font-semibold" suppressHydrationWarning>Investment Offer Details</h3>
                   <div className="space-y-2">
                     <Label htmlFor="investmentDescription-edit" suppressHydrationWarning>Offer Description *</Label>
@@ -393,7 +419,6 @@ export default function EditMangaPage() {
               )}
             </div>
 
-            {/* Delete Manga Section */}
             <div className="pt-6 border-t">
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
@@ -429,3 +454,4 @@ export default function EditMangaPage() {
     </div>
   );
 }
+

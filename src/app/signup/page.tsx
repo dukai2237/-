@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,7 @@ export default function SignupPage() {
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState(""); // Mock password, not used for auth
+  const [password, setPassword] = useState(""); 
   const [accountType, setAccountType] = useState<'user' | 'creator'>('user');
 
   const handleSignup = async (e: FormEvent) => {
@@ -31,13 +32,15 @@ export default function SignupPage() {
     const newUser = signup(name, email, accountType);
 
     if (newUser) {
+      // AuthContext now handles toasts for pending approval.
+      // Redirect logic can remain simple or be adjusted if a "pending approval" page is desired.
       if (newUser.accountType === 'creator') {
-        router.push('/creator/dashboard');
+        // Even if pending, they can go to login page. Login will block them if not approved.
+        router.push('/login'); 
       } else {
         router.push('/profile');
       }
     } else {
-      // Signup might fail in a real app, mock should ideally always succeed unless specific error is simulated
       toast({ title: "Signup Failed", description: "Could not create account. Please try again.", variant: "destructive"});
     }
   };
@@ -48,7 +51,9 @@ export default function SignupPage() {
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
           <CardTitle className="text-2xl">Sign Up</CardTitle>
-          <CardDescription>Create your Manga Platform account.</CardDescription>
+          <CardDescription>
+            Create your Manga Platform account. Creator accounts require admin approval after registration.
+          </CardDescription>
         </CardHeader>
         <form onSubmit={handleSignup}>
           <CardContent className="space-y-6">
@@ -77,7 +82,9 @@ export default function SignupPage() {
                 </div>
               </RadioGroup>
                {accountType === 'creator' && (
-                <p className="text-xs text-muted-foreground pt-1">As a Manga Creator, you'll be able to upload and manage your manga series.</p>
+                <p className="text-xs text-muted-foreground pt-1">
+                  As a Manga Creator, you'll be able to upload and manage your manga series after your account is approved by an admin.
+                </p>
               )}
             </div>
           </CardContent>
@@ -94,3 +101,4 @@ export default function SignupPage() {
     </div>
   );
 }
+

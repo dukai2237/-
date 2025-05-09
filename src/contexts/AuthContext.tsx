@@ -26,6 +26,8 @@ interface AuthContextType {
   transactions: SimulatedTransaction[];
   addFunds: (amount: number) => void;
   withdrawFunds: (amount: number) => void;
+  // For admin/founder to approve a creator - conceptual
+  approveCreator?: (creatorId: string) => void; 
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -40,6 +42,7 @@ export const MOCK_USER_VALID: User = {
   investments: [],
   authoredMangaIds: ['manga-4'], 
   accountType: 'creator',
+  isApproved: true, // Approved by default for the main mock creator
 };
 
 
@@ -56,7 +59,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       timestamp: new Date().toISOString(),
     };
     setTransactions(prev => [newTransaction, ...prev].slice(0, 50)); 
-    // console.log("Mock Transaction Recorded:", newTransaction);
   }, []);
 
 
@@ -72,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         investments: parsedUser.investments || [],
         authoredMangaIds: parsedUser.authoredMangaIds || (parsedUser.id === MOCK_USER_VALID.id ? MOCK_USER_VALID.authoredMangaIds : []),
         walletBalance: parsedUser.walletBalance !== undefined ? parsedUser.walletBalance : MOCK_USER_VALID.walletBalance,
+        isApproved: parsedUser.id === MOCK_USER_VALID.id ? MOCK_USER_VALID.isApproved : (parsedUser.accountType === 'creator' ? parsedUser.isApproved || false : undefined),
       });
     }
     const storedViewingHistory = localStorage.getItem('authViewingHistory');
@@ -118,14 +121,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = (userData: User) => {
     const accountType = userData.accountType || (userData.id === MOCK_USER_VALID.id ? 'creator' : 'user');
     
-    const fullUserData = { 
+    const fullUserData: User = { 
       ...MOCK_USER_VALID, 
       ...userData, 
       accountType,
       authoredMangaIds: userData.id === MOCK_USER_VALID.id && MOCK_USER_VALID.authoredMangaIds 
                         ? MOCK_USER_VALID.authoredMangaIds 
-                        : (userData.authoredMangaIds || [])
+                        : (userData.authoredMangaIds || []),
+      isApproved: userData.id === MOCK_USER_VALID.id ? MOCK_USER_VALID.isApproved : (accountType === 'creator' ? userData.isApproved || false : undefined),
     };
+
+    if (fullUserData.accountType === 'creator' && !fullUserData.isApproved) {
+      toast({ 
+        title: "Account Pending Approval", 
+        description: "Your creator account is awaiting approval from the platform admin. You cannot log in yet.", 
+        variant: "destructive",
+        duration: 7000 
+      });
+      return;
+    }
+
     setUser(fullUserData);
     toast({ title: "Login Successful", description: `Welcome back, ${fullUserData.name}!` });
   };
@@ -142,16 +157,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       investments: [],
       authoredMangaIds: [],
       accountType,
+      isApproved: accountType === 'creator' ? false : undefined,
     };
-    setUser(newUser);
+    
+    // For mock purposes, if we sign up a user that already "exists" in localStorage,
+    // we should probably just log them in instead of overwriting.
+    // However, the current flow is to create a new user always.
+    // The MOCK_USER_VALID is just a default for the login form.
+    
+    setUser(newUser); // Set the new user, even if pending approval. They just can't log in.
+
     recordTransaction({
       type: 'account_creation',
-      amount: newUser.walletBalance, // Initial balance
+      amount: newUser.walletBalance, 
       userId: newUser.id,
-      description: `Account created for ${name} as ${accountType}. Initial balance: $${newUser.walletBalance.toFixed(2)}`,
+      description: `Account created for ${name} as ${accountType}. ${accountType === 'creator' ? 'Pending approval.' : 'Initial balance: $' + newUser.walletBalance.toFixed(2)}`,
       relatedData: { accountType }
     });
-    toast({ title: "Signup Successful!", description: `Welcome, ${name}! Your ${accountType} account has been created.` });
+
+    if (accountType === 'creator') {
+      toast({ 
+        title: "Creator Account Registered", 
+        description: `Welcome, ${name}! Your creator account is now registered and awaiting approval from the platform admin.`,
+        duration: 7000
+      });
+    } else {
+      toast({ title: "Signup Successful!", description: `Welcome, ${name}! Your account has been created.` });
+    }
     return newUser;
   };
 
@@ -187,14 +219,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updateMockMangaData(mangaId, { totalRevenueFromSubscriptions: (manga.totalRevenueFromSubscriptions || 0) + revenueToAuthor });
        recordTransaction({
         type: 'subscription_payment',
-        amount: -price, // User pays, so negative for user balance change
+        amount: -price, 
         userId: user.id,
         mangaId,
         description: `Subscribed to ${mangaTitle}`,
       });
        recordTransaction({
         type: 'platform_fee',
-        amount: price * PLATFORM_FEE_RATE, // This is an expense from manga revenue, not user's direct tx
+        amount: price * PLATFORM_FEE_RATE, 
         mangaId,
         description: `Platform fee for ${mangaTitle} subscription.`,
          relatedData: { from: 'author_earnings_pool' }
@@ -236,7 +268,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updateMockMangaData(mangaId, { totalRevenueFromDonations: (manga.totalRevenueFromDonations || 0) + revenueToAuthor });
       recordTransaction({
         type: 'donation_payment',
-        amount: -amount, // User pays
+        amount: -amount, 
         userId: user.id,
         mangaId,
         authorId,
@@ -324,21 +356,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else {
       updatedMangaInvestors.push(newInvestorEntry);
     }
-    // The investment sum goes to the author's wallet (minus platform fee on the investment amount itself)
+    
     const authorGets = totalCost * (1 - PLATFORM_FEE_RATE);
-    // The actual manga object's financials might not track this directly, but author's wallet should.
-    // For now, we'll just update the investors list on the manga.
     updateMockMangaData(mangaId, { investors: updatedMangaInvestors }); 
     
     recordTransaction({
         type: 'investment_payment',
-        amount: -totalCost, // User pays
+        amount: -totalCost, 
         userId: user.id,
         mangaId,
         description: `Invested in ${sharesToBuy} shares of ${mangaTitle}`,
     });
      recordTransaction({
-        type: 'platform_fee', // Fee on the investment amount paid by user to creator
+        type: 'platform_fee', 
         amount: totalCost * PLATFORM_FEE_RATE,
         mangaId,
         authorId: manga.author.id,
@@ -346,7 +376,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         relatedData: { from: 'creator_investment_proceeds' }
     });
     recordTransaction({
-        type: 'author_earning', // Creator receives the investment amount
+        type: 'author_earning', 
         amount: authorGets,
         authorId: manga.author.id,
         mangaId,
@@ -396,6 +426,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toast({ title: "Permission Denied", description: "Only creators can add new manga series.", variant: "destructive" });
       return null;
     }
+    if (!user.isApproved) {
+      toast({ title: "Account Not Approved", description: "Your creator account must be approved by an admin before you can publish manga.", variant: "destructive" });
+      return null;
+    }
     if (user.authoredMangaIds.length >= MAX_WORKS_PER_CREATOR) {
       toast({ title: "Limit Reached", description: `You cannot create more than ${MAX_WORKS_PER_CREATOR} manga series.`, variant: "destructive" });
       return null;
@@ -426,7 +460,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       viewCount: 0,
       totalRevenueFromSubscriptions: 0,
       totalRevenueFromDonations: 0,
-      totalRevenueFromMerchandise: 0, // Placeholder for now
+      totalRevenueFromMerchandise: 0, 
       investors: [],
     };
 
@@ -449,6 +483,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const deleteMangaSeries = async (mangaId: string): Promise<boolean> => {
     if (!user || user.accountType !== 'creator') {
       toast({ title: "Permission Denied", description: "Only creators can delete manga series.", variant: "destructive" });
+      return false;
+    }
+     if (!user.isApproved) {
+      toast({ title: "Account Not Approved", description: "Your creator account must be approved by an admin to manage manga.", variant: "destructive" });
       return false;
     }
     const mangaToDelete = getMangaById(mangaId);
@@ -519,6 +557,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     toast({ title: "Funds Withdrawn", description: `$${amount.toFixed(2)} has been withdrawn from your wallet (mock).` });
   };
+  
+  // Conceptual function for admin to approve a creator
+  const approveCreator = (creatorId: string) => {
+    // In a real app, this would update the backend.
+    // For mock, we'd need a way to update a user in a list if we had one,
+    // or update localStorage directly for that user if they are logged out.
+    // If the currently logged-in user IS the one being approved (e.g. admin panel approves self for testing), update state.
+    if (user && user.id === creatorId && user.accountType === 'creator') {
+      setUser(prev => prev ? ({ ...prev, isApproved: true }) : null);
+      toast({ title: "Creator Approved", description: `Creator ${user.name} has been approved.` });
+       recordTransaction({
+        type: 'creator_approval',
+        amount: 0,
+        userId: creatorId, // The creator being approved
+        // adminId: adminUser.id // if an admin user context existed
+        description: `Creator account ${creatorId} approved.`,
+      });
+    } else {
+      // If approving another user not currently logged in, this would typically be an API call.
+      // For mock: one might update localStorage for that user ID or update a global mock user list.
+      console.log(`Conceptual: Approve creator ${creatorId}. This would be an admin action updating backend/localStorage.`);
+      // Simulate updating a user in localStorage if they are not logged in
+      const storedUser = localStorage.getItem('authUser');
+      if (storedUser) {
+          let parsedUser = JSON.parse(storedUser);
+          if (parsedUser.id === creatorId && parsedUser.accountType === 'creator') {
+              parsedUser.isApproved = true;
+              localStorage.setItem('authUser', JSON.stringify(parsedUser));
+               toast({ title: "Creator Approved (External)", description: `Creator ID ${creatorId} has been approved. They can now log in.` });
+          }
+      }
+    }
+  };
 
 
   return (
@@ -539,7 +610,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         getViewingHistory,
         transactions,
         addFunds,
-        withdrawFunds
+        withdrawFunds,
+        // approveCreator // Expose if an admin panel component needed to call this
     }}>
       {children}
     </AuthContext.Provider>
@@ -553,3 +625,4 @@ export function useAuth() {
   }
   return context;
 }
+

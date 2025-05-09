@@ -9,22 +9,23 @@ import { getMangaById } from '@/lib/mock-data';
 import type { MangaSeries } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { PlusCircle, Edit, BarChart2, DollarSign, Eye, BookUp } from 'lucide-react';
+import { PlusCircle, Edit, BarChart2, DollarSign, Eye, BookUp, AlertTriangle } from 'lucide-react';
 import Image from 'next/image';
 import { MANGA_GENRES_DETAILS } from '@/lib/constants';
+import { useToast } from '@/hooks/use-toast';
 
 export default function CreatorDashboardPage() {
   const { user } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
   const [authoredManga, setAuthoredManga] = useState<MangaSeries[]>([]);
 
   const fetchAuthoredManga = useCallback(() => {
-    if (user && user.accountType === 'creator' && user.authoredMangaIds) {
+    if (user && user.accountType === 'creator' && user.isApproved && user.authoredMangaIds) {
       const mangaList = user.authoredMangaIds
         .map(id => getMangaById(id))
         .filter(manga => manga !== undefined) as MangaSeries[];
       
-      // Only update state if the content has actually changed to prevent infinite loops
       setAuthoredManga(prevList => {
         if (JSON.stringify(mangaList) !== JSON.stringify(prevList)) {
           return mangaList;
@@ -33,13 +34,13 @@ export default function CreatorDashboardPage() {
       });
     } else {
       setAuthoredManga(prevList => {
-        if (prevList.length > 0) { // If previous list had items, clear it
+        if (prevList.length > 0) { 
           return [];
         }
-        return prevList; // Otherwise, no change
+        return prevList; 
       });
     }
-  }, [user]); // Dependencies: user object
+  }, [user]);
 
   useEffect(() => {
     if (!user) {
@@ -47,19 +48,29 @@ export default function CreatorDashboardPage() {
       return;
     }
     if (user.accountType !== 'creator') {
+      toast({ title: "Access Denied", description: "Only creators can access this page.", variant: "destructive" });
       router.push('/'); 
       return;
     }
-    fetchAuthoredManga(); // Initial fetch
-  }, [user, router, fetchAuthoredManga]);
+    if (!user.isApproved) {
+      toast({ 
+        title: "Account Pending Approval", 
+        description: "Your creator account is awaiting approval from the platform admin. You cannot access the dashboard yet.", 
+        variant: "destructive",
+        duration: 7000
+      });
+      router.push('/');
+      return;
+    }
+    fetchAuthoredManga();
+  }, [user, router, fetchAuthoredManga, toast]);
 
 
-  // Polling for updates
   useEffect(() => {
-    if (!user || user.accountType !== 'creator') {
+    if (!user || user.accountType !== 'creator' || !user.isApproved) {
       return; 
     }
-    const interval = setInterval(fetchAuthoredManga, 2000); // Poll every 2 seconds
+    const interval = setInterval(fetchAuthoredManga, 2000); 
     return () => clearInterval(interval);
   }, [user, fetchAuthoredManga]); 
 
@@ -67,12 +78,25 @@ export default function CreatorDashboardPage() {
   const getGenreNames = (genreIds: string[]): string => {
     return genreIds.map(id => {
       const genre = MANGA_GENRES_DETAILS.find(g => g.id === id);
-      return genre ? genre.name.split('(')[0].trim() : id; // Show Chinese part or ID
+      return genre ? genre.name.split('(')[0].trim() : id; 
     }).join(', ');
   };
 
-  if (!user || user.accountType !== 'creator') {
-    return <div className="text-center py-10" suppressHydrationWarning>Loading or redirecting...</div>;
+  if (!user || user.accountType !== 'creator' || !user.isApproved) {
+    // This case should ideally be caught by the useEffect redirect, 
+    // but it's a fallback.
+    return (
+      <div className="flex flex-col items-center justify-center py-10 text-center">
+        <AlertTriangle className="w-12 h-12 text-destructive mb-4" />
+        <h2 className="text-2xl font-semibold mb-2">Access Denied or Pending Approval</h2>
+        <p className="text-muted-foreground">
+          {user && user.accountType === 'creator' && !user.isApproved 
+            ? "Your creator account is awaiting approval." 
+            : "You do not have permission to view this page."}
+        </p>
+        <Button onClick={() => router.push('/')} className="mt-4">Go to Homepage</Button>
+      </div>
+    );
   }
 
   return (
@@ -146,3 +170,4 @@ export default function CreatorDashboardPage() {
     </div>
   );
 }
+

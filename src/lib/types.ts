@@ -8,6 +8,7 @@ export interface User {
   investments: UserInvestment[];
   authoredMangaIds: string[]; // IDs of manga series authored by this user
   accountType: 'creator' | 'user'; // New field for account type
+  isApproved?: boolean; // For creator accounts, true if approved by founder/admin
 }
 
 export interface UserSubscription {
@@ -98,7 +99,7 @@ export interface MangaSeries {
 // Simplified Transaction type for client-side simulation and logging
 export interface SimulatedTransaction {
   id: string;
-  type: 'subscription_payment' | 'donation_payment' | 'investment_payment' | 'merchandise_purchase' | 'author_earning' | 'investor_payout' | 'platform_fee' | 'rating_update' | 'account_creation' | 'manga_creation';
+  type: 'subscription_payment' | 'donation_payment' | 'investment_payment' | 'merchandise_purchase' | 'author_earning' | 'investor_payout' | 'platform_fee' | 'rating_update' | 'account_creation' | 'manga_creation' | 'manga_deletion' | 'wallet_deposit' | 'wallet_withdrawal' | 'creator_approval';
   amount: number;
   userId?: string; 
   authorId?: string; // This can be the creator's ID

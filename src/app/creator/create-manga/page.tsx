@@ -12,13 +12,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import type { MangaInvestmentOffer } from '@/lib/types';
 import { Switch } from '@/components/ui/switch';
-import { BookUp, PlusCircle, Trash2 } from 'lucide-react';
-import { MANGA_GENRES_DETAILS, MAX_CHAPTERS_PER_WORK, MAX_PAGES_PER_CHAPTER } from '@/lib/constants';
+import { BookUp, PlusCircle, Trash2, AlertTriangle } from 'lucide-react';
+import { MANGA_GENRES_DETAILS, MAX_CHAPTERS_PER_WORK, MAX_PAGES_PER_CHAPTER, MAX_WORKS_PER_CREATOR } from '@/lib/constants';
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface EditableChapterInput {
-  localId: string; // For UI key and temporary identification
+  localId: string; 
   title: string;
   pageCount: number;
 }
@@ -52,9 +52,22 @@ export default function CreateMangaPage() {
   useEffect(() => {
     if (!user) {
       router.push('/login?redirect=/creator/create-manga');
-    } else if (user.accountType !== 'creator') {
+      return;
+    }
+    if (user.accountType !== 'creator') {
       toast({ title: "Access Denied", description: "Only creators can access this page.", variant: "destructive" });
       router.push('/');
+      return;
+    }
+    if (!user.isApproved) {
+      toast({ 
+        title: "Account Pending Approval", 
+        description: "Your creator account must be approved by an admin before you can create manga.", 
+        variant: "destructive",
+        duration: 7000
+      });
+      router.push('/creator/dashboard'); // Or '/' if dashboard also checks approval
+      return;
     }
   }, [user, router, toast]);
 
@@ -74,7 +87,7 @@ export default function CreateMangaPage() {
 
   const updateChapterInput = (localId: string, field: keyof EditableChapterInput, value: string | number) => {
     setChaptersInput(chaptersInput.map(ch =>
-      ch.localId === localId ? { ...ch, [field]: field === 'pageCount' ? Math.max(0, Math.min(Number(value), MAX_PAGES_PER_CHAPTER)) : value } : ch
+      ch.localId === localId ? { ...ch, [field]: field === 'pageCount' ? Math.max(1, Math.min(Number(value), MAX_PAGES_PER_CHAPTER)) : value } : ch
     ));
   };
 
@@ -83,8 +96,21 @@ export default function CreateMangaPage() {
   };
 
 
-  if (!user || user.accountType !== 'creator') {
-    return <div className="text-center py-10">Redirecting...</div>;
+  if (!user || user.accountType !== 'creator' || !user.isApproved) {
+    return (
+      <div className="flex flex-col items-center justify-center py-10 text-center">
+        <AlertTriangle className="w-12 h-12 text-destructive mb-4" />
+        <h2 className="text-2xl font-semibold mb-2">Access Denied or Pending Approval</h2>
+        <p className="text-muted-foreground">
+          {user && user.accountType === 'creator' && !user.isApproved 
+            ? "Your creator account is awaiting approval to create manga." 
+            : "Redirecting..."}
+        </p>
+         <Button onClick={() => router.push(user && user.accountType === 'creator' && !user.isApproved ? '/creator/dashboard' : '/')} className="mt-4">
+          Go to {user && user.accountType === 'creator' && !user.isApproved ? 'Dashboard' : 'Homepage'}
+        </Button>
+      </div>
+    );
   }
 
   const handleSubmit = async (e: FormEvent) => {
@@ -97,7 +123,7 @@ export default function CreateMangaPage() {
       toast({ title: "No Chapters", description: "Please add at least one chapter.", variant: "destructive" });
       return;
     }
-    if (parseInt(freePreviewPageCount, 10) > totalPagesInManga) {
+    if (parseInt(freePreviewPageCount, 10) > totalPagesInManga && totalPagesInManga > 0) { // only if there are pages
       toast({ title: "Invalid Free Preview", description: "Free preview pages cannot exceed total pages in the manga.", variant: "destructive" });
       return;
     }
@@ -132,10 +158,10 @@ export default function CreateMangaPage() {
     });
 
     if (newManga) {
-      toast({ title: "Manga Created!", description: `${newManga.title} has been successfully created.` });
+      // Toast is handled by addMangaSeries
       router.push('/creator/dashboard');
     } else {
-      // Error toast is handled by addMangaSeries if limit reached
+      // Error toast is handled by addMangaSeries if limit reached or other issues
     }
   };
 
@@ -227,7 +253,7 @@ export default function CreateMangaPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
               <div className="space-y-2">
                 <Label htmlFor="freePreviewPageCount" suppressHydrationWarning>Free Preview Pages * (max {totalPagesInManga})</Label>
-                <Input id="freePreviewPageCount" type="number" value={freePreviewPageCount} onChange={(e) => setFreePreviewPageCount(e.target.value)} min="0" max={totalPagesInManga.toString()} required />
+                <Input id="freePreviewPageCount" type="number" value={freePreviewPageCount} onChange={(e) => setFreePreviewPageCount(e.target.value)} min="0" max={totalPagesInManga > 0 ? totalPagesInManga.toString() : '0'} required />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="subscriptionPrice" suppressHydrationWarning>Subscription Price (USD/month, optional)</Label>
@@ -281,3 +307,4 @@ export default function CreateMangaPage() {
     </div>
   );
 }
+
