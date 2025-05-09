@@ -12,7 +12,7 @@ import { DollarSign, Gift, TrendingUp, CheckCircle, Landmark, Users, Percent, In
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
-import { useState, useEffect, use as useReact } from 'react';
+import { useState, useEffect, use } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -33,7 +33,7 @@ interface MangaDetailPageProps {
 }
 
 export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageProps) {
-  const resolvedParams = useReact(paramsProp as any);
+  const resolvedParams = use(paramsProp as any); // Use React.use to resolve the promise
   const mangaId = resolvedParams.mangaId;
 
   const [manga, setManga] = useState<MangaSeries | undefined>(() => getMangaById(mangaId));
@@ -73,7 +73,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
 
   const handleSubscribe = async () => {
     if (!user) {
-      toast({ title: "Login Required", description: "Please log in to subscribe.", variant: "destructive", action: <Button onClick={() => router.push('/login')}>Login</Button> });
+      toast({ title: "Login Required", description: "Please log in to subscribe.", variant: "destructive", action: <Button onClick={() => router.push('/login?redirect=/manga/' + mangaId)}>Login</Button> });
       return;
     }
     if (manga.subscriptionPrice) {
@@ -83,7 +83,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
 
   const handleOpenDonationDialog = () => {
      if (!user) {
-      toast({ title: "Login Required", description: "Please log in to donate.", variant: "destructive", action: <Button onClick={() => router.push('/login')}>Login</Button> });
+      toast({ title: "Login Required", description: "Please log in to donate.", variant: "destructive", action: <Button onClick={() => router.push('/login?redirect=/manga/' + mangaId)}>Login</Button> });
       return;
     }
     setIsDonationDialogOpen(true);
@@ -105,7 +105,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
 
   const handleOpenInvestmentDialog = () => {
     if (!user) {
-      toast({ title: "Login Required", description: "Please log in to invest.", variant: "destructive", action: <Button onClick={() => router.push('/login')}>Login</Button> });
+      toast({ title: "Login Required", description: "Please log in to invest.", variant: "destructive", action: <Button onClick={() => router.push('/login?redirect=/manga/' + mangaId)}>Login</Button> });
       return;
     }
      if (!manga.investmentOffer || !manga.investmentOffer.isActive) {
@@ -136,7 +136,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
 
   const handleRating = async (score: 1 | 2 | 3) => {
     if (!user) {
-      toast({ title: "Login Required", description: "Please log in to rate.", variant: "destructive", action: <Button onClick={() => router.push('/login')}>Login</Button> });
+      toast({ title: "Login Required", description: "Please log in to rate.", variant: "destructive", action: <Button onClick={() => router.push('/login?redirect=/manga/' + mangaId)}>Login</Button> });
       return;
     }
     await rateManga(manga.id, score);
@@ -167,7 +167,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
             <div className="flex items-center gap-3 mb-1 text-muted-foreground">
               <Avatar className="h-10 w-10">
                 <AvatarImage src={manga.author.avatarUrl} alt={manga.author.name} data-ai-hint="author avatar" />
-                <AvatarFallback>{manga.author.name[0]}</AvatarFallback>
+                <AvatarFallback suppressHydrationWarning>{manga.author.name[0]}</AvatarFallback>
               </Avatar>
               <span className="text-lg font-medium" suppressHydrationWarning>{manga.author.name}</span>
             </div>
@@ -241,6 +241,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
                   onClick={handleSubscribe} 
                   className="w-full text-lg py-6"
                   disabled={isUserAlreadySubscribed}
+                  suppressHydrationWarning
                 >
                   {isUserAlreadySubscribed ? (
                     <>
@@ -253,7 +254,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
                   )}
                 </Button>
               )}
-              <Button onClick={handleOpenDonationDialog} variant="outline" className="w-full text-lg py-6">
+              <Button onClick={handleOpenDonationDialog} variant="outline" className="w-full text-lg py-6" suppressHydrationWarning>
                 <Gift className="mr-2 h-5 w-5" /> <span suppressHydrationWarning>Donate to Author</span>
               </Button>
             </div>
@@ -267,28 +268,28 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
           <Separator className="my-8" />
           <Card className="shadow-lg">
             <CardHeader>
-              <CardTitle className="text-2xl flex items-center">
+              <CardTitle className="text-2xl flex items-center" suppressHydrationWarning>
                 <TrendingUp className="mr-3 h-7 w-7 text-primary" />
-                <span suppressHydrationWarning>Investment Opportunity</span>
+                Investment Opportunity
               </CardTitle>
               <CardDescription suppressHydrationWarning>{currentInvestmentOffer.description}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <p className="font-semibold flex items-center"><Percent className="mr-2 h-4 w-4 text-muted-foreground" /><span suppressHydrationWarning>Revenue Share for Investors (%):</span></p>
+                  <p className="font-semibold flex items-center" suppressHydrationWarning><Percent className="mr-2 h-4 w-4 text-muted-foreground" />Revenue Share for Investors (%):</p>
                   <p className="text-lg text-primary" suppressHydrationWarning>{currentInvestmentOffer.sharesOfferedTotalPercent}%</p>
                 </div>
                 <div>
-                  <p className="font-semibold flex items-center"><Ticket className="mr-2 h-4 w-4 text-muted-foreground" /><span suppressHydrationWarning>Total Shares in Offer:</span></p>
+                  <p className="font-semibold flex items-center" suppressHydrationWarning><Ticket className="mr-2 h-4 w-4 text-muted-foreground" />Total Shares in Offer:</p>
                   <p className="text-lg" suppressHydrationWarning>{currentInvestmentOffer.totalSharesInOffer}</p>
                 </div>
                 <div>
-                  <p className="font-semibold flex items-center"><DollarSign className="mr-2 h-4 w-4 text-muted-foreground" /><span suppressHydrationWarning>Price Per Share:</span></p>
+                  <p className="font-semibold flex items-center" suppressHydrationWarning><DollarSign className="mr-2 h-4 w-4 text-muted-foreground" />Price Per Share:</p>
                   <p className="text-lg" suppressHydrationWarning>${currentInvestmentOffer.pricePerShare.toFixed(2)}</p>
                 </div>
                  <div>
-                  <p className="font-semibold flex items-center"><PiggyBank className="mr-2 h-4 w-4 text-muted-foreground" /><span suppressHydrationWarning>Shares Remaining:</span></p>
+                  <p className="font-semibold flex items-center" suppressHydrationWarning><PiggyBank className="mr-2 h-4 w-4 text-muted-foreground" />Shares Remaining:</p>
                   <p className="text-lg" suppressHydrationWarning>{sharesRemaining > 0 ? sharesRemaining : 'Offer Fully Vested'}</p>
                 </div>
               </div>
@@ -300,7 +301,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
               )}
               {manga.investors.length > 0 && (
                 <div>
-                  <h4 className="font-semibold mb-2 flex items-center"><Users className="mr-2 h-5 w-5 text-muted-foreground"/><span suppressHydrationWarning>Current Investors ({manga.investors.length}):</span></h4>
+                  <h4 className="font-semibold mb-2 flex items-center" suppressHydrationWarning><Users className="mr-2 h-5 w-5 text-muted-foreground"/>Current Investors ({manga.investors.length}):</h4>
                   <ul className="list-disc list-inside pl-2 text-sm space-y-1 max-h-24 overflow-y-auto">
                     {manga.investors.map(inv => (
                       <li key={inv.userId} suppressHydrationWarning>{inv.userName} ({inv.sharesOwned} shares)</li>
@@ -310,8 +311,8 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
               )}
             </CardContent>
             <CardFooter>
-              <Button onClick={handleOpenInvestmentDialog} className="w-full text-lg py-6" disabled={sharesRemaining <= 0}>
-                <TrendingUp className="mr-2 h-5 w-5" /> <span suppressHydrationWarning>Invest Now</span>
+              <Button onClick={handleOpenInvestmentDialog} className="w-full text-lg py-6" disabled={sharesRemaining <= 0} suppressHydrationWarning>
+                <TrendingUp className="mr-2 h-5 w-5" /> Invest Now
               </Button>
             </CardFooter>
           </Card>
@@ -356,8 +357,8 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
             </div>
           </div>
           <DialogFooter>
-            <DialogClose asChild><Button variant="outline"><span suppressHydrationWarning>Cancel</span></Button></DialogClose>
-            <Button onClick={handleDonate}><span suppressHydrationWarning>Donate</span></Button>
+            <DialogClose asChild><Button variant="outline" suppressHydrationWarning>Cancel</Button></DialogClose>
+            <Button onClick={handleDonate} suppressHydrationWarning>Donate</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -395,8 +396,8 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
             )}
           </div>
           <DialogFooter>
-            <DialogClose asChild><Button variant="outline"><span suppressHydrationWarning>Cancel</span></Button></DialogClose>
-            <Button onClick={handleInvest} disabled={!investmentShares || parseInt(investmentShares) <=0 || parseInt(investmentShares) > sharesRemaining}><span suppressHydrationWarning>Invest</span></Button>
+            <DialogClose asChild><Button variant="outline" suppressHydrationWarning>Cancel</Button></DialogClose>
+            <Button onClick={handleInvest} disabled={!investmentShares || parseInt(investmentShares) <=0 || parseInt(investmentShares) > sharesRemaining} suppressHydrationWarning>Invest</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -404,5 +405,3 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
     </div>
   );
 }
-
-    
