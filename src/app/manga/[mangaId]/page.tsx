@@ -1,4 +1,3 @@
-
 "use client";
 import Image from 'next/image';
 import { notFound, useRouter } from 'next/navigation';
@@ -13,7 +12,7 @@ import { DollarSign, Gift, TrendingUp, CheckCircle, Landmark, Users, Percent, In
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use as useReact } from 'react'; // Import React.use
 import {
   Dialog,
   DialogContent,
@@ -29,9 +28,18 @@ import { Label } from "@/components/ui/label"
 import type { MangaSeries } from '@/lib/types';
 
 
-export default function MangaDetailPage({ params }: MangaDetailPageProps) {
+interface MangaDetailPageProps {
+  params: { mangaId: string }; // This represents the resolved params structure
+}
+
+export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageProps) {
+  // Unwrap the params prop using React.use as suggested by Next.js warning
+  // The paramsProp might be a special promise-like object from Next.js
+  const resolvedParams = useReact(paramsProp as any); // Cast to any as the exact promise-like type is internal
+  const mangaId = resolvedParams.mangaId;
+
   // Use local state for manga data to reflect simulated updates
-  const [manga, setManga] = useState<MangaSeries | undefined>(() => getMangaById(params.mangaId));
+  const [manga, setManga] = useState<MangaSeries | undefined>(() => getMangaById(mangaId));
   const { user, isSubscribedToManga, subscribeToManga, donateToManga, investInManga } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
@@ -46,13 +54,13 @@ export default function MangaDetailPage({ params }: MangaDetailPageProps) {
     // this component re-fetches it. This is for demonstration with mock data.
     // In a real app with a DB, you might use a query library that handles re-fetching or updates.
     const interval = setInterval(() => {
-      const freshManga = getMangaById(params.mangaId);
+      const freshManga = getMangaById(mangaId); // Use the resolved mangaId
       if (JSON.stringify(freshManga) !== JSON.stringify(manga)) {
         setManga(freshManga);
       }
     }, 1000); // Check for updates periodically
     return () => clearInterval(interval);
-  }, [params.mangaId, manga]);
+  }, [mangaId, manga]);
 
 
   if (!manga) {
@@ -73,7 +81,7 @@ export default function MangaDetailPage({ params }: MangaDetailPageProps) {
       const success = await subscribeToManga(manga.id, manga.title, manga.subscriptionPrice);
       if (success) {
         // Refresh local manga state if needed, though AuthContext might handle this conceptually
-        setManga(getMangaById(params.mangaId)); 
+        setManga(getMangaById(manga.id)); 
       }
     }
   };
@@ -97,7 +105,7 @@ export default function MangaDetailPage({ params }: MangaDetailPageProps) {
     if (success) {
       setDonationAmount("");
       setIsDonationDialogOpen(false);
-      setManga(getMangaById(params.mangaId));
+      setManga(getMangaById(manga.id));
     }
   };
 
@@ -135,7 +143,7 @@ export default function MangaDetailPage({ params }: MangaDetailPageProps) {
     if (success) {
       setInvestmentShares("");
       setIsInvestmentDialogOpen(false);
-      setManga(getMangaById(params.mangaId));
+      setManga(getMangaById(manga.id));
     }
   };
   
@@ -361,8 +369,3 @@ export default function MangaDetailPage({ params }: MangaDetailPageProps) {
 
     </div>
   );
-}
-
-interface MangaDetailPageProps {
-  params: { mangaId: string };
-}
