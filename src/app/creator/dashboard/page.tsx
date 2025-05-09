@@ -17,6 +17,7 @@ export default function CreatorDashboardPage() {
   const router = useRouter();
   const [authoredManga, setAuthoredManga] = useState<MangaSeries[]>([]);
 
+  // Effect for redirection and initial data load based on user
   useEffect(() => {
     if (!user) {
       router.push('/login?redirect=/creator/dashboard');
@@ -26,28 +27,54 @@ export default function CreatorDashboardPage() {
       router.push('/'); // Redirect non-creators away
       return;
     }
-    if (!user.authoredMangaIds) {
-      setAuthoredManga([]);
-    } else {
+
+    // Initial load of authoredManga
+    if (user.authoredMangaIds) {
       const mangaList = user.authoredMangaIds
         .map(id => getMangaById(id))
         .filter(manga => manga !== undefined) as MangaSeries[];
-      setAuthoredManga(mangaList);
+      setAuthoredManga(prevList => {
+        if (JSON.stringify(mangaList) !== JSON.stringify(prevList)) {
+          return mangaList;
+        }
+        return prevList;
+      });
+    } else {
+      setAuthoredManga([]);
+    }
+  }, [user, router]);
+
+  // Effect for polling manga data
+  useEffect(() => {
+    if (!user || user.accountType !== 'creator') {
+      return; // Don't run interval if not a logged-in creator
     }
 
     const interval = setInterval(() => {
-       if (user && user.authoredMangaIds) {
+      if (user.authoredMangaIds) {
         const freshMangaList = user.authoredMangaIds
           .map(id => getMangaById(id))
           .filter(manga => manga !== undefined) as MangaSeries[];
-        if (JSON.stringify(freshMangaList) !== JSON.stringify(authoredManga)) {
-          setAuthoredManga(freshMangaList);
-        }
-       }
+        
+        setAuthoredManga(currentAuthoredManga => {
+          if (JSON.stringify(freshMangaList) !== JSON.stringify(currentAuthoredManga)) {
+            return freshMangaList;
+          }
+          return currentAuthoredManga;
+        });
+      } else {
+        setAuthoredManga(currentAuthoredManga => {
+          if (currentAuthoredManga.length > 0) {
+            return [];
+          }
+          return currentAuthoredManga;
+        });
+      }
     }, 2000); // Check for updates every 2 seconds
-    return () => clearInterval(interval);
 
-  }, [user, router, authoredManga]);
+    return () => clearInterval(interval);
+  }, [user]); // Re-setup interval if user changes
+
 
   if (!user || user.accountType !== 'creator') {
     // Show loading or redirect message while routing checks complete
@@ -124,4 +151,3 @@ export default function CreatorDashboardPage() {
     </div>
   );
 }
-

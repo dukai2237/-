@@ -1,3 +1,4 @@
+
 "use client";
 import Image from 'next/image';
 import { notFound, useRouter } from 'next/navigation';
@@ -33,7 +34,7 @@ interface MangaDetailPageProps {
 }
 
 export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageProps) {
-  const resolvedParams = use(paramsProp as any); // Use React.use to resolve the promise
+  const resolvedParams = use(paramsProp as any); 
   const mangaId = resolvedParams.mangaId;
 
   const [manga, setManga] = useState<MangaSeries | undefined>(() => getMangaById(mangaId));
@@ -47,27 +48,40 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
   const [isDonationDialogOpen, setIsDonationDialogOpen] = useState(false);
   const [isInvestmentDialogOpen, setIsInvestmentDialogOpen] = useState(false);
 
+  // Effect to update manga data if mangaId changes (e.g., navigation)
   useEffect(() => {
-    const currentManga = getMangaById(mangaId);
-    setManga(currentManga);
-    if (currentManga) {
-      setAuthorDetails(getAuthorById(currentManga.author.id));
-    }
+    const currentMangaData = getMangaById(mangaId);
+    setManga(currentMangaData);
+  }, [mangaId]);
 
+  // Effect to update authorDetails when manga state changes
+  useEffect(() => {
+    if (manga) {
+      setAuthorDetails(getAuthorById(manga.author.id));
+    } else {
+      setAuthorDetails(undefined);
+    }
+  }, [manga]);
+
+  // Effect for polling manga data
+  useEffect(() => {
     const interval = setInterval(() => {
-      const freshManga = getMangaById(mangaId);
-      if (JSON.stringify(freshManga) !== JSON.stringify(manga)) {
-        setManga(freshManga);
-        if (freshManga) {
-          setAuthorDetails(getAuthorById(freshManga.author.id));
+      const freshMangaData = getMangaById(mangaId);
+      setManga(prevManga => {
+        if (JSON.stringify(freshMangaData) !== JSON.stringify(prevManga)) {
+          return freshMangaData;
         }
-      }
+        return prevManga;
+      });
     }, 1000); 
     return () => clearInterval(interval);
-  }, [mangaId, manga]);
+  }, [mangaId]);
 
 
   if (!manga) {
+    // Initial load might still be resolving or manga truly not found
+    // Consider a loading state here if getMangaById could be async in future
+    // For now, if useState initializes and it's still undefined, notFound is appropriate.
     notFound();
   }
 
