@@ -7,6 +7,7 @@ import { useAuth, MOCK_USER_VALID } from "@/contexts/AuthContext";
 import type { User } from "@/lib/types";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, type FormEvent, useEffect } from "react";
+import Link from "next/link";
 
 export default function LoginPage() {
   const { user: loggedInUser, login } = useAuth();
