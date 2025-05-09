@@ -1,27 +1,34 @@
-
-"use client"; 
+"use client";
 
 import { MangaCard } from '@/components/manga/MangaCard';
-import { modifiableMockMangaSeries as allMockMangaSeries } from '@/lib/mock-data'; 
+import { getPublishedMangaSeries } from '@/lib/mock-data'; // Use new function
 import type { MangaSeries } from '@/lib/types';
 import { Separator } from '@/components/ui/separator';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Shuffle, Flame, Zap, AlertCircle, Tag } from 'lucide-react';
+import { Shuffle, Flame, Zap, AlertCircle, Tag, CalendarDays, CalendarClock } from 'lucide-react';
 import { MANGA_GENRES_DETAILS } from '@/lib/constants';
 import { useAuth } from '@/contexts/AuthContext';
 
+const ITEMS_PER_SECTION = 20;
+
 export default function HomePage() {
   const searchParams = useSearchParams();
-  const { user, updateUserSearchHistory } = useAuth(); 
+  const { user, updateUserSearchHistory } = useAuth();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [genreFilter, setGenreFilter] = useState('');
-  
-  const [filteredManga, setFilteredManga] = useState<MangaSeries[]>(allMockMangaSeries);
+
+  const [allPublishedManga, setAllPublishedManga] = useState<MangaSeries[]>([]);
+  const [filteredManga, setFilteredManga] = useState<MangaSeries[]>([]);
   const [clientRandomManga, setClientRandomManga] = useState<MangaSeries[]>([]);
+
+  useEffect(() => {
+    // Fetch all published manga once on client mount
+    setAllPublishedManga(getPublishedMangaSeries());
+  }, []);
 
   useEffect(() => {
     const currentSearch = searchParams.get('search') || '';
@@ -33,14 +40,14 @@ export default function HomePage() {
   const memoizedUpdateUserSearchHistory = useCallback(updateUserSearchHistory, []);
 
   useEffect(() => {
-    let mangaToDisplay = [...allMockMangaSeries];
+    let mangaToDisplay = [...allPublishedManga];
 
     if (searchTerm) {
       mangaToDisplay = mangaToDisplay.filter(manga =>
         manga.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         manga.author.name.toLowerCase().includes(searchTerm.toLowerCase())
       );
-      if (user) { 
+      if (user) {
         memoizedUpdateUserSearchHistory(searchTerm);
       }
     }
@@ -50,28 +57,46 @@ export default function HomePage() {
         manga.genres.includes(genreFilter)
       );
     }
-    
+
     setFilteredManga(mangaToDisplay);
-  }, [searchTerm, genreFilter, user, memoizedUpdateUserSearchHistory]);
+  }, [searchTerm, genreFilter, user, memoizedUpdateUserSearchHistory, allPublishedManga]);
 
   useEffect(() => {
-    // Generate random manga on client side after initial render to avoid hydration mismatch
     setClientRandomManga(
-      [...filteredManga].sort(() => 0.5 - Math.random()).slice(0, 8)
+      [...filteredManga].sort(() => 0.5 - Math.random()).slice(0, ITEMS_PER_SECTION)
     );
   }, [filteredManga]);
 
 
-  const newestManga = useMemo(() => 
+  const newestManga = useMemo(() =>
     [...filteredManga]
     .sort((a, b) => new Date(b.publishedDate).getTime() - new Date(a.publishedDate).getTime())
-    .slice(0, 8), [filteredManga]);
+    .slice(0, ITEMS_PER_SECTION), [filteredManga]);
 
-  const popularManga = useMemo(() => 
+  const popularManga = useMemo(() =>
     [...filteredManga]
     .sort((a, b) => b.viewCount - a.viewCount)
-    .slice(0, 8), [filteredManga]);
-  
+    .slice(0, ITEMS_PER_SECTION), [filteredManga]);
+
+  const dailyNewReleases = useMemo(() => {
+    const now = new Date();
+    const twentyFourHoursAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+    return [...allPublishedManga]
+      .filter(m => new Date(m.publishedDate) >= twentyFourHoursAgo)
+      .sort((a, b) => new Date(b.publishedDate).getTime() - new Date(a.publishedDate).getTime())
+      .slice(0, ITEMS_PER_SECTION);
+  }, [allPublishedManga]);
+
+  const monthlyNewReleases = useMemo(() => {
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+    return [...allPublishedManga]
+      .filter(m => new Date(m.publishedDate) >= thirtyDaysAgo)
+      .sort((a, b) => new Date(b.publishedDate).getTime() - new Date(a.publishedDate).getTime())
+      .slice(0, ITEMS_PER_SECTION);
+  }, [allPublishedManga]);
+
+
   const currentGenreName = genreFilter ? MANGA_GENRES_DETAILS.find(g => g.id === genreFilter)?.name : null;
 
   if (searchTerm && filteredManga.length === 0 && !genreFilter) {
@@ -94,9 +119,9 @@ export default function HomePage() {
       <section className="text-center pt-8 pb-4">
         <h1 className="text-4xl font-bold tracking-tight mb-2" suppressHydrationWarning>Explore Your Favorite Manga</h1>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto" suppressHydrationWarning>
-          {searchTerm 
-            ? <>Results for "<span className="text-primary font-semibold">{searchTerm}</span>" {currentGenreName && <>in category "<span className="text-primary font-semibold">{currentGenreName}</span>"</>}:</> 
-            : currentGenreName 
+          {searchTerm
+            ? <>Results for "<span className="text-primary font-semibold">{searchTerm}</span>" {currentGenreName && <>in category "<span className="text-primary font-semibold">{currentGenreName}</span>"</>}:</>
+            : currentGenreName
             ? <>Manga in category "<span className="text-primary font-semibold">{currentGenreName}</span>":</>
             : "Browse our exciting collection of manga series across various genres."}
         </p>
@@ -130,24 +155,49 @@ export default function HomePage() {
 
       {filteredManga.length > 0 && (
         <>
+          {dailyNewReleases.length > 0 && (
+            <section>
+              <h2 className="text-3xl font-semibold mb-6 tracking-tight flex items-center" suppressHydrationWarning><CalendarClock className="mr-3 h-7 w-7 text-sky-500"/>Daily New Releases</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-8">
+                {dailyNewReleases.map((manga) => (
+                  <MangaCard key={manga.id} manga={manga} />
+                ))}
+              </div>
+            </section>
+          )}
+          {dailyNewReleases.length > 0 && <Separator className="my-10" />}
+
+          {monthlyNewReleases.length > 0 && (
+            <section>
+              <h2 className="text-3xl font-semibold mb-6 tracking-tight flex items-center" suppressHydrationWarning><CalendarDays className="mr-3 h-7 w-7 text-blue-500"/>Monthly New Releases</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-8">
+                {monthlyNewReleases.map((manga) => (
+                  <MangaCard key={manga.id} manga={manga} />
+                ))}
+              </div>
+            </section>
+          )}
+          {monthlyNewReleases.length > 0 && <Separator className="my-10" />}
+
+
           {newestManga.length > 0 && (
             <section>
-              <h2 className="text-3xl font-semibold mb-6 tracking-tight flex items-center" suppressHydrationWarning><Zap className="mr-3 h-7 w-7 text-yellow-500"/>Latest Releases</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-8">
+              <h2 className="text-3xl font-semibold mb-6 tracking-tight flex items-center" suppressHydrationWarning><Zap className="mr-3 h-7 w-7 text-yellow-500"/>Latest Releases (All Time)</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-8">
                 {newestManga.map((manga) => (
                   <MangaCard key={manga.id} manga={manga} />
                 ))}
               </div>
             </section>
           )}
-          
+
           {popularManga.length > 0 && newestManga.length > 0 && <Separator className="my-10" />}
 
 
           {popularManga.length > 0 && (
              <section>
               <h2 className="text-3xl font-semibold mb-6 tracking-tight flex items-center" suppressHydrationWarning><Flame className="mr-3 h-7 w-7 text-red-500"/>Popular Manga (by Views)</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-8">
                 {popularManga.map((manga) => (
                   <MangaCard key={manga.id} manga={manga} />
                 ))}
@@ -156,11 +206,11 @@ export default function HomePage() {
           )}
 
           {clientRandomManga.length > 0 && popularManga.length > 0 && <Separator className="my-10" />}
-          
+
           {clientRandomManga.length > 0 && (
              <section>
               <h2 className="text-3xl font-semibold mb-6 tracking-tight flex items-center" suppressHydrationWarning><Shuffle className="mr-3 h-7 w-7 text-green-500"/>Random Recommendations</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-8">
                 {clientRandomManga.map((manga) => (
                   <MangaCard key={manga.id} manga={manga} />
                 ))}
@@ -171,7 +221,7 @@ export default function HomePage() {
       )}
 
 
-      {allMockMangaSeries.length === 0 && !searchTerm && !genreFilter && (
+      {allPublishedManga.length === 0 && !searchTerm && !genreFilter && (
         <div className="text-center py-12">
           <p className="text-lg text-muted-foreground" suppressHydrationWarning>No manga series available at the moment. Check back later!</p>
         </div>

@@ -11,34 +11,34 @@ const generatePages = (chapterId: string, count: number): MangaPage[] => {
 };
 
 const mockAuthors: (AuthorInfo & { contactDetails?: AuthorContactDetails, isSystemUser?: boolean })[] = [
-  { 
-    id: 'author-1', 
-    name: 'Kenji Tanaka', 
+  {
+    id: 'author-1',
+    name: 'Kenji Tanaka',
     avatarUrl: 'https://picsum.photos/100/100?random=author1',
     contactDetails: {
       email: 'kenji.tanaka@example.com',
       socialLinks: [{ platform: 'Twitter', url: 'https://twitter.com/kenji_manga' }]
     }
   },
-  { 
-    id: 'author-2', 
-    name: 'Yuki Sato', 
+  {
+    id: 'author-2',
+    name: 'Yuki Sato',
     avatarUrl: 'https://picsum.photos/100/100?random=author2',
     contactDetails: {
       email: 'yuki.sato.art@example.com',
       socialLinks: [{ platform: 'Instagram', url: 'https://instagram.com/yuki_draws' }]
     }
   },
-  { 
-    id: 'author-3', 
-    name: 'Aiko Suzuki', 
+  {
+    id: 'author-3',
+    name: 'Aiko Suzuki',
     avatarUrl: 'https://picsum.photos/100/100?random=author3',
   },
-  { 
-    id: 'user-123', 
-    name: 'Test Creator', 
+  {
+    id: 'user-123',
+    name: 'Test Creator',
     avatarUrl: 'https://picsum.photos/100/100?random=creator',
-    isSystemUser: true, 
+    isSystemUser: true,
     contactDetails: {
       email: 'test@example.com',
       socialLinks: [{ platform: 'Website', url: 'https://testcreator.com'}]
@@ -54,9 +54,9 @@ const mockAuthors: (AuthorInfo & { contactDetails?: AuthorContactDetails, isSyst
 
 const investmentOffer1: MangaInvestmentOffer = {
   sharesOfferedTotalPercent: 20,
-  totalSharesInOffer: Math.min(100, MAX_SHARES_PER_OFFER), 
-  pricePerShare: 50, 
-  minSubscriptionRequirement: 5, 
+  totalSharesInOffer: Math.min(100, MAX_SHARES_PER_OFFER),
+  pricePerShare: 50,
+  minSubscriptionRequirement: 5,
   description: "Invest in 'The Wandering Blade' and share in its subscription, donation, and merchandise revenue. You'll also own a piece of the IP for future adaptations (anime, movies, etc.).",
   isActive: true,
   dividendPayoutCycle: 3, // Quarterly
@@ -92,21 +92,22 @@ export const mockMangaSeriesData: MangaSeries[] = [
     freePreviewPageCount: 2,
     freePreviewChapterCount: 0,
     subscriptionPrice: 5,
-    totalRevenueFromSubscriptions: 1250, 
+    totalRevenueFromSubscriptions: 1250,
     totalRevenueFromDonations: 350,
-    totalRevenueFromMerchandise: 120, // Added merchandise revenue
+    totalRevenueFromMerchandise: 120,
     investmentOffer: investmentOffer1,
-    investors: [ // Users who bought shares from the author
+    investors: [
       { userId: 'investor-alpha', userName: 'Alpha Investor', sharesOwned: 10, totalAmountInvested: 500, joinedDate: new Date(Date.now() - 1000*60*60*24*30).toISOString()},
       { userId: 'investor-beta', userName: 'Beta Investor', sharesOwned: 5, totalAmountInvested: 250, joinedDate: new Date(Date.now() - 1000*60*60*24*15).toISOString()},
     ],
-    publishedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 60).toISOString(), 
+    publishedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 60).toISOString(),
     lastUpdatedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 10).toISOString(),
     lastInvestmentDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 15).toISOString(),
     lastSubscriptionDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
     averageRating: 2.8,
     ratingCount: 150,
     viewCount: 12000,
+    isPublished: true,
   },
   {
     id: 'manga-2',
@@ -133,6 +134,7 @@ export const mockMangaSeriesData: MangaSeries[] = [
     averageRating: 2.5,
     ratingCount: 95,
     viewCount: 8500,
+    isPublished: true,
   },
   {
     id: 'manga-3',
@@ -159,9 +161,10 @@ export const mockMangaSeriesData: MangaSeries[] = [
     averageRating: 2.2,
     ratingCount: 200,
     viewCount: 15000,
+    isPublished: true,
   },
   {
-    id: 'manga-4', 
+    id: 'manga-4',
     title: 'My Author Adventure',
     author: mockAuthors.find(a => a.id === 'user-123')!,
     authorDetails: mockAuthors.find(a => a.id === 'user-123')?.contactDetails,
@@ -178,15 +181,21 @@ export const mockMangaSeriesData: MangaSeries[] = [
     totalRevenueFromDonations: 10,
     totalRevenueFromMerchandise: 0,
     investors: [],
-    publishedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(), 
+    publishedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(),
     lastUpdatedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 1).toISOString(),
-    averageRating: undefined, 
+    averageRating: undefined,
     ratingCount: 0,
     viewCount: 100,
+    isPublished: true,
   },
 ];
 
 export let modifiableMockMangaSeries = [...mockMangaSeriesData];
+
+// Function to get all manga series that are published (for public display)
+export const getPublishedMangaSeries = (): MangaSeries[] => {
+  return modifiableMockMangaSeries.filter(manga => manga.isPublished);
+};
 
 export const getMangaById = (id: string): MangaSeries | undefined => {
   return modifiableMockMangaSeries.find(manga => manga.id === id);
@@ -206,15 +215,54 @@ export const updateMockMangaData = (mangaId: string, updates: Partial<MangaSerie
   if (mangaIndex !== -1) {
     const existingManga = modifiableMockMangaSeries[mangaIndex];
     let updatedChapters: Chapter[] | undefined = updates.chapters;
+    let lastChapterUpdateInfo: MangaSeries['lastChapterUpdateInfo'] = existingManga.lastChapterUpdateInfo;
 
     if (updates.chapters) {
+      // Basic logic to detect if chapters structure changed significantly to trigger update info
+      // This is a simplified check. A more robust check would compare content deeply.
+      let pagesChangedInLastChapter = false;
+      let lastUpdatedEffectiveChapter: Chapter | undefined = undefined;
+
+      if (existingManga.chapters.length > 0 && updates.chapters.length > 0) {
+        const lastExistingChapter = existingManga.chapters[existingManga.chapters.length -1];
+        const lastUpdatedChapter = updates.chapters.find(uc => uc.id === lastExistingChapter.id) || updates.chapters[updates.chapters.length -1];
+        
+        if (lastUpdatedChapter) {
+          const oldPagesCount = lastExistingChapter?.pages.length || 0;
+          const newPagesCount = lastUpdatedChapter.pages.length;
+          if (newPagesCount !== oldPagesCount) {
+             pagesChangedInLastChapter = true;
+             lastUpdatedEffectiveChapter = lastUpdatedChapter;
+             lastChapterUpdateInfo = {
+                chapterId: lastUpdatedEffectiveChapter.id,
+                chapterNumber: lastUpdatedEffectiveChapter.chapterNumber,
+                chapterTitle: lastUpdatedEffectiveChapter.title,
+                pagesAdded: newPagesCount - oldPagesCount, // Can be negative if pages removed
+                newTotalPagesInChapter: newPagesCount,
+                date: new Date().toISOString(),
+             };
+          }
+        }
+      } else if (updates.chapters.length > 0) { // Manga had no chapters, now has some
+        lastUpdatedEffectiveChapter = updates.chapters[updates.chapters.length -1];
+        lastChapterUpdateInfo = {
+            chapterId: lastUpdatedEffectiveChapter.id,
+            chapterNumber: lastUpdatedEffectiveChapter.chapterNumber,
+            chapterTitle: lastUpdatedEffectiveChapter.title,
+            pagesAdded: lastUpdatedEffectiveChapter.pages.length,
+            newTotalPagesInChapter: lastUpdatedEffectiveChapter.pages.length,
+            date: new Date().toISOString(),
+        };
+      }
+
+
       updatedChapters = updates.chapters.map((updatedCh, chapterIdx) => {
         const existingChapter = existingManga.chapters.find(c => c.id === updatedCh.id);
         const newPages: MangaPage[] = updatedCh.pages.map((updatedPage, pageIdx) => {
           const existingPage = existingChapter?.pages.find(p => p.id === updatedPage.id);
           return {
             id: existingPage?.id || updatedPage.id || `${updatedCh.id}-page-${Date.now()}-${pageIdx}`,
-            imageUrl: updatedPage.imageUrl, 
+            imageUrl: updatedPage.imageUrl,
             altText: updatedPage.altText || `Page ${pageIdx + 1}`,
           };
         });
@@ -226,23 +274,23 @@ export const updateMockMangaData = (mangaId: string, updates: Partial<MangaSerie
         };
       });
     }
-    
-    // Merge investmentOffer carefully
+
     let mergedInvestmentOffer = existingManga.investmentOffer;
     if (updates.investmentOffer) {
         mergedInvestmentOffer = {
-            ...(existingManga.investmentOffer || {}), // Base with existing or empty object
-            ...updates.investmentOffer, // Apply updates
+            ...(existingManga.investmentOffer || {}),
+            ...updates.investmentOffer,
         };
     }
 
 
-    modifiableMockMangaSeries[mangaIndex] = { 
-      ...existingManga, 
+    modifiableMockMangaSeries[mangaIndex] = {
+      ...existingManga,
       ...updates,
       chapters: updatedChapters || existingManga.chapters,
       investmentOffer: mergedInvestmentOffer,
-      lastUpdatedDate: new Date().toISOString(), // Always update lastUpdatedDate on any change
+      lastUpdatedDate: new Date().toISOString(),
+      lastChapterUpdateInfo: updates.chapters ? lastChapterUpdateInfo : existingManga.lastChapterUpdateInfo, // Only update if chapters were part of the update
     };
   }
 };
@@ -250,36 +298,22 @@ export const updateMockMangaData = (mangaId: string, updates: Partial<MangaSerie
 export const addMockMangaSeries = (newManga: MangaSeries) => {
   const authorExists = mockAuthors.some(a => a.id === newManga.author.id);
   if (!authorExists && !mockAuthors.find(a => a.isSystemUser && a.id === newManga.author.id)) {
-    const newAuthorData = { 
-        id: newManga.author.id, 
-        name: newManga.author.name, 
+    const newAuthorData = {
+        id: newManga.author.id,
+        name: newManga.author.name,
         avatarUrl: newManga.author.avatarUrl,
-        contactDetails: newManga.authorDetails 
+        contactDetails: newManga.authorDetails
     };
     mockAuthors.push(newAuthorData);
   }
-  modifiableMockMangaSeries.unshift(newManga); 
+  // New manga are added as published by default, can be changed in edit.
+  const mangaWithDefaults: MangaSeries = {
+    ...newManga,
+    isPublished: newManga.isPublished !== undefined ? newManga.isPublished : true,
+  }
+  modifiableMockMangaSeries.unshift(mangaWithDefaults);
 };
 
 export const deleteMockMangaData = (mangaId: string) => {
   modifiableMockMangaSeries = modifiableMockMangaSeries.filter(manga => manga.id !== mangaId);
 };
-
-    
-// Conceptual: Function to allow users to list their shares for sale
-// export const listSharesForSale = (userId: string, mangaId: string, sharesToSell: number, pricePerShare: number) => {
-//   // Find user's investment
-//   // Check if they own enough shares
-//   // Create a ShareListing entry
-//   // Update user's UserInvestment to mark shares as for sale (or reduce directly if sold immediately)
-// };
-
-// Conceptual: Function for users to buy shares from the secondary market
-// export const buySharesFromListing = (buyerUserId: string, listingId: string, sharesToBuy: number) => {
-//   // Find ShareListing
-//   // Check if buyer has enough funds
-//   // Transfer funds from buyer to seller (minus platform fee)
-//   // Update buyer's UserInvestment (add/update)
-//   // Update seller's UserInvestment (reduce/remove)
-//   // Update ShareListing (reduce shares or mark as inactive/sold)
-// };

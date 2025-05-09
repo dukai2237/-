@@ -42,6 +42,7 @@ export interface AuthorInfo { // Existing interface, represents the basic author
   id:string;
   name: string;
   avatarUrl: string;
+  contactDetails?: AuthorContactDetails; // Added for potential direct use, though primarily via MangaSeries.authorDetails
 }
 
 export interface MangaPage {
@@ -76,19 +77,23 @@ export interface MangaInvestor { // Tracks who invested in the initial offering 
   sharesOwned: number; // Shares bought directly from author's offering
   totalAmountInvested: number; // Amount paid to author for these shares
   joinedDate: string; // ISO date string
+  lastDividendReceivedDate?: string; // ISO date string
+  totalDividendsReceived?: number;
+  isForSale?: boolean; // For secondary market
+  sellingPricePerShare?: number; // For secondary market
 }
 
 export interface MangaSeries {
   id: string;
   title: string;
   author: AuthorInfo;
-  authorDetails?: AuthorContactDetails; 
+  authorDetails?: AuthorContactDetails;
   summary: string;
   coverImage: string;
   genres: string[];
   chapters: Chapter[];
   freePreviewPageCount: number;
-  freePreviewChapterCount?: number; 
+  freePreviewChapterCount?: number;
   subscriptionPrice?: number;
 
   totalRevenueFromSubscriptions: number;
@@ -99,12 +104,21 @@ export interface MangaSeries {
   investors: MangaInvestor[]; // Users who invested directly in the author's offering
 
   publishedDate: string;
-  lastUpdatedDate?: string; 
-  lastInvestmentDate?: string; 
-  lastSubscriptionDate?: string; 
+  lastUpdatedDate?: string;
+  lastInvestmentDate?: string;
+  lastSubscriptionDate?: string;
   averageRating?: number;
   ratingCount?: number;
   viewCount: number;
+  isPublished: boolean; // New field to control visibility
+  lastChapterUpdateInfo?: { // New field for update notifications
+    chapterId: string;
+    chapterNumber: number;
+    chapterTitle: string;
+    pagesAdded: number; // Number of pages added in the last update to this chapter
+    newTotalPagesInChapter: number; // Total pages in this chapter after update
+    date: string; // ISO date string of the update
+  };
 }
 
 export interface SimulatedTransaction {
@@ -113,7 +127,7 @@ export interface SimulatedTransaction {
     | 'subscription_payment'
     | 'donation_payment'
     | 'investment_payment' // User pays author for shares
-    | 'merchandise_purchase' 
+    | 'merchandise_purchase'
     | 'author_earning' // Generic author earning, or specific if from sub/donation/merch
     | 'investor_payout' // Dividend payout from author to investor
     | 'platform_fee' // Old, to be deprecated
@@ -124,11 +138,11 @@ export interface SimulatedTransaction {
     | 'manga_deletion'
     | 'wallet_deposit'
     | 'wallet_withdrawal' // Author withdrawing funds
-    | 'creator_approval_pending' 
-    | 'creator_approved' 
+    | 'creator_approval_pending'
+    | 'creator_approved'
     | 'shares_purchase_secondary' // User buys shares from another user
     | 'shares_sale_secondary'; // User sells shares to another user
-  amount: number; 
+  amount: number;
   userId?: string; // User initiating or receiving funds
   authorId?: string; // Author involved
   mangaId?: string;
@@ -137,10 +151,10 @@ export interface SimulatedTransaction {
   relatedData?: any; // e.g., { shares: 5, pricePerShare: 10 } for investment
 }
 
-export interface MangaRating { 
+export interface MangaRating {
   userId: string;
   mangaId: string;
-  score: 1 | 2 | 3; 
+  score: 1 | 2 | 3;
   timestamp: string;
 }
 
