@@ -26,7 +26,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { MangaSeries } from '@/lib/types';
-import { MANGA_GENRES_DETAILS } from '@/lib/constants';
+import { MANGA_GENRES_DETAILS, MIN_SUBSCRIPTIONS_FOR_INVESTMENT } from '@/lib/constants';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 
@@ -50,16 +50,13 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
 
   useEffect(() => {
     const currentMangaData = getMangaById(mangaId);
-    if (!currentMangaData || !currentMangaData.isPublished) { // Also check if published
-      // Defer notFound until after a short period to allow for mock data updates.
-      // This is a workaround for the mock data setup.
-      // In a real app, you'd likely get null/undefined immediately from a DB if not found or not published.
+    if (!currentMangaData || !currentMangaData.isPublished) { 
       setTimeout(() => {
         const freshCheck = getMangaById(mangaId);
         if(!freshCheck || !freshCheck.isPublished) {
           notFound();
         }
-      }, 200); // Adjust delay as needed
+      }, 200); 
     }
     setManga(currentMangaData);
   }, [mangaId]);
@@ -69,7 +66,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
     if (!mangaId) return;
     const interval = setInterval(() => {
       const freshMangaData = getMangaById(mangaId);
-      if (freshMangaData && freshMangaData.isPublished) { // Only update if published
+      if (freshMangaData && freshMangaData.isPublished) { 
         setManga(prevManga => {
           if (JSON.stringify(freshMangaData) !== JSON.stringify(prevManga)) {
             return freshMangaData;
@@ -77,23 +74,16 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
           return prevManga;
         });
       } else {
-        // If it becomes unpublished or deleted, and we are on its page, it should ideally redirect or show not found.
-        // For now, if it was already set, we keep showing it. A stricter check might navigate away.
         if (manga && (!freshMangaData || !freshMangaData.isPublished)) {
            // Potentially call notFound() here if strict behavior is desired
         }
       }
     }, 1000);
     return () => clearInterval(interval);
-  }, [mangaId, manga]); // Added manga to dependencies to re-evaluate if manga becomes undefined
+  }, [mangaId, manga]); 
 
 
   if (!manga) {
-    if(mangaId) {
-        // Wait a moment before calling notFound in case data is loading
-        // This is primarily for the mock data scenario
-        // In a real app, this might be handled by a loading state from a fetch
-    }
     return <div className="text-center py-10">Loading manga details or manga not found/unpublished...</div>;
   }
 
@@ -146,8 +136,14 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
       toast({ title: "Investment Closed", description: "This manga is not currently open for investment.", variant: "destructive" });
       return;
     }
-    if (manga.investmentOffer.minSubscriptionRequirement && (!user.subscriptions || user.subscriptions.length < manga.investmentOffer.minSubscriptionRequirement)) {
-        toast({ title: "Investment Requirement Not Met", description: `You need to subscribe to at least ${manga.investmentOffer.minSubscriptionRequirement} manga to invest. You currently have ${user.subscriptions?.length || 0} subscriptions.`, variant: "destructive", duration: 7000 });
+    // Global investment requirement check
+    if ((user.subscriptions?.length || 0) < MIN_SUBSCRIPTIONS_FOR_INVESTMENT) {
+        toast({ title: "Platform Investment Requirement Not Met", description: `You need to subscribe to or purchase at least ${MIN_SUBSCRIPTIONS_FOR_INVESTMENT} manga/chapters to invest. You currently have ${user.subscriptions?.length || 0}.`, variant: "destructive", duration: 7000 });
+        return;
+    }
+    // Author specific investment requirement check (if any)
+    if (manga.investmentOffer.minSubscriptionRequirement && (!user.subscriptions || user.subscriptions.filter(s => s.type === 'monthly' && s.mangaId === manga.id).length < manga.investmentOffer.minSubscriptionRequirement)) {
+        toast({ title: "Author's Investment Requirement Not Met", description: `The author requires you to subscribe to *this specific manga* at least ${manga.investmentOffer.minSubscriptionRequirement} times (monthly) to invest. You currently have ${user.subscriptions?.filter(s=>s.type==='monthly' && s.mangaId === manga.id).length || 0} monthly subscriptions for this manga.`, variant: "destructive", duration: 8000 });
         return;
     }
     setIsInvestmentDialogOpen(true);
@@ -182,10 +178,10 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
 
   const isUserSubscribed = user ? isSubscribedToManga(manga.id) : false;
   const userRating = user?.ratingsGiven?.[manga.id];
-  const canRate = user && isUserSubscribed && !userRating; // User must be subscribed and not have rated yet
+  const canRate = user && (isUserSubscribed || user.investments.some(inv => inv.mangaId === manga.id) || user.subscriptions.some(sub => sub.mangaId === manga.id && sub.type === 'chapter')) && !userRating;
   const ratingDisabledReason = () => {
     if (!user) return "Login to rate";
-    if (!isUserSubscribed) return "Subscribe to rate";
+    if (!isUserSubscribed && !user.investments.some(inv => inv.mangaId === manga.id) && !user.subscriptions.some(sub => sub.mangaId === manga.id && sub.type === 'chapter')) return "Subscribe, purchase a chapter, or invest to rate";
     if (userRating) return `You've already rated (${userRating}/3)`;
     return "";
   };
@@ -193,6 +189,11 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
 
   const currentInvestmentOffer = manga.investmentOffer;
   const sharesRemaining = currentInvestmentOffer ? currentInvestmentOffer.totalSharesInOffer - manga.investors.reduce((sum, inv) => sum + inv.sharesOwned, 0) : 0;
+
+  const canUserInvestGlobally = user ? (user.subscriptions?.length || 0) >= MIN_SUBSCRIPTIONS_FOR_INVESTMENT : false;
+  const canUserInvestAuthorSpecific = user && currentInvestmentOffer && currentInvestmentOffer.minSubscriptionRequirement
+    ? (user.subscriptions?.filter(s => s.type === 'monthly' && s.mangaId === manga.id).length || 0) >= currentInvestmentOffer.minSubscriptionRequirement
+    : true; // If no author specific requirement, this part is true
 
 
   return (
@@ -306,7 +307,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
                 )}
                  {!user && (
                   <p className="text-xs text-muted-foreground mt-2 flex items-center">
-                    <Lock className="h-3 w-3 mr-1" /> Login and subscribe to rate.
+                    <Lock className="h-3 w-3 mr-1" /> Login and get access to rate.
                      <Button variant="link" size="xs" className="p-0 h-auto ml-1" onClick={() => router.push('/login?redirect=/manga/' + mangaId)}>Login</Button>
                   </p>
                 )}
@@ -326,7 +327,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
             </Card>
 
             <div className="mt-auto space-y-3">
-              {manga.subscriptionPrice && (
+              {manga.subscriptionPrice && manga.subscriptionModel === 'monthly' && (
                 <Button
                   onClick={handleSubscribe}
                   className="w-full text-lg py-6"
@@ -344,6 +345,11 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
                   )}
                 </Button>
               )}
+               {manga.chapterSubscriptionPrice && manga.subscriptionModel === 'per_chapter' && (
+                 <p className="text-sm text-center text-muted-foreground">
+                    Chapters can be purchased individually from the chapter list.
+                 </p>
+               )}
               <Button onClick={handleOpenDonationDialog} variant="outline" className="w-full text-lg py-6" suppressHydrationWarning>
                 <Gift className="mr-2 h-5 w-5" /> <span suppressHydrationWarning>Donate to Author</span>
               </Button>
@@ -392,12 +398,17 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
                   </p>
                 </div>
               </div>
+              <p className="text-xs text-muted-foreground flex items-center" suppressHydrationWarning>
+                <Info className="mr-1 h-3 w-3"/> Platform Requirement: At least {MIN_SUBSCRIPTIONS_FOR_INVESTMENT} total subscriptions/purchases.
+                {user && ` You have ${user.subscriptions?.length || 0}.`}
+              </p>
                {currentInvestmentOffer.minSubscriptionRequirement && (
                 <p className="text-xs text-muted-foreground flex items-center" suppressHydrationWarning>
-                  <Info className="mr-1 h-3 w-3"/> Requires subscribing to {currentInvestmentOffer.minSubscriptionRequirement} manga series.
-                  {user && user.subscriptions && ` You are subscribed to ${user.subscriptions.length}.`}
+                  <Info className="mr-1 h-3 w-3"/> Author Requirement: At least {currentInvestmentOffer.minSubscriptionRequirement} monthly subscriptions to *this* manga.
+                  {user && ` You have ${user.subscriptions?.filter(s=>s.type==='monthly' && s.mangaId === manga.id).length || 0} for this manga.`}
                 </p>
               )}
+
               {manga.investors.length > 0 && (
                 <div>
                   <h4 className="font-semibold mb-2 flex items-center" suppressHydrationWarning><Users className="mr-2 h-5 w-5 text-muted-foreground"/>Current Backers ({manga.investors.length}):</h4>
@@ -412,7 +423,12 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
               )}
             </CardContent>
             <CardFooter>
-              <Button onClick={handleOpenInvestmentDialog} className="w-full text-lg py-6" disabled={sharesRemaining <= 0} suppressHydrationWarning>
+              <Button 
+                onClick={handleOpenInvestmentDialog} 
+                className="w-full text-lg py-6" 
+                disabled={sharesRemaining <= 0 || !canUserInvestGlobally || !canUserInvestAuthorSpecific} 
+                suppressHydrationWarning
+              >
                 <TrendingUp className="mr-2 h-5 w-5" /> Invest Now
               </Button>
             </CardFooter>

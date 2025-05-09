@@ -10,6 +10,7 @@ import { DollarSign, Users, Package, Eye, Briefcase } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
+import { MIN_SUBSCRIPTIONS_FOR_INVESTMENT } from '@/lib/constants';
 
 interface ShareListingCardProps {
   listing: ShareListing;
@@ -21,6 +22,7 @@ export function ShareListingCard({ listing, currentUserId }: ShareListingCardPro
   const { toast } = useToast();
 
   const isFollowed = user ? isShareListingFollowed(listing.id) : false;
+  const canUserPurchaseShares = user ? (user.subscriptions?.length || 0) >= MIN_SUBSCRIPTIONS_FOR_INVESTMENT : false;
 
   const handleFollowToggle = () => {
     if (!user) {
@@ -38,6 +40,10 @@ export function ShareListingCard({ listing, currentUserId }: ShareListingCardPro
     if (!user) {
       toast({ title: "Login Required", description: "Please login to purchase shares.", variant: "destructive" });
       return;
+    }
+    if (!canUserPurchaseShares) {
+        toast({ title: "Purchase Requirement Not Met", description: `You need to subscribe to or purchase at least ${MIN_SUBSCRIPTIONS_FOR_INVESTMENT} manga/chapters to buy shares. You currently have ${user.subscriptions?.length || 0}.`, variant: "destructive", duration: 7000 });
+        return;
     }
     if (user.id === listing.sellerUserId) {
       toast({ title: "Cannot Buy Own Shares", description: "You cannot purchase shares you listed yourself.", variant: "default" });
@@ -106,7 +112,8 @@ export function ShareListingCard({ listing, currentUserId }: ShareListingCardPro
         <Button 
           onClick={handlePurchase} 
           className="w-full sm:flex-grow" 
-          disabled={currentUserId === listing.sellerUserId || !listing.isActive}
+          disabled={currentUserId === listing.sellerUserId || !listing.isActive || !canUserPurchaseShares}
+          title={!canUserPurchaseShares ? `Requires ${MIN_SUBSCRIPTIONS_FOR_INVESTMENT} subscriptions/purchases` : (currentUserId === listing.sellerUserId ? "Cannot buy own shares" : (!listing.isActive ? "Listing not active" : "Buy Shares"))}
           suppressHydrationWarning
         >
           <DollarSign className="mr-1.5 h-4 w-4" /> 

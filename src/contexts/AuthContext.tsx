@@ -1,4 +1,3 @@
-
 "use client";
 // src/contexts/AuthContext.tsx
 import type { User, UserSubscription, UserInvestment, SimulatedTransaction, MangaSeries, MangaInvestor, Chapter, MangaPage, AuthorContactDetails, ShareListing } from '@/lib/types';
@@ -14,6 +13,7 @@ import { MAX_WORKS_PER_CREATOR, MAX_SHARES_PER_OFFER } from '@/lib/constants';
 
 const PLATFORM_FEE_RATE = 0.10; 
 const ONE_YEAR_IN_MS = 365 * 24 * 60 * 60 * 1000;
+const MIN_SUBSCRIPTIONS_FOR_INVESTMENT = 10; // Hard requirement for investment/market purchase
 
 interface ChapterInputForAdd {
   title: string;
@@ -71,7 +71,18 @@ export const MOCK_USER_VALID: User = {
   name: 'Test Creator',
   avatarUrl: 'https://picsum.photos/100/100?random=creator',
   walletBalance: 1000,
-  subscriptions: [],
+  subscriptions: [ // Example subscriptions to meet the 10 count requirement for testing
+    { mangaId: 'manga-1', mangaTitle: 'The Wandering Blade', type: 'monthly', pricePaid: 5, subscribedSince: new Date().toISOString(), expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() },
+    { mangaId: 'manga-2', mangaTitle: 'Cybernetic Heart', type: 'chapter', chapterId: 'manga-2-chapter-1', pricePaid: 1.99, subscribedSince: new Date().toISOString() },
+    { mangaId: 'manga-3', mangaTitle: 'Chronicles of Eldoria', type: 'chapter', chapterId: 'manga-3-chapter-1', pricePaid: 0.99, subscribedSince: new Date().toISOString() },
+    { mangaId: 'manga-1', mangaTitle: 'The Wandering Blade', type: 'chapter', chapterId: 'manga-1-chapter-2', pricePaid: 0, subscribedSince: new Date().toISOString() }, // Assuming some free chapters might be 'purchased' for $0
+    { mangaId: 'manga-2', mangaTitle: 'Cybernetic Heart', type: 'chapter', chapterId: 'manga-2-chapter-2', pricePaid: 1.99, subscribedSince: new Date().toISOString() },
+    { mangaId: 'manga-3', mangaTitle: 'Chronicles of Eldoria', type: 'chapter', chapterId: 'manga-3-chapter-2', pricePaid: 0.99, subscribedSince: new Date().toISOString() },
+    { mangaId: 'manga-1', mangaTitle: 'The Wandering Blade', type: 'chapter', chapterId: 'manga-1-chapter-3', pricePaid: 0, subscribedSince: new Date().toISOString() },
+    { mangaId: 'manga-4', mangaTitle: 'My Author Adventure', type: 'monthly', pricePaid: 2, subscribedSince: new Date().toISOString(), expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() },
+    { mangaId: 'manga-4', mangaTitle: 'My Author Adventure', type: 'chapter', chapterId: 'manga-4-chapter-1', pricePaid: 0, subscribedSince: new Date().toISOString() },
+    { mangaId: 'manga-2', mangaTitle: 'Cybernetic Heart', type: 'monthly', pricePaid: 5, subscribedSince: new Date().toISOString(), expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() }, // 10th one
+  ],
   investments: [{ mangaId: 'manga-1', mangaTitle: 'The Wandering Blade', sharesOwned: 10, amountInvested: 500, investmentDate: new Date(Date.now() - 1000*60*60*24*40).toISOString(), totalDividendsReceived: 25 }],
   authoredMangaIds: ['manga-4'],
   accountType: 'creator',
@@ -174,6 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       favorites: userData.favorites || [],
       searchHistory: userData.searchHistory || [],
       followedShareListings: userData.followedShareListings || [],
+      subscriptions: userData.subscriptions || (userData.id === MOCK_USER_VALID.id ? MOCK_USER_VALID.subscriptions : []), // Ensure subscriptions are loaded
     };
 
     if (fullUserData.accountType === 'creator' && !fullUserData.isApproved) {
@@ -402,6 +414,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toast({ title: "Login Required", description: "Please log in to invest.", variant: "destructive" });
       return false;
     }
+    if ((user.subscriptions?.length || 0) < MIN_SUBSCRIPTIONS_FOR_INVESTMENT) {
+      toast({ title: "Investment Requirement Not Met", description: `You need to subscribe to or purchase at least ${MIN_SUBSCRIPTIONS_FOR_INVESTMENT} manga/chapters to invest. You currently have ${user.subscriptions?.length || 0}.`, variant: "destructive", duration: 7000 });
+      return false;
+    }
+
     const manga = getMangaById(mangaId);
     if (!manga || !manga.investmentOffer || !manga.investmentOffer.isActive) {
       toast({ title: "Investment Unavailable", description: "This manga is not currently open for investment.", variant: "destructive" });
@@ -411,10 +428,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toast({ title: "Investment Error", description: `Manga shares offered (${manga.investmentOffer.totalSharesInOffer}) exceed the maximum limit of ${MAX_SHARES_PER_OFFER}.`, variant: "destructive" });
       return false;
     }
-    if (manga.investmentOffer.minSubscriptionRequirement && (!user.subscriptions || user.subscriptions.filter(s=>s.type === 'monthly').length < manga.investmentOffer.minSubscriptionRequirement)) {
-      toast({ title: "Investment Requirement Not Met", description: `You need to subscribe to at least ${manga.investmentOffer.minSubscriptionRequirement} manga series (monthly) to invest. You currently have ${user.subscriptions?.filter(s=>s.type==='monthly').length || 0} monthly subscriptions.`, variant: "destructive", duration: 7000 });
+    // Author-specific minSubscriptionRequirement check
+    if (manga.investmentOffer.minSubscriptionRequirement && (!user.subscriptions || user.subscriptions.filter(s=>s.type === 'monthly' && s.mangaId === mangaId).length < manga.investmentOffer.minSubscriptionRequirement)) {
+      // This checks if the user has a specific number of subscriptions TO THIS MANGA if the author set it.
+      // This can be confusing with the global 10 subscriptions rule.
+      // For now, let's assume the global rule is primary, and this is an *additional* author-set rule *for this specific manga's crowdfunding*.
+      // The prompt implies the global rule is the "hard requirement".
+      // Let's keep the author-specific rule, but ensure the toast message is clear.
+      const authorSpecificSubCount = user.subscriptions.filter(s => s.type === 'monthly' && s.mangaId === mangaId).length;
+      toast({ title: "Author's Investment Requirement Not Met", description: `The author requires you to have at least ${manga.investmentOffer.minSubscriptionRequirement} monthly subscriptions to *this specific manga* to invest. You currently have ${authorSpecificSubCount}.`, variant: "destructive", duration: 8000 });
       return false;
     }
+
     if (user.walletBalance < totalCost) {
       toast({ title: "Insufficient Balance", description: `Investment requires $${totalCost.toFixed(2)}. Your balance is $${user.walletBalance.toFixed(2)}.`, variant: "destructive" });
       return false;
@@ -494,8 +519,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toast({ title: "Login Required", description: "Please log in to rate.", variant: "destructive" });
       return false;
     }
-    if (!isSubscribedToManga(mangaId) && !user.investments.some(inv => inv.mangaId === mangaId)) { // Check if subscribed OR invested
-      toast({ title: "Access Required", description: "You must be subscribed to or invested in this manga to rate it.", variant: "destructive" });
+    if (!isSubscribedToManga(mangaId) && !user.investments.some(inv => inv.mangaId === mangaId) && !user.subscriptions.some(sub => sub.mangaId === mangaId && sub.type === 'chapter') ) {
+      toast({ title: "Access Required", description: "You must be subscribed to, have purchased a chapter of, or invested in this manga to rate it.", variant: "destructive" });
       return false;
     }
     if (user.ratingsGiven && user.ratingsGiven[mangaId]) {
@@ -575,6 +600,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       investors: [],
       investmentOffer: newMangaData.investmentOffer ? { ...newMangaData.investmentOffer, totalCapitalRaised: 0 } : undefined,
       subscriptionModel: newMangaData.subscriptionModel || 'monthly', // Default to monthly
+      isPublished: newMangaData.isPublished !== undefined ? newMangaData.isPublished : true,
+      freePreviewPageCount: newMangaData.freePreviewPageCount || 0,
+      freePreviewChapterCount: newMangaData.freePreviewChapterCount || 0,
     };
 
     globalAddMockManga(newManga);
@@ -605,14 +633,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const hasInvestors = mangaToDelete.investors && mangaToDelete.investors.length > 0;
-    // Check for active monthly subscriptions or any per-chapter purchases
-    const hasActiveSubscribersOrPurchasers = user.subscriptions.some(sub => 
-        sub.mangaId === mangaId && 
-        (
-            (sub.type === 'monthly' && (!sub.expiresAt || new Date(sub.expiresAt) > new Date())) || 
-            sub.type === 'chapter'
-        )
-    );
+    
+    let hasActiveSubscribersOrPurchasers = false;
+    const allUsersString = localStorage.getItem('mockUserList');
+    if (allUsersString) {
+        const allUsers: User[] = JSON.parse(allUsersString);
+        hasActiveSubscribersOrPurchasers = allUsers.some(u => 
+            u.subscriptions.some(sub => 
+                sub.mangaId === mangaId && 
+                (
+                    (sub.type === 'monthly' && (!sub.expiresAt || new Date(sub.expiresAt) > new Date())) || 
+                    sub.type === 'chapter'
+                )
+            )
+        );
+    }
+
 
     if (hasInvestors || hasActiveSubscribersOrPurchasers) {
       const lastActivityDate = Math.max(
@@ -846,6 +882,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toast({ title: "Login Required", description: "Please login to purchase shares.", variant: "destructive" });
       return false;
     }
+    if ((user.subscriptions?.length || 0) < MIN_SUBSCRIPTIONS_FOR_INVESTMENT) {
+      toast({ title: "Purchase Requirement Not Met", description: `You need to subscribe to or purchase at least ${MIN_SUBSCRIPTIONS_FOR_INVESTMENT} manga/chapters to buy shares. You currently have ${user.subscriptions?.length || 0}.`, variant: "destructive", duration: 7000 });
+      return false;
+    }
+
     const listing = getShareListingById(listingId);
     if (!listing || !listing.isActive || listing.sharesOffered < sharesToBuy) {
       toast({ title: "Listing Unavailable", description: "This listing is no longer available or doesn't have enough shares.", variant: "destructive" });
