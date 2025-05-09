@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from 'react';
@@ -109,8 +110,10 @@ export default function CreatorDashboardPage() {
                   <Button variant="outline" size="sm" asChild className="w-full sm:w-auto">
                     <Link href={`/manga/${manga.id}`}><Eye className="mr-1 h-4 w-4"/>View Details</Link>
                   </Button>
-                  <Button variant="secondary" size="sm" disabled className="w-full sm:w-auto"> {/* Edit functionality can be added later */}
-                    <Edit className="mr-1 h-4 w-4" /> Edit (Soon)
+                  <Button variant="secondary" size="sm" asChild className="w-full sm:w-auto">
+                    <Link href={`/creator/edit-manga/${manga.id}`}>
+                      <Edit className="mr-1 h-4 w-4" /> Edit
+                    </Link>
                   </Button>
                 </CardFooter>
               </Card>
@@ -121,3 +124,4 @@ export default function CreatorDashboardPage() {
     </div>
   );
 }
+
