@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Image from 'next/image';
 import type { MangaPage, MangaSeries } from '@/lib/types';
 import { MangaReaderControls } from './MangaReaderControls';
@@ -10,7 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { XCircle, Lock, ShoppingCart } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
-import { getMangaById as fetchMangaById } from '@/lib/mock-data'; // Renamed to avoid conflict
+// import { getMangaById as fetchMangaById } from '@/lib/mock-data'; // Not needed directly if initialManga is robust
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -20,22 +19,24 @@ interface MangaReaderViewProps {
   pages: MangaPage[];
   mangaId: string;
   chapterId: string;
-  initialManga: MangaSeries; // Pass initial manga data to avoid re-fetch on load
+  initialManga: MangaSeries; 
 }
 
 export function MangaReaderView({ pages, mangaId, chapterId, initialManga }: MangaReaderViewProps) {
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { user, isSubscribedToManga, subscribeToManga, updateViewingHistory, getViewingHistory } = useAuth(); // Use new isSubscribedToManga
+  const { user, isSubscribedToManga, subscribeToManga, updateViewingHistory, getViewingHistory } = useAuth(); 
   
-  // Use initialManga prop first, then allow updates if necessary (though mock data is fairly static here)
   const [manga, setManga] = useState<MangaSeries>(initialManga); 
   const router = useRouter();
   const { toast } = useToast();
 
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [touchEndX, setTouchEndX] = useState<number | null>(null);
+  const MIN_SWIPE_DISTANCE = 50;
+
   useEffect(() => {
-    // Update local manga state if initialManga changes (e.g., parent re-renders with new props)
     setManga(initialManga);
   }, [initialManga]);
 
@@ -90,6 +91,10 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga }: Man
         setCurrentPageIndex(pageNum - 1);
       }
     }
+    // Ensure isLoading is set to false if there's no page data to load an image for.
+    if (!currentPageData || totalPages === 0) {
+        setIsLoading(false);
+    }
 
   }, [currentPageIndex, currentPageData, totalPages]);
 
@@ -99,8 +104,33 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga }: Man
     }
   }, [currentPageIndex, router, totalPages]);
 
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEndX(null); 
+    setTouchStartX(e.targetTouches[0].clientX);
+  };
+  
+  const onTouchMove = (e: React.TouchEvent) => {
+    setTouchEndX(e.targetTouches[0].clientX);
+  };
+  
+  const onTouchEnd = () => {
+    if (!touchStartX || !touchEndX) return;
+    const distance = touchStartX - touchEndX;
+    const isLeftSwipe = distance > MIN_SWIPE_DISTANCE;
+    const isRightSwipe = distance < -MIN_SWIPE_DISTANCE;
+  
+    if (isLeftSwipe) {
+      handleNextPage();
+    } else if (isRightSwipe) {
+      handlePrevPage();
+    }
+  
+    setTouchStartX(null);
+    setTouchEndX(null);
+  };
 
-  if (!manga) { // Should ideally not happen if initialManga is passed correctly
+
+  if (!manga) { 
      return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] text-center p-4">
         <XCircle className="w-16 h-16 text-destructive mb-4" />
@@ -111,7 +141,7 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga }: Man
   }
 
   const freePreviewPageCount = manga.freePreviewPageCount || 0;
-  const userIsSubscribed = isSubscribedToManga(mangaId); // Use new function
+  const userIsSubscribed = isSubscribedToManga(mangaId); 
   const needsSubscription = currentPageIndex >= freePreviewPageCount && !userIsSubscribed;
 
   if (!totalPages) {
@@ -160,7 +190,6 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga }: Man
                 }
                 if (manga.subscriptionPrice) {
                     await subscribeToManga(mangaId, manga.title, manga.subscriptionPrice);
-                    // State will update via AuthContext, re-evaluating `needsSubscription`
                 } else {
                     toast({ title: "Subscription Not Available", description: "This manga does not have a subscription price set.", variant: "destructive"});
                 }
@@ -178,8 +207,14 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga }: Man
 
   return (
     <div className="flex flex-col items-center pb-24"> 
-      <div className="w-full max-w-3xl aspect-[800/1200] relative my-4 bg-muted rounded-md overflow-hidden shadow-lg">
-        {isLoading && (
+      <div 
+        className="w-full max-w-3xl aspect-[800/1200] relative my-4 bg-muted rounded-md overflow-hidden shadow-lg touch-manipulation select-none"
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        style={{ touchAction: 'pan-y' }} // Allow vertical scroll if content overflows, but prioritize horizontal for swipe
+      >
+        {isLoading && currentPageData && ( // Only show skeleton if there's a page to load
             <Skeleton className="absolute inset-0 w-full h-full" />
         )}
         {currentPageData && (
@@ -190,7 +225,7 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga }: Man
                 layout="fill"
                 objectFit="contain"
                 priority={currentPageIndex < 2} 
-                onLoad={() => setIsLoading(false)} // Changed from onLoadingComplete for potentially better sync
+                onLoad={() => setIsLoading(false)}
                 onError={() => {
                   setError(`Failed to load image for page ${currentPageIndex + 1}.`);
                   setIsLoading(false);
@@ -198,6 +233,11 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga }: Man
                 className={`transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
                 data-ai-hint="manga page comic"
             />
+        )}
+        {!currentPageData && !isLoading && ( // If no page data and not loading, show a message
+            <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+                <p>Page not available.</p>
+            </div>
         )}
       </div>
 

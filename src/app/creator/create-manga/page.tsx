@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import type { MangaInvestmentOffer, AuthorContactDetails } from '@/lib/types';
 import { Switch } from '@/components/ui/switch';
-import { BookUp, PlusCircle, Trash2, AlertTriangle, UploadCloud, Mail, Link as LinkIcon, FileImage } from 'lucide-react';
+import { BookUp, PlusCircle, Trash2, AlertTriangle, UploadCloud, Mail, Link as LinkIcon, FileImage, Images } from 'lucide-react';
 import { MANGA_GENRES_DETAILS, MAX_CHAPTERS_PER_WORK, MAX_PAGES_PER_CHAPTER, MAX_WORKS_PER_CREATOR } from '@/lib/constants';
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -57,6 +57,9 @@ export default function CreateMangaPage() {
   const [authorSocialLinkPlatform, setAuthorSocialLinkPlatform] = useState('');
   const [authorSocialLinkUrl, setAuthorSocialLinkUrl] = useState('');
   const [authorSocialLinks, setAuthorSocialLinks] = useState<{platform: string, url: string}[]>([]);
+
+  const pageUploadInputRef = useRef<HTMLInputElement>(null);
+  const [targetChapterForPageUpload, setTargetChapterForPageUpload] = useState<string | null>(null);
 
   const totalPagesInManga = useMemo(() => {
     return chaptersInput.reduce((sum, ch) => sum + ch.pages.length, 0);
@@ -129,7 +132,7 @@ export default function CreateMangaPage() {
     setChaptersInput([...chaptersInput, { 
       localId: `new-chapter-${Date.now()}`, 
       title: `第 ${chaptersInput.length + 1} 章`, 
-      pages: [{ localId: `new-page-${Date.now()}`, file: null, previewUrl: null }] // Start with one empty page
+      pages: [] // Start with zero pages, user adds them
     }]);
   };
 
@@ -143,18 +146,101 @@ export default function CreateMangaPage() {
     setChaptersInput(chaptersInput.filter(ch => ch.localId !== chapterLocalId));
   };
 
-  const addPageToChapterInput = (chapterLocalId: string) => {
+  // Adds a single blank page slot
+  const addSinglePageToChapterInput = (chapterLocalId: string) => {
     setChaptersInput(chaptersInput.map(ch => {
       if (ch.localId === chapterLocalId) {
         if (ch.pages.length >= MAX_PAGES_PER_CHAPTER) {
           toast({ title: "页面已达上限", description: `每章节最多只能有 ${MAX_PAGES_PER_CHAPTER} 页。`, variant: "destructive" });
           return ch;
         }
-        return { ...ch, pages: [...ch.pages, { localId: `new-page-${Date.now()}`, file: null, previewUrl: null }] };
+        return { ...ch, pages: [...ch.pages, { localId: `new-page-${Date.now()}-${Math.random().toString(16).slice(2)}`, file: null, previewUrl: null }] };
       }
       return ch;
     }));
   };
+  
+  const triggerPageUpload = (chapterLocalId: string) => {
+    setTargetChapterForPageUpload(chapterLocalId);
+    pageUploadInputRef.current?.click();
+  };
+
+  const handleMultiplePageImagesUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!targetChapterForPageUpload) return;
+    const files = event.target.files;
+  
+    if (files && files.length > 0) {
+      const chapterToUpdate = chaptersInput.find(ch => ch.localId === targetChapterForPageUpload);
+      if (!chapterToUpdate) {
+        if (event.target) event.target.value = "";
+        setTargetChapterForPageUpload(null);
+        return;
+      }
+  
+      if (chapterToUpdate.pages.length + files.length > MAX_PAGES_PER_CHAPTER) {
+        toast({ title: "页面已达上限", description: `添加这些图片将超过每章节 ${MAX_PAGES_PER_CHAPTER} 页的限制。已添加 ${MAX_PAGES_PER_CHAPTER - chapterToUpdate.pages.length} 张图片。`, variant: "destructive" });
+        // Allow adding up to the limit
+        const filesToAddCount = MAX_PAGES_PER_CHAPTER - chapterToUpdate.pages.length;
+        if (filesToAddCount <= 0) {
+            if (event.target) event.target.value = "";
+            setTargetChapterForPageUpload(null);
+            return;
+        }
+        const filesToAdd = Array.from(files).slice(0, filesToAddCount);
+        if (filesToAdd.length === 0) {
+            if (event.target) event.target.value = "";
+            setTargetChapterForPageUpload(null);
+            return;
+        }
+        // Process only allowed number of files
+        const newPagePromises = filesToAdd.map(file => {
+            return new Promise<EditablePageInput>((resolve) => {
+              const reader = new FileReader();
+              const pageLocalId = `new-page-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+              reader.onloadend = () => {
+                resolve({ localId: pageLocalId, file: file, previewUrl: reader.result as string });
+              };
+              reader.readAsDataURL(file);
+            });
+          });
+      
+          const newPages = await Promise.all(newPagePromises);
+      
+          setChaptersInput(prevChapters => prevChapters.map(ch =>
+            ch.localId === targetChapterForPageUpload
+              ? { ...ch, pages: [...ch.pages, ...newPages] }
+              : ch
+          ));
+
+      } else {
+        // Process all files
+        const newPagePromises = Array.from(files).map(file => {
+            return new Promise<EditablePageInput>((resolve) => {
+              const reader = new FileReader();
+              const pageLocalId = `new-page-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+              reader.onloadend = () => {
+                resolve({ localId: pageLocalId, file: file, previewUrl: reader.result as string });
+              };
+              reader.readAsDataURL(file);
+            });
+          });
+      
+          const newPages = await Promise.all(newPagePromises);
+      
+          setChaptersInput(prevChapters => prevChapters.map(ch =>
+            ch.localId === targetChapterForPageUpload
+              ? { ...ch, pages: [...ch.pages, ...newPages].slice(0, MAX_PAGES_PER_CHAPTER) } // Ensure not exceeding max
+              : ch
+          ));
+      }
+    }
+  
+    if (event.target) {
+      event.target.value = ""; 
+    }
+    setTargetChapterForPageUpload(null);
+  };
+
 
   const removePageFromChapterInput = (chapterLocalId: string, pageLocalId: string) => {
     setChaptersInput(chaptersInput.map(ch =>
@@ -164,7 +250,8 @@ export default function CreateMangaPage() {
     ));
   };
 
-  const handlePageImageChange = (chapterLocalId: string, pageLocalId: string, event: React.ChangeEvent<HTMLInputElement>) => {
+  // For uploading image to a single, existing blank page slot
+  const handleSinglePageImageChange = (chapterLocalId: string, pageLocalId: string, event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
@@ -267,6 +354,15 @@ export default function CreateMangaPage() {
 
   return (
     <div className="max-w-2xl mx-auto py-8">
+      <Input 
+        id="page-image-multi-upload-create"
+        type="file" 
+        multiple 
+        accept="image/*" 
+        ref={pageUploadInputRef}
+        onChange={handleMultiplePageImagesUpload}
+        className="hidden" 
+      />
       <form onSubmit={handleSubmit}>
         <Card className="shadow-lg">
           <CardHeader>
@@ -377,20 +473,28 @@ export default function CreateMangaPage() {
                       onChange={(e) => updateChapterTitleInput(chapter.localId, e.target.value)}
                       placeholder="例如：开端"
                     />
-                    <div className="space-y-1">
+                    <div className="flex items-center gap-2">
                       <Label className="text-sm font-medium" suppressHydrationWarning>页面 ({chapter.pages.length}/{MAX_PAGES_PER_CHAPTER})</Label>
                        <Button 
                           type="button" 
                           variant="outline" 
-                          size="sm" 
-                          onClick={() => addPageToChapterInput(chapter.localId)} 
+                          size="xs" 
+                          onClick={() => addSinglePageToChapterInput(chapter.localId)} 
                           disabled={chapter.pages.length >= MAX_PAGES_PER_CHAPTER}
-                          className="ml-2"
                         >
-                          <PlusCircle className="mr-1 h-3.5 w-3.5" /> 添加页面
+                          <PlusCircle className="mr-1 h-3 w-3.5" /> 添加单页
+                        </Button>
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="xs" 
+                          onClick={() => triggerPageUpload(chapter.localId)}
+                          disabled={chapter.pages.length >= MAX_PAGES_PER_CHAPTER}
+                        >
+                          <Images className="mr-1 h-3 w-3.5" /> 批量添加图片
                         </Button>
                     </div>
-                     {chapter.pages.length === 0 && <p className="text-xs text-muted-foreground">此章节没有页面。点击“添加页面”上传图片。</p>}
+                     {chapter.pages.length === 0 && <p className="text-xs text-muted-foreground">此章节没有页面。点击按钮添加图片。</p>}
                     <div className="space-y-3">
                       {chapter.pages.map((page, pageIndex) => (
                         <Card key={page.localId} className="p-3 bg-background/70">
@@ -400,19 +504,21 @@ export default function CreateMangaPage() {
                               <Trash2 className="h-3 w-3" />
                             </Button>
                           </div>
-                          <Input 
-                            id={`page-image-upload-${chapter.localId}-${page.localId}`}
-                            type="file" 
-                            accept="image/*" 
-                            onChange={(e) => handlePageImageChange(chapter.localId, page.localId, e)} 
-                            className="text-xs mb-2"
-                          />
+                          {!page.previewUrl && !page.file && ( // Only show input if no image is set yet
+                            <Input 
+                              id={`page-image-upload-${chapter.localId}-${page.localId}`}
+                              type="file" 
+                              accept="image/*" 
+                              onChange={(e) => handleSinglePageImageChange(chapter.localId, page.localId, e)} 
+                              className="text-xs mb-2"
+                            />
+                          )}
                           {page.previewUrl && (
                             <div className="relative aspect-[2/3] w-full max-w-[150px] rounded border overflow-hidden mx-auto">
                               <Image src={page.previewUrl} alt={`Page ${pageIndex + 1} preview`} layout="fill" objectFit="contain" data-ai-hint="manga page create"/>
                             </div>
                           )}
-                          {!page.previewUrl && (
+                          {!page.previewUrl && ( // Show placeholder if no preview (might be after blank add)
                             <div className="flex items-center justify-center aspect-[2/3] w-full max-w-[150px] rounded border border-dashed bg-muted/30 mx-auto">
                               <FileImage className="h-8 w-8 text-muted-foreground" />
                             </div>

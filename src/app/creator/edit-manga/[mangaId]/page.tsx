@@ -13,7 +13,7 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import type { MangaSeries, MangaInvestmentOffer, Chapter, MangaPage, AuthorContactDetails } from '@/lib/types';
 import { getMangaById, updateMockMangaData } from '@/lib/mock-data';
-import { Edit3, BookUp, PlusCircle, Trash2, AlertTriangle, UploadCloud, Mail, Link as LinkIcon, FileImage, RotateCcw } from 'lucide-react';
+import { Edit3, BookUp, PlusCircle, Trash2, AlertTriangle, UploadCloud, Mail, Link as LinkIcon, FileImage, RotateCcw, Images } from 'lucide-react';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { MANGA_GENRES_DETAILS, MAX_CHAPTERS_PER_WORK, MAX_PAGES_PER_CHAPTER } from '@/lib/constants';
 import { Checkbox } from "@/components/ui/checkbox";
@@ -83,6 +83,9 @@ export default function EditMangaPage() {
   const [authorSocialLinkUrl, setAuthorSocialLinkUrl] = useState('');
   const [authorSocialLinks, setAuthorSocialLinks] = useState<{platform: string, url: string}[]>([]);
 
+  const pageUploadInputRefEdit = useRef<HTMLInputElement>(null);
+  const [targetChapterForPageUploadEdit, setTargetChapterForPageUploadEdit] = useState<string | null>(null);
+
   const totalPagesInManga = useMemo(() => {
     return editableChapters
       .filter(ch => !ch._toBeDeleted)
@@ -133,7 +136,7 @@ export default function EditMangaPage() {
             previewUrl: p.imageUrl, 
             altText: p.altText || `Page ${pageIndex + 1}`,
             order: pageIndex,
-          })),
+          })).sort((a,b) => a.order - b.order), // ensure sorted by order
         })));
         setFreePreviewPageCount(fetchedManga.freePreviewPageCount.toString());
         setSubscriptionPrice(fetchedManga.subscriptionPrice?.toString() || '');
@@ -202,12 +205,7 @@ export default function EditMangaPage() {
     setEditableChapters([...editableChapters, {
       id: newChapterId,
       title: `新章节 ${activeChapters.length + 1}`,
-      pages: [{ 
-        id: `new-page-${Date.now()}`, 
-        altText: 'Page 1', 
-        order: 0, 
-        _isNew: true 
-      }],
+      pages: [], // Start with zero pages
       _isNew: true,
     }]);
   };
@@ -231,7 +229,8 @@ export default function EditMangaPage() {
     ));
   };
 
-  const addPageToChapter = (chapterId: string) => {
+  // Adds a single blank page slot to a chapter
+  const addSinglePageToChapter = (chapterId: string) => {
     setEditableChapters(prev => prev.map(ch => {
       if (ch.id === chapterId) {
         const activePages = ch.pages.filter(p => !p._toBeDeleted);
@@ -240,7 +239,7 @@ export default function EditMangaPage() {
           return ch;
         }
         const newPage: EditablePageState = {
-          id: `new-page-${Date.now()}`,
+          id: `new-page-${Date.now()}-${Math.random().toString(16).slice(2)}`,
           altText: `Page ${activePages.length + 1}`,
           order: activePages.length,
           _isNew: true,
@@ -251,6 +250,96 @@ export default function EditMangaPage() {
     }));
   };
   
+  const triggerPageUploadEdit = (chapterId: string) => {
+    setTargetChapterForPageUploadEdit(chapterId);
+    pageUploadInputRefEdit.current?.click();
+  };
+
+  const handleMultiplePageImagesUploadEdit = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!targetChapterForPageUploadEdit) return;
+    const files = event.target.files;
+  
+    if (files && files.length > 0) {
+      const chapterToUpdate = editableChapters.find(ch => ch.id === targetChapterForPageUploadEdit);
+      if (!chapterToUpdate) {
+        if (event.target) event.target.value = "";
+        setTargetChapterForPageUploadEdit(null);
+        return;
+      }
+  
+      const activePagesCount = chapterToUpdate.pages.filter(p => !p._toBeDeleted).length;
+      if (activePagesCount + files.length > MAX_PAGES_PER_CHAPTER) {
+        toast({ title: "页面已达上限", description: `添加这些图片将超过每章节 ${MAX_PAGES_PER_CHAPTER} 页的限制。`, variant: "destructive" });
+         // Allow adding up to the limit
+        const filesToAddCount = MAX_PAGES_PER_CHAPTER - activePagesCount;
+        if (filesToAddCount <= 0) {
+            if (event.target) event.target.value = "";
+            setTargetChapterForPageUploadEdit(null);
+            return;
+        }
+        const filesToAdd = Array.from(files).slice(0, filesToAddCount);
+         if (filesToAdd.length === 0) {
+            if (event.target) event.target.value = "";
+            setTargetChapterForPageUploadEdit(null);
+            return;
+        }
+        // Process only allowed number of files
+        const newPagePromises = filesToAdd.map((file, index) => {
+            return new Promise<EditablePageState>((resolve) => {
+              const reader = new FileReader();
+              const pageLocalId = `new-page-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+              reader.onloadend = () => {
+                resolve({ 
+                  id: pageLocalId, 
+                  file: file, 
+                  previewUrl: reader.result as string, 
+                  altText: `Page ${activePagesCount + index + 1}`, 
+                  order: activePagesCount + index, 
+                  _isNew: true 
+                });
+              };
+              reader.readAsDataURL(file);
+            });
+          });
+          const newPages = await Promise.all(newPagePromises);
+          setEditableChapters(prev => prev.map(ch =>
+            ch.id === targetChapterForPageUploadEdit
+              ? { ...ch, pages: [...ch.pages, ...newPages].sort((a,b) => a.order - b.order) }
+              : ch
+          ));
+      } else {
+        // Process all files
+         const newPagePromises = Array.from(files).map((file, index) => {
+            return new Promise<EditablePageState>((resolve) => {
+              const reader = new FileReader();
+              const pageLocalId = `new-page-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+              reader.onloadend = () => {
+                resolve({ 
+                  id: pageLocalId, 
+                  file: file, 
+                  previewUrl: reader.result as string, 
+                  altText: `Page ${activePagesCount + index + 1}`, 
+                  order: activePagesCount + index, 
+                  _isNew: true 
+                });
+              };
+              reader.readAsDataURL(file);
+            });
+          });
+          const newPages = await Promise.all(newPagePromises);
+          setEditableChapters(prev => prev.map(ch =>
+            ch.id === targetChapterForPageUploadEdit
+              ? { ...ch, pages: [...ch.pages, ...newPages].sort((a,b) => a.order - b.order).slice(0, MAX_PAGES_PER_CHAPTER) }
+              : ch
+          ));
+      }
+    }
+    if (event.target) {
+      event.target.value = "";
+    }
+    setTargetChapterForPageUploadEdit(null);
+  };
+
   const markPageForDeletion = (chapterId: string, pageId: string) => {
     setEditableChapters(prev => prev.map(ch => 
       ch.id === chapterId 
@@ -269,7 +358,8 @@ export default function EditMangaPage() {
     ));
   };
 
-  const handlePageImageChangeForEdit = (chapterId: string, pageId: string, event: React.ChangeEvent<HTMLInputElement>) => {
+  // Handles uploading an image to a single, specific page slot (either new or existing)
+  const handleSinglePageImageChangeForEdit = (chapterId: string, pageId: string, event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
@@ -280,7 +370,7 @@ export default function EditMangaPage() {
                 p.id === pageId 
                   ? { ...p, file: file, previewUrl: reader.result as string, existingImageUrl: undefined } 
                   : p
-              )} 
+              ).sort((a,b)=>a.order - b.order) } 
             : ch
         ));
       };
@@ -349,16 +439,16 @@ export default function EditMangaPage() {
      };
 
     const processedChapters: Chapter[] = finalChaptersState.map((editCh, chapterIndex) => {
-      const activePages = editCh.pages.filter(p => !p._toBeDeleted);
+      const activePages = editCh.pages.filter(p => !p._toBeDeleted).sort((a, b) => a.order - b.order);
       return {
         id: editCh._isNew ? `ch-${Date.now()}-${chapterIndex}` : editCh.id,
         title: editCh.title,
-        chapterNumber: chapterIndex + 1,
+        chapterNumber: chapterIndex + 1, // This should ideally be based on actual order in mangaToEdit or re-calculated
         pages: activePages.map((editPage, pageIndex) => ({
           id: editPage._isNew || !mangaToEdit.chapters.flatMap(c => c.pages).find(p => p.id === editPage.id) 
             ? `${editCh.id.replace('new-chapter-', 'ch-')}-page-${Date.now()}-${pageIndex}` 
             : editPage.id,
-          imageUrl: editPage.previewUrl || editPage.existingImageUrl || `https://picsum.photos/800/1200?error`,
+          imageUrl: editPage.previewUrl || editPage.existingImageUrl || `https://picsum.photos/800/1200?error&text=Page+${pageIndex+1}`,
           altText: editPage.altText || `Page ${pageIndex + 1}`,
         })),
       };
@@ -374,6 +464,7 @@ export default function EditMangaPage() {
       subscriptionPrice: subscriptionPrice ? parseFloat(subscriptionPrice) : undefined,
       investmentOffer: updatedInvestmentOfferData,
       authorDetails: authorDetailsPayload,
+      // Note: publishedDate, viewCount, revenues, etc. are managed by other systems/not directly editable here
     };
 
     try {
@@ -381,7 +472,8 @@ export default function EditMangaPage() {
       toast({ title: "漫画已更新!", description: `${title} 已成功更新。` });
       router.push('/creator/dashboard');
     } catch (error) {
-      toast({ title: "更新失败", variant: "destructive" });
+      console.error("Failed to update manga:", error);
+      toast({ title: "更新失败", description: "保存漫画更改时出错。", variant: "destructive" });
     }
   };
 
@@ -395,6 +487,15 @@ export default function EditMangaPage() {
 
   return (
     <div className="max-w-2xl mx-auto py-8">
+      <Input 
+        id="page-image-multi-upload-edit"
+        type="file" 
+        multiple 
+        accept="image/*" 
+        ref={pageUploadInputRefEdit}
+        onChange={handleMultiplePageImagesUploadEdit}
+        className="hidden" 
+      />
       <form onSubmit={handleSubmit}>
         <Card className="shadow-lg">
           <CardHeader>
@@ -506,6 +607,7 @@ export default function EditMangaPage() {
                   }
                   if (chapter._toBeDeleted && chapter._isNew) return null; 
 
+                  const activePages = chapter.pages.filter(p => !p._toBeDeleted);
                   return (
                     <Card key={chapter.id} className="p-4 bg-secondary/30 space-y-3">
                       <div className="flex justify-between items-center">
@@ -522,23 +624,32 @@ export default function EditMangaPage() {
                         onChange={(e) => updateChapterTitle(chapter.id, e.target.value)}
                         placeholder="章节标题"
                       />
-                      <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
                         <Label className="text-sm font-medium">
-                          页面 ({chapter.pages.filter(p => !p._toBeDeleted).length}/{MAX_PAGES_PER_CHAPTER})
+                          页面 ({activePages.length}/{MAX_PAGES_PER_CHAPTER})
                         </Label>
                         <Button 
                             type="button" 
                             variant="outline" 
-                            size="sm" 
-                            onClick={() => addPageToChapter(chapter.id)} 
-                            disabled={chapter.pages.filter(p => !p._toBeDeleted).length >= MAX_PAGES_PER_CHAPTER}
+                            size="xs" 
+                            onClick={() => addSinglePageToChapter(chapter.id)} 
+                            disabled={activePages.length >= MAX_PAGES_PER_CHAPTER}
                           >
-                            <PlusCircle className="mr-1 h-3.5 w-3.5" /> 添加页面
+                            <PlusCircle className="mr-1 h-3 w-3.5" /> 添加单页
+                          </Button>
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="xs" 
+                            onClick={() => triggerPageUploadEdit(chapter.id)}
+                            disabled={activePages.length >= MAX_PAGES_PER_CHAPTER}
+                          >
+                            <Images className="mr-1 h-3 w-3.5" /> 批量添加图片
                           </Button>
                       </div>
-                      {chapter.pages.filter(p => !p._toBeDeleted).length === 0 && <p className="text-xs text-muted-foreground">此章节没有页面。点击“添加页面”上传图片。</p>}
+                      {activePages.length === 0 && <p className="text-xs text-muted-foreground">此章节没有页面。点击按钮添加图片。</p>}
                       <div className="space-y-3">
-                        {chapter.pages.map((page, pageIndex) => {
+                        {chapter.pages.sort((a,b)=> a.order - b.order).map((page, pageIndex) => { // ensure sorted by order for display
                           if (page._toBeDeleted && !page._isNew) {
                             return (
                               <Card key={page.id} className="p-2 bg-red-100 dark:bg-red-900/40 opacity-70">
@@ -563,13 +674,16 @@ export default function EditMangaPage() {
                                   <Trash2 className="h-3 w-3" />
                                 </Button>
                               </div>
-                              <Input 
-                                id={`page-image-edit-${chapter.id}-${page.id}`}
-                                type="file" 
-                                accept="image/*" 
-                                onChange={(e) => handlePageImageChangeForEdit(chapter.id, page.id, e)} 
-                                className="text-xs mb-2"
-                              />
+                              {/* Show input only if it's a newly added blank slot or if existing image is cleared */}
+                              { (page._isNew && !page.previewUrl && !page.existingImageUrl) || (!page.file && !page.previewUrl && !page.existingImageUrl) ? (
+                                <Input 
+                                  id={`page-image-edit-${chapter.id}-${page.id}`}
+                                  type="file" 
+                                  accept="image/*" 
+                                  onChange={(e) => handleSinglePageImageChangeForEdit(chapter.id, page.id, e)} 
+                                  className="text-xs mb-2"
+                                />
+                              ) : null }
                               {(page.previewUrl || page.existingImageUrl) && (
                                 <div className="relative aspect-[2/3] w-full max-w-[150px] rounded border overflow-hidden mx-auto">
                                   <Image src={page.previewUrl || page.existingImageUrl!} alt={page.altText || `Page ${page.order + 1}`} layout="fill" objectFit="contain" data-ai-hint="manga page edit"/>
