@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { Header } from '@/components/layout/Header';
 import { Toaster } from "@/components/ui/toaster";
+import { AuthProvider } from '@/contexts/AuthContext';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -15,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Manga Reader',
-  description: 'Read your favorite manga online.',
+  title: 'Manga Reader Platform',
+  description: 'Read, subscribe, and support your favorite manga creators.',
 };
 
 export default function RootLayout({
@@ -27,14 +28,16 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full">
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased flex flex-col min-h-screen`}>
-        <Header />
-        <main className="flex-grow container mx-auto px-4 py-8">
-          {children}
-        </main>
-        <Toaster />
-        <footer className="py-6 text-center text-sm text-muted-foreground border-t">
-          © {new Date().getFullYear()} Manga Reader. All rights reserved.
-        </footer>
+        <AuthProvider>
+          <Header />
+          <main className="flex-grow container mx-auto px-4 py-8">
+            {children}
+          </main>
+          <Toaster />
+          <footer className="py-6 text-center text-sm text-muted-foreground border-t">
+            © {new Date().getFullYear()} Manga Reader Platform. All rights reserved.
+          </footer>
+        </AuthProvider>
       </body>
     </html>
   );

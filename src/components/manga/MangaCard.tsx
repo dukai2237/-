@@ -1,3 +1,4 @@
+
 import Image from 'next/image';
 import Link from 'next/link';
 import type { MangaSeries } from '@/lib/types';
@@ -5,6 +6,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ArrowRight } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'; // Added Avatar
 
 interface MangaCardProps {
   manga: MangaSeries;
@@ -26,12 +28,18 @@ export function MangaCard({ manga }: MangaCardProps) {
         </Link>
       </CardHeader>
       <CardContent className="p-4 flex-grow">
-        <CardTitle className="text-lg mb-1">
+        <CardTitle className="text-lg mb-1 leading-tight">
           <Link href={`/manga/${manga.id}`} className="hover:text-primary transition-colors">
             {manga.title}
           </Link>
         </CardTitle>
-        <p className="text-xs text-muted-foreground mb-2">By {manga.author}</p>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+          <Avatar className="h-5 w-5">
+            <AvatarImage src={manga.author.avatarUrl} alt={manga.author.name} data-ai-hint="author avatar small" />
+            <AvatarFallback>{manga.author.name[0]}</AvatarFallback>
+          </Avatar>
+          <span>{manga.author.name}</span>
+        </div>
         <p className="text-sm text-muted-foreground line-clamp-3 mb-3">
           {manga.summary}
         </p>
@@ -44,7 +52,7 @@ export function MangaCard({ manga }: MangaCardProps) {
       <CardFooter className="p-4 pt-0">
         <Button asChild className="w-full" variant="outline">
           <Link href={`/manga/${manga.id}`}>
-            View Chapters <ArrowRight className="ml-2 h-4 w-4" />
+            View Details <ArrowRight className="ml-2 h-4 w-4" />
           </Link>
         </Button>
       </CardFooter>

@@ -1,4 +1,4 @@
-import type { MangaSeries } from './types';
+import type { MangaSeries, MangaPage, AuthorInfo } from './types';
 
 const generatePages = (chapterId: string, count: number): MangaPage[] => {
   return Array.from({ length: count }, (_, i) => ({
@@ -8,11 +8,18 @@ const generatePages = (chapterId: string, count: number): MangaPage[] => {
   }));
 };
 
+const mockAuthors: AuthorInfo[] = [
+  { id: 'author-1', name: 'Kenji Tanaka', avatarUrl: 'https://picsum.photos/100/100?random=author1' },
+  { id: 'author-2', name: 'Yuki Sato', avatarUrl: 'https://picsum.photos/100/100?random=author2' },
+  { id: 'author-3', name: 'Aiko Suzuki', avatarUrl: 'https://picsum.photos/100/100?random=author3' },
+  { id: 'author-4', name: 'Haru Yamamoto', avatarUrl: 'https://picsum.photos/100/100?random=author4' },
+];
+
 export const mockMangaSeries: MangaSeries[] = [
   {
     id: 'manga-1',
     title: 'The Wandering Blade',
-    author: 'Kenji Tanaka',
+    author: mockAuthors[0],
     summary: 'A lone swordsman travels a war-torn land, seeking redemption and a lost artifact of immense power. His journey is filled with perilous encounters and moral dilemmas.',
     coverImage: 'https://picsum.photos/400/600?random=cover1',
     genres: ['Action', 'Adventure', 'Fantasy', 'Samurai'],
@@ -21,11 +28,18 @@ export const mockMangaSeries: MangaSeries[] = [
       { id: 'manga-1-chapter-2', title: 'Whispers in the Woods', chapterNumber: 2, pages: generatePages('m1c2', 10) },
       { id: 'manga-1-chapter-3', title: 'City of Shadows', chapterNumber: 3, pages: generatePages('m1c3', 12) },
     ],
+    freePreviewPageCount: 2, // First 2 pages are free
+    subscriptionPrice: 5, // $5 per month
+    investmentDetails: {
+      sharesOfferedPercent: 20,
+      platformCutPercent: 10,
+      description: "Invest in 'The Wandering Blade' and receive a share of its revenue from subscriptions, donations, and merchandise sales. You'll also own a part of the manga's IP for future adaptations (anime, movies, etc.). Platform takes a 10% cut from all author earnings.",
+    }
   },
   {
     id: 'manga-2',
     title: 'Cybernetic Heart',
-    author: 'Yuki Sato',
+    author: mockAuthors[1],
     summary: 'In a futuristic city, a detective with cybernetic enhancements uncovers a conspiracy that reaches the highest levels of society while grappling with her own humanity.',
     coverImage: 'https://picsum.photos/400/600?random=cover2',
     genres: ['Sci-Fi', 'Mystery', 'Cyberpunk', 'Action'],
@@ -33,11 +47,18 @@ export const mockMangaSeries: MangaSeries[] = [
       { id: 'manga-2-chapter-1', title: 'Neon Dreams', chapterNumber: 1, pages: generatePages('m2c1', 10) },
       { id: 'manga-2-chapter-2', title: 'Data Ghost', chapterNumber: 2, pages: generatePages('m2c2', 9) },
     ],
+    freePreviewPageCount: 3,
+    subscriptionPrice: 7,
+     investmentDetails: {
+      sharesOfferedPercent: 15,
+      platformCutPercent: 10,
+      description: "Become an investor in 'Cybernetic Heart'! Get a share of revenue and IP ownership. Ideal for fans of cyberpunk and mystery. Platform takes a 10% cut from all author earnings.",
+    }
   },
   {
     id: 'manga-3',
     title: 'Chronicles of Eldoria',
-    author: 'Aiko Suzuki',
+    author: mockAuthors[2],
     summary: 'A young mage discovers her latent powers and must embark on a quest to save the magical kingdom of Eldoria from an ancient evil. Along the way, she meets brave companions and uncovers forgotten lore.',
     coverImage: 'https://picsum.photos/400/600?random=cover3',
     genres: ['Fantasy', 'Magic', 'Adventure', 'Coming-of-Age'],
@@ -47,11 +68,18 @@ export const mockMangaSeries: MangaSeries[] = [
       { id: 'manga-3-chapter-3', title: 'Secrets of the Spire', chapterNumber: 3, pages: generatePages('m3c3', 14) },
       { id: 'manga-3-chapter-4', title: 'The Shadow Council', chapterNumber: 4, pages: generatePages('m3c4', 10) },
     ],
+    freePreviewPageCount: 1,
+    // No subscription price, implies it might be fully free or ad-supported (not implemented)
+     investmentDetails: {
+      sharesOfferedPercent: 25,
+      platformCutPercent: 10,
+      description: "Support the magical world of 'Chronicles of Eldoria'. Investors share in the success of this epic fantasy. Platform takes a 10% cut from all author earnings.",
+    }
   },
   {
     id: 'manga-4',
     title: 'Slice of Life Cafe',
-    author: 'Haru Yamamoto',
+    author: mockAuthors[3],
     summary: 'Warm and heartwarming stories centered around a small, cozy cafe and its regular customers. Each chapter explores the everyday lives, dreams, and relationships of different characters.',
     coverImage: 'https://picsum.photos/400/600?random=cover4',
     genres: ['Slice of Life', 'Comedy', 'Romance', 'Contemporary'],
@@ -59,6 +87,9 @@ export const mockMangaSeries: MangaSeries[] = [
       { id: 'manga-4-chapter-1', title: 'The Usual Order', chapterNumber: 1, pages: generatePages('m4c1', 7) },
       { id: 'manga-4-chapter-2', title: 'Rainy Day Musings', chapterNumber: 2, pages: generatePages('m4c2', 8) },
     ],
+    freePreviewPageCount: 5, // Generous free preview
+    subscriptionPrice: 3,
+    // No investment details, implying not open for investment
   },
 ];
 
