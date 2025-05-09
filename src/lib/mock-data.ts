@@ -1,4 +1,3 @@
-ts
 
 import type { MangaSeries, MangaPage, AuthorInfo, MangaInvestmentOffer, AuthorContactDetails, Chapter } from './types';
 import { MANGA_GENRES_DETAILS } from './constants';
