@@ -289,13 +289,13 @@ export default function CreateMangaPage() {
     const parsedFreePageCount = parseInt(freePreviewPageCount, 10);
     const parsedFreeChapterCount = parseInt(freePreviewChapterCount, 10);
 
-    if (parsedFreePageCount > totalPagesInManga && totalPagesInManga > 0) { 
-      toast({ title: "免费预览页数无效", description: "免费预览页数不能超过漫画总页数。", variant: "destructive" });
-      return;
+    if (isNaN(parsedFreePageCount) || parsedFreePageCount < 0) {
+        toast({ title: "免费预览页数无效", description: "免费预览页数必须是一个非负数。", variant: "destructive" });
+        return;
     }
-    if (parsedFreeChapterCount > chaptersInput.length && chaptersInput.length > 0) {
-      toast({ title: "免费预览章节数无效", description: "免费预览章节数不能超过漫画总章节数。", variant: "destructive" });
-      return;
+    if (isNaN(parsedFreeChapterCount) || parsedFreeChapterCount < 0) {
+        toast({ title: "免费预览章节数无效", description: "免费预览章节数必须是一个非负数。", variant: "destructive" });
+        return;
     }
 
 
@@ -533,13 +533,13 @@ export default function CreateMangaPage() {
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
                <div className="space-y-2">
-                <Label htmlFor="freePreviewChapterCount" suppressHydrationWarning>免费预览章节数 * (最多 {chaptersInput.length})</Label>
-                <Input id="freePreviewChapterCount" type="number" value={freePreviewChapterCount} onChange={(e) => setFreePreviewChapterCount(e.target.value)} min="0" max={chaptersInput.length > 0 ? chaptersInput.length.toString() : '0'} required />
+                <Label htmlFor="freePreviewChapterCount" suppressHydrationWarning>免费预览章节数 *</Label>
+                <Input id="freePreviewChapterCount" type="number" value={freePreviewChapterCount} onChange={(e) => setFreePreviewChapterCount(e.target.value)} min="0" required />
                 <p className="text-xs text-muted-foreground" suppressHydrationWarning>设置漫画系列开头有多少章节可以免费阅读。</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="freePreviewPageCount" suppressHydrationWarning>免费预览总页数 * (最多 {totalPagesInManga})</Label>
-                <Input id="freePreviewPageCount" type="number" value={freePreviewPageCount} onChange={(e) => setFreePreviewPageCount(e.target.value)} min="0" max={totalPagesInManga > 0 ? totalPagesInManga.toString() : '0'} required />
+                <Label htmlFor="freePreviewPageCount" suppressHydrationWarning>免费预览总页数 *</Label>
+                <Input id="freePreviewPageCount" type="number" value={freePreviewPageCount} onChange={(e) => setFreePreviewPageCount(e.target.value)} min="0" required />
                 <p className="text-xs text-muted-foreground" suppressHydrationWarning>除了免费章节外，额外可免费阅读的总页数 (在付费章节的开头)。</p>
               </div>
             </div>

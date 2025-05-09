@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, type FormEvent, useMemo, useRef } from 'react';
@@ -417,13 +418,13 @@ export default function EditMangaPage() {
     const parsedFreePageCount = parseInt(freePreviewPageCount, 10);
     const parsedFreeChapterCount = parseInt(freePreviewChapterCount, 10);
 
-    if (parsedFreePageCount > totalPagesInManga && totalPagesInManga > 0) {
-      toast({ title: "Invalid Free Preview Pages", description: "Free preview pages cannot exceed total manga pages.", variant: "destructive" });
-      return;
+    if (isNaN(parsedFreePageCount) || parsedFreePageCount < 0) {
+        toast({ title: "Invalid Free Preview Pages", description: "Free preview pages must be a non-negative number.", variant: "destructive" });
+        return;
     }
-    if (parsedFreeChapterCount > totalActiveChapters && totalActiveChapters > 0) {
-      toast({ title: "Invalid Free Preview Chapters", description: "Free preview chapters cannot exceed total active chapters.",variant: "destructive" });
-      return;
+    if (isNaN(parsedFreeChapterCount) || parsedFreeChapterCount < 0) {
+        toast({ title: "Invalid Free Preview Chapters", description: "Free preview chapters must be a non-negative number.",variant: "destructive" });
+        return;
     }
 
 
@@ -751,13 +752,13 @@ export default function EditMangaPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
               <div className="space-y-2">
-                <Label htmlFor="freePreviewChapterCount-edit" suppressHydrationWarning>Free Preview Chapters * (Max {totalActiveChapters})</Label>
-                <Input id="freePreviewChapterCount-edit" type="number" value={freePreviewChapterCount} onChange={(e) => setFreePreviewChapterCount(e.target.value)} min="0" max={totalActiveChapters > 0 ? totalActiveChapters.toString() : '0'} required />
+                <Label htmlFor="freePreviewChapterCount-edit" suppressHydrationWarning>Free Preview Chapters *</Label>
+                <Input id="freePreviewChapterCount-edit" type="number" value={freePreviewChapterCount} onChange={(e) => setFreePreviewChapterCount(e.target.value)} min="0" required />
                 <p className="text-xs text-muted-foreground" suppressHydrationWarning>Number of initial chapters readable for free.</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="freePreviewPageCount-edit" suppressHydrationWarning>Free Preview Total Pages * (Max {totalPagesInManga})</Label>
-                <Input id="freePreviewPageCount-edit" type="number" value={freePreviewPageCount} onChange={(e) => setFreePreviewPageCount(e.target.value)} min="0" max={totalPagesInManga > 0 ? totalPagesInManga.toString() : '0'} required />
+                <Label htmlFor="freePreviewPageCount-edit" suppressHydrationWarning>Free Preview Total Pages *</Label>
+                <Input id="freePreviewPageCount-edit" type="number" value={freePreviewPageCount} onChange={(e) => setFreePreviewPageCount(e.target.value)} min="0" required />
                  <p className="text-xs text-muted-foreground" suppressHydrationWarning>Additional total pages (from start of paid chapters) readable for free.</p>
               </div>
             </div>
