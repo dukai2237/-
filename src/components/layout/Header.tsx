@@ -40,7 +40,12 @@ export function Header() {
       <div className="container flex h-16 items-center">
         <Link href="/" className="mr-auto flex items-center gap-2">
           <BookOpen className="h-7 w-7 text-primary" />
-          <span className="font-bold text-xl tracking-tight">Manga Platform</span>
+          <span 
+            className="font-bold text-xl tracking-tight"
+            suppressHydrationWarning={true}
+          >
+            Manga Platform
+          </span>
         </Link>
         
         <nav className="hidden md:flex items-center gap-1">
