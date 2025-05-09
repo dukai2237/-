@@ -38,11 +38,11 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center">
-        <Link href="/" className="mr-auto flex items-center gap-2">
+        <Link href="/" className="mr-auto flex items-center gap-2" suppressHydrationWarning>
           <BookOpen className="h-7 w-7 text-primary" />
           <span 
             className="font-bold text-xl tracking-tight"
-            suppressHydrationWarning={true}
+            suppressHydrationWarning={true} 
           >
             Manga Platform
           </span>
@@ -51,13 +51,13 @@ export function Header() {
         <nav className="hidden md:flex items-center gap-1">
           {navItems.map((item) =>
             item.isButton ? (
-              <Button key={item.label} variant="ghost" onClick={item.onClick} className="flex items-center gap-2">
+              <Button key={item.label} variant="ghost" onClick={item.onClick} className="flex items-center gap-2" suppressHydrationWarning>
                 {item.icon}
                 {item.label}
               </Button>
             ) : (
               <Button key={item.label} variant="ghost" asChild>
-                <Link href={item.href!} className="flex items-center gap-2">
+                <Link href={item.href!} className="flex items-center gap-2" suppressHydrationWarning>
                   {item.icon}
                   {item.label}
                 </Link>
@@ -79,13 +79,13 @@ export function Header() {
                 {navItems.map((item) => (
                   <SheetClose asChild key={item.label}>
                     {item.isButton ? (
-                       <Button variant="ghost" onClick={item.onClick} className="justify-start text-lg py-3 px-3 flex items-center gap-3">
+                       <Button variant="ghost" onClick={item.onClick} className="justify-start text-lg py-3 px-3 flex items-center gap-3" suppressHydrationWarning>
                         {item.icon}
                         {item.label}
                       </Button>
                     ) : (
                       <Button variant="ghost" asChild className="justify-start text-lg py-3 px-3">
-                        <Link href={item.href!} className="flex items-center gap-3">
+                        <Link href={item.href!} className="flex items-center gap-3" suppressHydrationWarning>
                           {item.icon}
                           {item.label}
                         </Link>
@@ -101,3 +101,4 @@ export function Header() {
     </header>
   );
 }
+
