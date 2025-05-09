@@ -1,6 +1,6 @@
 "use client";
 import Link from 'next/link';
-import { Home, BookOpen, Sparkles, Menu, UserCircle, LogIn, LogOut, ShoppingCart, Edit3 } from 'lucide-react';
+import { Home, BookOpen, Sparkles, Menu, UserCircle, LogIn, LogOut, ShoppingCart, Edit3, BookUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetClose } from '@/components/ui/sheet';
 import { useAuth } from '@/contexts/AuthContext';
@@ -23,15 +23,15 @@ export function Header() {
 
   let dynamicNavItems = [];
   if (user) {
-    if (user.authoredMangaIds && user.authoredMangaIds.length > 0) {
-      dynamicNavItems.push({ href: '/author/dashboard', label: 'Author Dashboard', icon: <Edit3 className="h-5 w-5" /> });
+    if (user.accountType === 'creator') {
+      dynamicNavItems.push({ href: '/creator/dashboard', label: 'Creator Dashboard', icon: <BookUp className="h-5 w-5" /> });
     }
     dynamicNavItems.push(
       { href: '/profile', label: 'Profile', icon: (
         user.avatarUrl ? (
           <Avatar className="h-6 w-6">
             <AvatarImage src={user.avatarUrl} alt={user.name || 'User'} data-ai-hint="user avatar small" />
-            <AvatarFallback>{user.name?.[0]?.toUpperCase() || 'U'}</AvatarFallback>
+            <AvatarFallback suppressHydrationWarning>{user.name?.[0]?.toUpperCase() || 'U'}</AvatarFallback>
           </Avatar>
         ) : <UserCircle className="h-5 w-5" />
       )},

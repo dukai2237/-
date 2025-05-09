@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from "@/components/ui/table";
-import { DollarSign, BookOpenCheck, BarChart3, Briefcase, LogOut, Landmark, Receipt, Edit3 } from "lucide-react";
+import { DollarSign, BookOpenCheck, BarChart3, Briefcase, LogOut, Landmark, Receipt, Edit3, BookUp } from "lucide-react";
 
 export default function ProfilePage() {
   const { user, logout, viewingHistory, transactions } = useAuth(); 
@@ -17,7 +17,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!user) {
-      router.push("/login");
+      router.push("/login?redirect=/profile");
     }
   }, [user, router]);
 
@@ -46,31 +46,32 @@ export default function ProfilePage() {
     alert("Withdrawal feature is conceptual. In a real app, this would initiate a payout process.");
   };
 
-  const isAuthor = user.authoredMangaIds && user.authoredMangaIds.length > 0;
+  const isCreator = user.accountType === 'creator';
 
   return (
     <div className="space-y-8">
-      <Card className="w-full max-w-2xl mx-auto">
+      <Card className="w-full max-w-2xl mx-auto shadow-lg">
         <CardHeader className="text-center">
           <Avatar className="w-24 h-24 mx-auto mb-4 ring-2 ring-primary ring-offset-2">
             <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="user avatar" />
-            <AvatarFallback className="text-3xl">{user.name?.[0]?.toUpperCase()}</AvatarFallback>
+            <AvatarFallback className="text-3xl" suppressHydrationWarning>{user.name?.[0]?.toUpperCase()}</AvatarFallback>
           </Avatar>
-          <CardTitle className="text-3xl">{user.name}</CardTitle>
-          <CardDescription className="text-lg">{user.email}</CardDescription>
-          {isAuthor && <Badge variant="secondary" className="mx-auto mt-2">Author</Badge>}
+          <CardTitle className="text-3xl" suppressHydrationWarning>{user.name}</CardTitle>
+          <CardDescription className="text-lg" suppressHydrationWarning>{user.email}</CardDescription>
+          {isCreator && <Badge variant="secondary" className="mx-auto mt-2 text-sm px-3 py-1">Creator Account</Badge>}
+          {!isCreator && <Badge variant="outline" className="mx-auto mt-2 text-sm px-3 py-1">User Account</Badge>}
         </CardHeader>
         <CardContent className="text-center space-y-2">
             <div className="flex items-center justify-center text-2xl font-semibold text-primary">
                 <DollarSign className="h-7 w-7 mr-2"/> 
                 Wallet Balance: ${user.walletBalance.toFixed(2)}
             </div>
-          <p className="text-muted-foreground">Manage your profile, subscriptions, and investments.</p>
+          <p className="text-muted-foreground" suppressHydrationWarning>Manage your profile, subscriptions, and investments.</p>
         </CardContent>
         <CardFooter className="flex flex-wrap justify-center gap-4">
-            {isAuthor && (
+            {isCreator && (
               <Button asChild variant="default" className="w-full sm:w-auto">
-                <Link href="/author/dashboard"><Edit3 className="mr-2 h-4 w-4"/> Author Dashboard</Link>
+                <Link href="/creator/dashboard"><BookUp className="mr-2 h-4 w-4"/> Creator Dashboard</Link>
               </Button>
             )}
             <Button onClick={handleWithdraw} variant="outline" className="w-full sm:w-auto">
@@ -154,20 +155,6 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
       
-      {/* Authored Manga - Conceptual - now replaced by Author Dashboard link */}
-      {/* {isAuthor && (
-        <Card className="w-full max-w-2xl mx-auto">
-          <CardHeader>
-            <CardTitle className="flex items-center"><Briefcase className="mr-2 h-6 w-6 text-primary"/>My Authored Manga</CardTitle>
-            <CardDescription>Manage your published manga series and earnings (Conceptual).</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">Author dashboard features (setting prices, viewing detailed analytics, managing payouts) would appear here.</p>
-          </CardContent>
-        </Card>
-      )} */}
-
-
       <Card className="w-full max-w-2xl mx-auto">
         <CardHeader>
           <CardTitle className="flex items-center"><Receipt className="mr-2 h-6 w-6 text-primary" />Recent Transactions (Mock)</CardTitle>
@@ -187,13 +174,13 @@ export default function ProfilePage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {transactions.slice(0, 10).map((tx) => ( // Show last 10
+                  {transactions.slice(0, 10).map((tx) => ( 
                     <TableRow key={tx.id}>
                       <TableCell className="text-xs">{new Date(tx.timestamp).toLocaleDateString()}</TableCell>
                       <TableCell><Badge variant="outline" className="capitalize text-xs">{tx.type.replace(/_/g, ' ')}</Badge></TableCell>
                       <TableCell className="text-sm">{tx.description}</TableCell>
-                      <TableCell className={`text-right font-medium ${tx.amount < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                        {tx.type.endsWith('_payment') || tx.type.endsWith('_deduction') ? '-' : '+'}
+                      <TableCell className={`text-right font-medium ${tx.type.endsWith('_payment') || tx.type.endsWith('_deduction') || tx.type === 'platform_fee' ? 'text-red-600' : 'text-green-600'}`}>
+                        {tx.type.endsWith('_payment') || tx.type.endsWith('_deduction') || tx.type === 'platform_fee' ? '-' : '+'}
                         ${Math.abs(tx.amount).toFixed(2)}
                       </TableCell>
                     </TableRow>
@@ -219,7 +206,6 @@ export default function ProfilePage() {
               {recentViewing.map(([mangaId, history]) => (
                 <li key={`${mangaId}-${history.chapterId}`} className="p-3 border rounded-md">
                   <Link href={`/manga/${mangaId}/${history.chapterId}#page=${history.pageIndex + 1}`} className="hover:text-primary">
-                    {/* Ideally, fetch manga title here. For now, using ID. */}
                     <p className="font-semibold">Manga ID: {mangaId}</p>
                     <p className="text-sm text-muted-foreground">
                       Chapter ID: {history.chapterId}, Page: {history.pageIndex + 1}

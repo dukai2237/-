@@ -7,6 +7,7 @@ export interface User {
   subscriptions: UserSubscription[];
   investments: UserInvestment[];
   authoredMangaIds: string[]; // IDs of manga series authored by this user
+  accountType: 'creator' | 'user'; // New field for account type
 }
 
 export interface UserSubscription {
@@ -68,7 +69,7 @@ export interface MangaInvestor {
 export interface MangaSeries {
   id: string;
   title: string;
-  author: AuthorInfo;
+  author: AuthorInfo; // Renamed from creator to author for clarity within MangaSeries context
   summary: string;
   coverImage: string;
   genres: string[];
@@ -97,14 +98,14 @@ export interface MangaSeries {
 // Simplified Transaction type for client-side simulation and logging
 export interface SimulatedTransaction {
   id: string;
-  type: 'subscription_payment' | 'donation_payment' | 'investment_payment' | 'merchandise_purchase' | 'author_earning' | 'investor_payout' | 'platform_fee' | 'rating_update';
+  type: 'subscription_payment' | 'donation_payment' | 'investment_payment' | 'merchandise_purchase' | 'author_earning' | 'investor_payout' | 'platform_fee' | 'rating_update' | 'account_creation' | 'manga_creation';
   amount: number;
   userId?: string; 
-  authorId?: string;
+  authorId?: string; // This can be the creator's ID
   mangaId?: string;
   description: string;
   timestamp: string; // ISO date string
-  relatedData?: any; // For storing rating score, etc.
+  relatedData?: any; // For storing rating score, accountType, etc.
 }
 
 export interface MangaRating {

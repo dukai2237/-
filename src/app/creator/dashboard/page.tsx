@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from 'react';
@@ -9,21 +8,24 @@ import { getMangaById } from '@/lib/mock-data';
 import type { MangaSeries } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { PlusCircle, Edit, BarChart2, DollarSign, Eye } from 'lucide-react';
+import { PlusCircle, Edit, BarChart2, DollarSign, Eye, BookUp } from 'lucide-react';
 import Image from 'next/image';
 
-export default function AuthorDashboardPage() {
+export default function CreatorDashboardPage() {
   const { user } = useAuth();
   const router = useRouter();
   const [authoredManga, setAuthoredManga] = useState<MangaSeries[]>([]);
 
   useEffect(() => {
     if (!user) {
-      router.push('/login?redirect=/author/dashboard');
+      router.push('/login?redirect=/creator/dashboard');
+      return;
+    }
+    if (user.accountType !== 'creator') {
+      router.push('/'); // Redirect non-creators away
       return;
     }
     if (!user.authoredMangaIds) {
-      // User might not have manga yet, but can be on this page
       setAuthoredManga([]);
     } else {
       const mangaList = user.authoredMangaIds
@@ -32,7 +34,6 @@ export default function AuthorDashboardPage() {
       setAuthoredManga(mangaList);
     }
 
-    // Periodically refresh manga data in case it's updated by other actions
     const interval = setInterval(() => {
        if (user && user.authoredMangaIds) {
         const freshMangaList = user.authoredMangaIds
@@ -42,12 +43,13 @@ export default function AuthorDashboardPage() {
           setAuthoredManga(freshMangaList);
         }
        }
-    }, 2000);
+    }, 2000); // Check for updates every 2 seconds
     return () => clearInterval(interval);
 
   }, [user, router, authoredManga]);
 
-  if (!user) {
+  if (!user || user.accountType !== 'creator') {
+    // Show loading or redirect message while routing checks complete
     return <div className="text-center py-10" suppressHydrationWarning>Loading or redirecting...</div>;
   }
 
@@ -55,16 +57,16 @@ export default function AuthorDashboardPage() {
     <div className="space-y-8">
       <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle className="text-3xl" suppressHydrationWarning>Author Dashboard</CardTitle>
+          <CardTitle className="text-3xl" suppressHydrationWarning>Creator Dashboard</CardTitle>
           <CardDescription suppressHydrationWarning>Manage your manga series, view earnings, and create new content.</CardDescription>
         </CardHeader>
         <CardContent>
-           <p suppressHydrationWarning>Welcome, {user.name}! Here you can manage your creative work.</p>
+           <p suppressHydrationWarning>Welcome, {user.name}! This is your space to manage your creations.</p>
         </CardContent>
          <CardFooter>
           <Button asChild size="lg">
-            <Link href="/author/create-manga">
-              <PlusCircle className="mr-2 h-5 w-5" /> Create New Manga Series
+            <Link href="/creator/create-manga">
+              <BookUp className="mr-2 h-5 w-5" /> Create New Manga Series
             </Link>
           </Button>
         </CardFooter>
@@ -77,7 +79,7 @@ export default function AuthorDashboardPage() {
             <CardContent className="pt-6">
               <p className="text-muted-foreground text-center" suppressHydrationWarning>
                 You haven't created any manga series yet. <br/>
-                Get started by clicking the "Create New Manga Series" button above!
+                Click the "Create New Manga Series" button above to get started!
               </p>
             </CardContent>
           </Card>
@@ -116,12 +118,6 @@ export default function AuthorDashboardPage() {
           </div>
         )}
       </div>
-      
-      {/* Conceptual section for overall earnings - out of scope for mock data aggregation */}
-      {/* <Card>
-        <CardHeader><CardTitle>Overall Earnings & Analytics</CardTitle></CardHeader>
-        <CardContent><p className="text-muted-foreground">Detailed daily/yearly analytics and payout management would be here.</p></CardContent>
-      </Card> */}
     </div>
   );
 }

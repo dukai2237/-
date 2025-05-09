@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -11,7 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import type { MangaInvestmentOffer } from '@/lib/types';
-import { Switch } from '@/components/ui/switch'; // Shadcn Switch
+import { Switch } from '@/components/ui/switch';
+import { BookUp } from 'lucide-react';
 
 export default function CreateMangaPage() {
   const { user, addMangaSeries } = useAuth();
@@ -23,9 +23,8 @@ export default function CreateMangaPage() {
   const [coverImage, setCoverImage] = useState(`https://picsum.photos/400/600?random=${Date.now()}`); 
   const [genres, setGenres] = useState(''); // Comma-separated
   const [freePreviewPageCount, setFreePreviewPageCount] = useState('2');
-  const [subscriptionPrice, setSubscriptionPrice] = useState(''); // Optional
+  const [subscriptionPrice, setSubscriptionPrice] = useState(''); 
 
-  // Investment Offer Fields
   const [enableInvestment, setEnableInvestment] = useState(false);
   const [sharesOfferedTotalPercent, setSharesOfferedTotalPercent] = useState('20');
   const [totalSharesInOffer, setTotalSharesInOffer] = useState('100');
@@ -34,15 +33,19 @@ export default function CreateMangaPage() {
   const [minSubscriptionRequirement, setMinSubscriptionRequirement] = useState('');
   const [maxSharesPerUser, setMaxSharesPerUser] = useState('');
 
+  useEffect(() => {
+    if (!user) {
+      router.push('/login?redirect=/creator/create-manga');
+    } else if (user.accountType !== 'creator') {
+      toast({ title: "Access Denied", description: "Only creators can access this page.", variant: "destructive" });
+      router.push('/');
+    }
+  }, [user, router, toast]);
 
-  if (!user) {
-    router.push('/login?redirect=/author/create-manga');
-    return <div className="text-center py-10">Redirecting to login...</div>;
-  }
-  if (!user.authoredMangaIds) { 
-      // User might not be an author yet, but can still access this page to create their first manga.
-  }
 
+  if (!user || user.accountType !== 'creator') {
+    return <div className="text-center py-10">Redirecting...</div>;
+  }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -68,13 +71,12 @@ export default function CreateMangaPage() {
       };
     }
 
-    // For simplicity, assume each chapter has 10 pages. A real UI would allow specifying page counts.
-    // This creates placeholder data.
-    const placeholderChapters = [{ title: "Chapter 1: The Beginning", pageCount: 10 }];
-    if (title.toLowerCase().includes("cybernetic")) { // example for a second chapter
-        placeholderChapters.push({ title: "Chapter 2: Awakening", pageCount: 12 });
+    // For "uploading" pages, we'll create mock chapter data with a default page count.
+    // A real system would involve file uploads for each page image.
+    const placeholderChapters = [{ title: "Chapter 1: Genesis", pageCount: 10 }]; 
+    if (title.toLowerCase().includes("arc")) { 
+        placeholderChapters.push({ title: "Chapter 2: The Journey Begins", pageCount: 12 });
     }
-
 
     const newManga = await addMangaSeries({
       title,
@@ -89,7 +91,7 @@ export default function CreateMangaPage() {
 
     if (newManga) {
       toast({ title: "Manga Created!", description: `${newManga.title} has been successfully created.`});
-      router.push('/author/dashboard');
+      router.push('/creator/dashboard');
     } else {
       toast({ title: "Creation Failed", description: "Could not create manga. Please try again.", variant: "destructive" });
     }
@@ -100,8 +102,10 @@ export default function CreateMangaPage() {
       <form onSubmit={handleSubmit}>
         <Card className="shadow-lg">
           <CardHeader>
-            <CardTitle className="text-2xl" suppressHydrationWarning>Create New Manga Series</CardTitle>
-            <CardDescription suppressHydrationWarning>Fill in the details for your new manga. Fields marked with * are required.</CardDescription>
+            <CardTitle className="text-2xl flex items-center" suppressHydrationWarning><BookUp className="mr-3 h-7 w-7 text-primary"/>Create New Manga Series</CardTitle>
+            <CardDescription suppressHydrationWarning>
+              Fill in the details for your new manga. This simulates uploading your work to the platform. Fields marked with * are required.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
@@ -114,12 +118,17 @@ export default function CreateMangaPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="coverImage" suppressHydrationWarning>Cover Image URL *</Label>
-              <Input id="coverImage" value={coverImage} onChange={(e) => setCoverImage(e.target.value)} placeholder="https://example.com/cover.jpg" required />
+              <Input id="coverImage" value={coverImage} onChange={(e) => setCoverImage(e.target.value)} placeholder="https://example.com/cover.jpg (mock upload)" required />
+               <p className="text-xs text-muted-foreground" suppressHydrationWarning>In a real app, this would be a file upload field.</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="genres" suppressHydrationWarning>Genres * (comma-separated)</Label>
               <Input id="genres" value={genres} onChange={(e) => setGenres(e.target.value)} placeholder="e.g., Sci-Fi, Action, Comedy" required />
             </div>
+             <p className="text-sm text-muted-foreground pt-2 border-t" suppressHydrationWarning>
+              Chapter and page uploads are simplified for this mock. A default first chapter with 10 pages will be created. 
+              You would typically upload images for each page.
+            </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="freePreviewPageCount" suppressHydrationWarning>Free Preview Pages *</Label>
@@ -148,7 +157,7 @@ export default function CreateMangaPage() {
                             <div className="space-y-2">
                                 <Label htmlFor="sharesOfferedTotalPercent" suppressHydrationWarning>Total Revenue Share for Investors Pool (%) *</Label>
                                 <Input id="sharesOfferedTotalPercent" type="number" value={sharesOfferedTotalPercent} onChange={(e) => setSharesOfferedTotalPercent(e.target.value)} placeholder="e.g., 20 for 20%" min="1" max="100" required={enableInvestment} />
-                                <p className="text-xs text-muted-foreground" suppressHydrationWarning>The percentage of future manga revenue (subscriptions, donations, merchandise) allocated to all investors combined.</p>
+                                <p className="text-xs text-muted-foreground" suppressHydrationWarning>The percentage of future manga revenue allocated to all investors combined.</p>
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="totalSharesInOffer" suppressHydrationWarning>Total Shares in This Offer *</Label>
@@ -176,7 +185,7 @@ export default function CreateMangaPage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button type="submit" className="w-full text-lg py-6">Create Manga Series</Button>
+            <Button type="submit" className="w-full text-lg py-6">Publish Manga Series</Button>
           </CardFooter>
         </Card>
       </form>

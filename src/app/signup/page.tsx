@@ -1,42 +1,96 @@
+"use client";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState, type FormEvent } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 export default function SignupPage() {
+  const router = useRouter();
+  const { signup } = useAuth();
+  const { toast } = useToast();
+
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState(""); // Mock password, not used for auth
+  const [accountType, setAccountType] = useState<'user' | 'creator'>('user');
+
+  const handleSignup = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!name || !email || !accountType) {
+      toast({ title: "Missing Fields", description: "Please fill in all fields and select an account type.", variant: "destructive"});
+      return;
+    }
+    
+    const newUser = signup(name, email, accountType);
+
+    if (newUser) {
+      if (newUser.accountType === 'creator') {
+        router.push('/creator/dashboard');
+      } else {
+        router.push('/profile');
+      }
+    } else {
+      // Signup might fail in a real app, mock should ideally always succeed unless specific error is simulated
+      toast({ title: "Signup Failed", description: "Could not create account. Please try again.", variant: "destructive"});
+    }
+  };
+
+
   return (
     <div className="flex justify-center items-center py-12">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
           <CardTitle className="text-2xl">Sign Up</CardTitle>
-          <CardDescription>Create an account to get started. (Feature coming soon)</CardDescription>
+          <CardDescription>Create your Manga Platform account.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
-            <Input id="name" placeholder="Your Name" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" placeholder="m@example.com" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input id="password" type="password" />
-          </div>
-        </CardContent>
-        <CardFooter className="flex flex-col gap-4">
-          <Button className="w-full" disabled>
-            Sign Up (Coming Soon)
-          </Button>
-          <p className="text-sm text-muted-foreground">
-            Already have an account? <Link href="/login" className="text-primary hover:underline">Login</Link>
-          </p>
-        </CardFooter>
+        <form onSubmit={handleSignup}>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="name">Full Name</Label>
+              <Input id="name" placeholder="e.g., John Doe" value={name} onChange={(e) => setName(e.target.value)} required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email Address</Label>
+              <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input id="password" type="password" placeholder="Choose a strong password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            </div>
+            <div className="space-y-3">
+              <Label className="text-base">Account Type</Label>
+              <RadioGroup defaultValue="user" onValueChange={(value: 'user' | 'creator') => setAccountType(value)} className="flex space-x-4">
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="user" id="type-user" />
+                  <Label htmlFor="type-user" className="font-normal">Regular User</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="creator" id="type-creator" />
+                  <Label htmlFor="type-creator" className="font-normal">Manga Creator</Label>
+                </div>
+              </RadioGroup>
+               {accountType === 'creator' && (
+                <p className="text-xs text-muted-foreground pt-1">As a Manga Creator, you'll be able to upload and manage your manga series.</p>
+              )}
+            </div>
+          </CardContent>
+          <CardFooter className="flex flex-col gap-4">
+            <Button type="submit" className="w-full text-lg py-3">
+              Create Account
+            </Button>
+            <p className="text-sm text-center text-muted-foreground">
+              Already have an account? <Link href="/login" className="text-primary hover:underline">Login here</Link>
+            </p>
+          </CardFooter>
+        </form>
       </Card>
     </div>
   );
 }
-
