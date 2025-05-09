@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, type FormEvent, useEffect, useMemo, useRef } from 'react';
@@ -278,7 +277,6 @@ export default function CreateMangaPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* ... (title, summary, coverImage, genres, author contact - unchanged) ... */}
             <div className="space-y-2">
               <Label htmlFor="title" suppressHydrationWarning>标题 *</Label>
               <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="例如：银河历险记" required />
@@ -356,7 +354,6 @@ export default function CreateMangaPage() {
               </div>
             </div>
 
-            {/* Chapters Section - Modified */}
             <div className="space-y-4 pt-4 border-t">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-semibold" suppressHydrationWarning>章节 ({chaptersInput.length}/{MAX_CHAPTERS_PER_WORK})</h3>
@@ -369,13 +366,13 @@ export default function CreateMangaPage() {
                 {chaptersInput.map((chapter, chapterIndex) => (
                   <Card key={chapter.localId} className="p-4 bg-secondary/30 space-y-3">
                     <div className="flex justify-between items-center">
-                       <Label htmlFor={`chapter-title-${chapterIndex}`} className="text-base font-medium" suppressHydrationWarning>章节 {chapterIndex + 1} 标题</Label>
+                       <Label htmlFor={`chapter-title-${chapter.localId}`} className="text-base font-medium" suppressHydrationWarning>章节 {chapterIndex + 1} 标题</Label>
                        <Button type="button" variant="ghost" size="icon" onClick={() => removeChapterInput(chapter.localId)} className="text-destructive hover:bg-destructive/10 h-7 w-7">
                           <Trash2 className="h-4 w-4" />
                        </Button>
                     </div>
                     <Input
-                      id={`chapter-title-${chapterIndex}`}
+                      id={`chapter-title-${chapter.localId}`}
                       value={chapter.title}
                       onChange={(e) => updateChapterTitleInput(chapter.localId, e.target.value)}
                       placeholder="例如：开端"
@@ -398,12 +395,13 @@ export default function CreateMangaPage() {
                       {chapter.pages.map((page, pageIndex) => (
                         <Card key={page.localId} className="p-3 bg-background/70">
                           <div className="flex justify-between items-center mb-2">
-                            <Label className="text-xs font-medium" suppressHydrationWarning>第 {pageIndex + 1} 页</Label>
+                            <Label htmlFor={`page-image-upload-${chapter.localId}-${page.localId}`} className="text-xs font-medium" suppressHydrationWarning>第 {pageIndex + 1} 页图片</Label>
                             <Button type="button" variant="ghost" size="icon" onClick={() => removePageFromChapterInput(chapter.localId, page.localId)} className="text-destructive hover:bg-destructive/10 h-6 w-6">
                               <Trash2 className="h-3 w-3" />
                             </Button>
                           </div>
                           <Input 
+                            id={`page-image-upload-${chapter.localId}-${page.localId}`}
                             type="file" 
                             accept="image/*" 
                             onChange={(e) => handlePageImageChange(chapter.localId, page.localId, e)} 
@@ -438,7 +436,6 @@ export default function CreateMangaPage() {
               </div>
             </div>
 
-            {/* Crowdfunding Section - Unchanged */}
             <div className="space-y-4 pt-4 border-t">
               <div className="flex items-center space-x-3">
                 <Switch id="enableCrowdfunding" checked={enableCrowdfunding} onCheckedChange={setEnableCrowdfunding} aria-label="启用漫画众筹" />
@@ -491,5 +488,3 @@ export default function CreateMangaPage() {
     </div>
   );
 }
-
-    

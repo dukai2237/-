@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, type FormEvent, useMemo, useRef } from 'react';
@@ -32,18 +31,18 @@ import {
 } from "@/components/ui/alert-dialog";
 
 interface EditablePageState {
-  id: string; // Existing page ID or new local ID (`new-page-${timestamp}`)
-  file?: File; // For new/updated images
-  previewUrl?: string | null; // For new/updated images, base64
-  existingImageUrl?: string; // For existing images from backend
+  id: string; 
+  file?: File; 
+  previewUrl?: string | null; 
+  existingImageUrl?: string; 
   altText: string;
   _isNew?: boolean;
   _toBeDeleted?: boolean;
-  order: number; // For reordering if needed, though not explicitly implemented for reordering UI in this pass
+  order: number; 
 }
 
 interface EditableChapterState {
-  id: string; // Existing chapter ID or new local ID (`new-chapter-${timestamp}`)
+  id: string; 
   title: string;
   pages: EditablePageState[];
   _isNew?: boolean;
@@ -131,7 +130,7 @@ export default function EditMangaPage() {
           pages: ch.pages.map((p, pageIndex) => ({
             id: p.id,
             existingImageUrl: p.imageUrl,
-            previewUrl: p.imageUrl, // Initially, preview is the existing one
+            previewUrl: p.imageUrl, 
             altText: p.altText || `Page ${pageIndex + 1}`,
             order: pageIndex,
           })),
@@ -256,7 +255,7 @@ export default function EditMangaPage() {
     setEditableChapters(prev => prev.map(ch => 
       ch.id === chapterId 
         ? { ...ch, pages: ch.pages.map(p => p.id === pageId ? { ...p, _toBeDeleted: true } : p)
-                          .filter(p => !(p._isNew && p._toBeDeleted)) // Immediately remove if it's a new page marked for deletion
+                          .filter(p => !(p._isNew && p._toBeDeleted)) 
           }
         : ch
     ));
@@ -279,7 +278,7 @@ export default function EditMangaPage() {
           ch.id === chapterId 
             ? { ...ch, pages: ch.pages.map(p => 
                 p.id === pageId 
-                  ? { ...p, file: file, previewUrl: reader.result as string, existingImageUrl: undefined } // Clear existing if new is uploaded
+                  ? { ...p, file: file, previewUrl: reader.result as string, existingImageUrl: undefined } 
                   : p
               )} 
             : ch
@@ -339,7 +338,7 @@ export default function EditMangaPage() {
             maxSharesPerUser: maxSharesPerUser ? parseInt(maxSharesPerUser, 10) : undefined,
             isActive: true, 
         };
-     } else if (mangaToEdit.investmentOffer) { // If crowdfunding was enabled and is now disabled
+     } else if (mangaToEdit.investmentOffer) { 
         updatedInvestmentOfferData = { ...mangaToEdit.investmentOffer, isActive: false };
      }
 
@@ -359,7 +358,7 @@ export default function EditMangaPage() {
           id: editPage._isNew || !mangaToEdit.chapters.flatMap(c => c.pages).find(p => p.id === editPage.id) 
             ? `${editCh.id.replace('new-chapter-', 'ch-')}-page-${Date.now()}-${pageIndex}` 
             : editPage.id,
-          imageUrl: editPage.previewUrl || editPage.existingImageUrl || `https://picsum.photos/800/1200?error`, // Fallback, should not happen with validation
+          imageUrl: editPage.previewUrl || editPage.existingImageUrl || `https://picsum.photos/800/1200?error`,
           altText: editPage.altText || `Page ${pageIndex + 1}`,
         })),
       };
@@ -405,7 +404,6 @@ export default function EditMangaPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* ... (title, summary, coverImage, genres, author contact - largely unchanged) ... */}
              <div className="space-y-2">
               <Label htmlFor="title-edit" suppressHydrationWarning>标题 *</Label>
               <Input id="title-edit" value={title} onChange={(e) => setTitle(e.target.value)} required />
@@ -482,8 +480,6 @@ export default function EditMangaPage() {
               </div>
             </div>
 
-
-            {/* Chapters Section - Modified */}
             <div className="space-y-4 pt-4 border-t">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-semibold" suppressHydrationWarning>章节 ({editableChapters.filter(ch => !ch._toBeDeleted).length}/{MAX_CHAPTERS_PER_WORK})</h3>
@@ -494,7 +490,7 @@ export default function EditMangaPage() {
               {editableChapters.filter(ch => !ch._toBeDeleted).length === 0 && <p className="text-sm text-muted-foreground">没有活动章节。</p>}
               <ScrollArea className="max-h-[600px] space-y-3 pr-3">
                 {editableChapters.map((chapter, chapterIndex) => {
-                  if (chapter._toBeDeleted && !chapter._isNew) { // Show existing chapters marked for deletion differently
+                  if (chapter._toBeDeleted && !chapter._isNew) { 
                     return (
                       <Card key={chapter.id} className="p-3 bg-red-100 dark:bg-red-900/30 opacity-70">
                         <div className="flex justify-between items-center">
@@ -508,12 +504,12 @@ export default function EditMangaPage() {
                       </Card>
                     );
                   }
-                  if (chapter._toBeDeleted && chapter._isNew) return null; // Don't render new chapters marked for deletion
+                  if (chapter._toBeDeleted && chapter._isNew) return null; 
 
                   return (
                     <Card key={chapter.id} className="p-4 bg-secondary/30 space-y-3">
                       <div className="flex justify-between items-center">
-                        <Label htmlFor={`edit-chapter-title-${chapterIndex}`} className="text-base font-medium">
+                        <Label htmlFor={`edit-chapter-title-${chapter.id}`} className="text-base font-medium">
                           {chapter._isNew ? `新章节` : `章节 ${mangaToEdit?.chapters.find(c=>c.id===chapter.id)?.chapterNumber || chapterIndex+1}`} 标题
                         </Label>
                         <Button type="button" variant="ghost" size="icon" onClick={() => markChapterForDeletion(chapter.id)} className="text-destructive hover:bg-destructive/10 h-7 w-7">
@@ -521,7 +517,7 @@ export default function EditMangaPage() {
                         </Button>
                       </div>
                       <Input
-                        id={`edit-chapter-title-${chapterIndex}`}
+                        id={`edit-chapter-title-${chapter.id}`}
                         value={chapter.title}
                         onChange={(e) => updateChapterTitle(chapter.id, e.target.value)}
                         placeholder="章节标题"
@@ -562,12 +558,13 @@ export default function EditMangaPage() {
                           return (
                             <Card key={page.id} className="p-3 bg-background/70">
                               <div className="flex justify-between items-center mb-2">
-                                <Label className="text-xs font-medium">第 {page.order + 1} 页</Label>
+                                <Label htmlFor={`page-image-edit-${chapter.id}-${page.id}`} className="text-xs font-medium">第 {page.order + 1} 页图片</Label>
                                 <Button type="button" variant="ghost" size="icon" onClick={() => markPageForDeletion(chapter.id, page.id)} className="text-destructive hover:bg-destructive/10 h-6 w-6">
                                   <Trash2 className="h-3 w-3" />
                                 </Button>
                               </div>
                               <Input 
+                                id={`page-image-edit-${chapter.id}-${page.id}`}
                                 type="file" 
                                 accept="image/*" 
                                 onChange={(e) => handlePageImageChangeForEdit(chapter.id, page.id, e)} 
@@ -604,7 +601,6 @@ export default function EditMangaPage() {
               </div>
             </div>
 
-            {/* Crowdfunding & Delete section - Unchanged */}
             <div className="space-y-4 pt-4 border-t">
               <div className="flex items-center space-x-3">
                 <Switch id="enableCrowdfunding-edit" checked={enableCrowdfunding} onCheckedChange={setEnableCrowdfunding} aria-label="启用漫画众筹"/>
@@ -684,5 +680,3 @@ export default function EditMangaPage() {
     </div>
   );
 }
-
-    
