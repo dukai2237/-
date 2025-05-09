@@ -1,5 +1,5 @@
 
-import type { MangaSeries, MangaPage, AuthorInfo, MangaInvestmentOffer, AuthorContactDetails, Chapter } from './types';
+import type { MangaSeries, MangaPage, AuthorInfo, MangaInvestmentOffer, AuthorContactDetails, Chapter, ShareListing, UserInvestment } from './types';
 import { MANGA_GENRES_DETAILS, MAX_SHARES_PER_OFFER } from './constants';
 
 const generatePages = (chapterId: string, count: number): MangaPage[] => {
@@ -89,9 +89,10 @@ export const mockMangaSeriesData: MangaSeries[] = [
       { id: 'manga-1-chapter-2', title: 'Whispers in the Woods', chapterNumber: 2, pages: generatePages('m1c2', 10) },
       { id: 'manga-1-chapter-3', title: 'City of Shadows', chapterNumber: 3, pages: generatePages('m1c3', 12) },
     ],
+    subscriptionModel: 'monthly',
+    subscriptionPrice: 5,
     freePreviewPageCount: 2,
     freePreviewChapterCount: 0,
-    subscriptionPrice: 5,
     totalRevenueFromSubscriptions: 1250,
     totalRevenueFromDonations: 350,
     totalRevenueFromMerchandise: 120,
@@ -121,10 +122,11 @@ export const mockMangaSeriesData: MangaSeries[] = [
       { id: 'manga-2-chapter-1', title: 'Neon Illusions', chapterNumber: 1, pages: generatePages('m2c1', 10) },
       { id: 'manga-2-chapter-2', title: 'Data Ghosts', chapterNumber: 2, pages: generatePages('m2c2', 9) },
     ],
+    subscriptionModel: 'per_chapter',
+    chapterSubscriptionPrice: 1.99,
     freePreviewPageCount: 3,
-    freePreviewChapterCount: 1,
-    subscriptionPrice: 7,
-    totalRevenueFromSubscriptions: 2100,
+    freePreviewChapterCount: 1, // First chapter is free
+    totalRevenueFromSubscriptions: 2100, // This would now include per-chapter sales
     totalRevenueFromDonations: 150,
     totalRevenueFromMerchandise: 0,
     investmentOffer: investmentOffer2,
@@ -150,9 +152,10 @@ export const mockMangaSeriesData: MangaSeries[] = [
       { id: 'manga-3-chapter-3', title: 'Secrets of the Spire', chapterNumber: 3, pages: generatePages('m3c3', 14) },
       { id: 'manga-3-chapter-4', title: 'Council of Shadows', chapterNumber: 4, pages: generatePages('m3c4', 10) },
     ],
+    subscriptionModel: 'none', // No direct subscription, relies on donations/future investment
     freePreviewPageCount: 1,
     freePreviewChapterCount: 0,
-    totalRevenueFromSubscriptions: 0, // No subscription price set
+    totalRevenueFromSubscriptions: 0, 
     totalRevenueFromDonations: 50,
     totalRevenueFromMerchandise: 0,
     investors: [],
@@ -174,9 +177,10 @@ export const mockMangaSeriesData: MangaSeries[] = [
     chapters: [
       { id: 'manga-4-chapter-1', title: 'The First Spark', chapterNumber: 1, pages: generatePages('m4c1', 5) },
     ],
+    subscriptionModel: 'monthly',
+    subscriptionPrice: 2,
     freePreviewPageCount: 2,
     freePreviewChapterCount: 1,
-    subscriptionPrice: 2,
     totalRevenueFromSubscriptions: 50,
     totalRevenueFromDonations: 10,
     totalRevenueFromMerchandise: 0,
@@ -191,6 +195,26 @@ export const mockMangaSeriesData: MangaSeries[] = [
 ];
 
 export let modifiableMockMangaSeries = [...mockMangaSeriesData];
+
+// Mock data for share listings
+export let mockShareListingsData: ShareListing[] = [
+  {
+    id: 'listing-1',
+    mangaId: 'manga-1',
+    mangaTitle: 'The Wandering Blade',
+    coverImage: 'https://picsum.photos/400/600?random=manga1',
+    authorName: 'Kenji Tanaka',
+    sellerUserId: 'investor-alpha',
+    sellerName: 'Alpha Investor',
+    sharesOffered: 3,
+    pricePerShare: 60, // Higher than original purchase, reflecting potential value increase
+    description: "Selling a small portion of my 'The Wandering Blade' shares. Great series with huge potential!",
+    listedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
+    isActive: true,
+    followersCount: 5,
+  },
+];
+
 
 // Function to get all manga series that are published (for public display)
 export const getPublishedMangaSeries = (): MangaSeries[] => {
@@ -218,8 +242,6 @@ export const updateMockMangaData = (mangaId: string, updates: Partial<MangaSerie
     let lastChapterUpdateInfo: MangaSeries['lastChapterUpdateInfo'] = existingManga.lastChapterUpdateInfo;
 
     if (updates.chapters) {
-      // Basic logic to detect if chapters structure changed significantly to trigger update info
-      // This is a simplified check. A more robust check would compare content deeply.
       let pagesChangedInLastChapter = false;
       let lastUpdatedEffectiveChapter: Chapter | undefined = undefined;
 
@@ -237,13 +259,13 @@ export const updateMockMangaData = (mangaId: string, updates: Partial<MangaSerie
                 chapterId: lastUpdatedEffectiveChapter.id,
                 chapterNumber: lastUpdatedEffectiveChapter.chapterNumber,
                 chapterTitle: lastUpdatedEffectiveChapter.title,
-                pagesAdded: newPagesCount - oldPagesCount, // Can be negative if pages removed
+                pagesAdded: newPagesCount - oldPagesCount, 
                 newTotalPagesInChapter: newPagesCount,
                 date: new Date().toISOString(),
              };
           }
         }
-      } else if (updates.chapters.length > 0) { // Manga had no chapters, now has some
+      } else if (updates.chapters.length > 0) { 
         lastUpdatedEffectiveChapter = updates.chapters[updates.chapters.length -1];
         lastChapterUpdateInfo = {
             chapterId: lastUpdatedEffectiveChapter.id,
@@ -290,7 +312,7 @@ export const updateMockMangaData = (mangaId: string, updates: Partial<MangaSerie
       chapters: updatedChapters || existingManga.chapters,
       investmentOffer: mergedInvestmentOffer,
       lastUpdatedDate: new Date().toISOString(),
-      lastChapterUpdateInfo: updates.chapters ? lastChapterUpdateInfo : existingManga.lastChapterUpdateInfo, // Only update if chapters were part of the update
+      lastChapterUpdateInfo: updates.chapters ? lastChapterUpdateInfo : existingManga.lastChapterUpdateInfo, 
     };
   }
 };
@@ -306,14 +328,69 @@ export const addMockMangaSeries = (newManga: MangaSeries) => {
     };
     mockAuthors.push(newAuthorData);
   }
-  // New manga are added as published by default, can be changed in edit.
+  
   const mangaWithDefaults: MangaSeries = {
     ...newManga,
     isPublished: newManga.isPublished !== undefined ? newManga.isPublished : true,
-  }
+    subscriptionModel: newManga.subscriptionModel || 'monthly', // Default subscription model
+  };
   modifiableMockMangaSeries.unshift(mangaWithDefaults);
 };
 
 export const deleteMockMangaData = (mangaId: string) => {
   modifiableMockMangaSeries = modifiableMockMangaSeries.filter(manga => manga.id !== mangaId);
+  // Also remove any share listings for this manga
+  mockShareListingsData = mockShareListingsData.filter(listing => listing.mangaId !== mangaId);
+};
+
+
+// Functions for Share Listings
+export const getActiveShareListings = (): ShareListing[] => {
+  return mockShareListingsData.filter(listing => listing.isActive && listing.sharesOffered > 0);
+};
+
+export const getShareListingById = (listingId: string): ShareListing | undefined => {
+  return mockShareListingsData.find(listing => listing.id === listingId);
+};
+
+export const addShareListing = (listingData: Omit<ShareListing, 'id' | 'listedDate' | 'isActive' | 'followersCount'>): ShareListing => {
+  const mangaDetails = getMangaById(listingData.mangaId);
+  const newListing: ShareListing = {
+    ...listingData,
+    id: `listing-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    listedDate: new Date().toISOString(),
+    isActive: true,
+    coverImage: mangaDetails?.coverImage || `https://picsum.photos/400/600?random=${listingData.mangaId}`,
+    mangaTitle: mangaDetails?.title || 'Unknown Manga',
+    authorName: mangaDetails?.author.name || 'Unknown Author',
+    followersCount: 0,
+  };
+  mockShareListingsData.unshift(newListing);
+  return newListing;
+};
+
+export const updateShareListingOnPurchase = (listingId: string, sharesBought: number): ShareListing | undefined => {
+  const listingIndex = mockShareListingsData.findIndex(l => l.id === listingId);
+  if (listingIndex !== -1) {
+    mockShareListingsData[listingIndex].sharesOffered -= sharesBought;
+    if (mockShareListingsData[listingIndex].sharesOffered <= 0) {
+      mockShareListingsData[listingIndex].isActive = false; // Deactivate if all shares are sold
+    }
+    return mockShareListingsData[listingIndex];
+  }
+  return undefined;
+};
+
+export const removeShareListing = (listingId: string): boolean => {
+  const initialLength = mockShareListingsData.length;
+  mockShareListingsData = mockShareListingsData.filter(listing => listing.id !== listingId);
+  return mockShareListingsData.length < initialLength;
+};
+
+export const updateListingFollowerCount = (listingId: string, increment: boolean) => {
+  const listingIndex = mockShareListingsData.findIndex(l => l.id === listingId);
+  if (listingIndex !== -1) {
+    const currentFollowers = mockShareListingsData[listingIndex].followersCount || 0;
+    mockShareListingsData[listingIndex].followersCount = Math.max(0, currentFollowers + (increment ? 1 : -1));
+  }
 };

@@ -10,22 +10,35 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from "@/components/ui/table";
-import { DollarSign, BookOpenCheck, BarChart3, Briefcase, LogOut, Landmark, Receipt, Edit3, BookUp, PlusCircle, CheckCircle, Clock, AlertCircle, Heart, Search } from "lucide-react";
+import { DollarSign, BookOpenCheck, BarChart3, Briefcase, LogOut, Landmark, Receipt, Edit3, BookUp, PlusCircle, CheckCircle, Clock, AlertCircle, Heart, Search, Store, Tag, MinusCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { getMangaById } from "@/lib/mock-data"; // For fetching favorited manga details
+import { getMangaById, getShareListingById } from "@/lib/mock-data"; 
+import type { UserInvestment, ShareListing } from "@/lib/types";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function ProfilePage() {
-  const { user, logout, viewingHistory, transactions, addFunds, withdrawFunds, approveCreatorAccount, favorites } = useAuth(); 
+  const { 
+    user, logout, viewingHistory, transactions, addFunds, withdrawFunds, 
+    approveCreatorAccount, favorites, listSharesForSale, delistSharesFromSale
+  } = useAuth(); 
   const router = useRouter();
   const { toast } = useToast();
 
   const [isAddFundsDialogOpen, setIsAddFundsDialogOpen] = useState(false);
   const [isWithdrawFundsDialogOpen, setIsWithdrawFundsDialogOpen] = useState(false);
+  const [isListSharesDialogOpen, setIsListSharesDialogOpen] = useState(false);
+  
   const [fundsToAdd, setFundsToAdd] = useState("");
   const [fundsToWithdraw, setFundsToWithdraw] = useState("");
+  
+  const [selectedInvestmentToList, setSelectedInvestmentToList] = useState<UserInvestment | null>(null);
+  const [sharesToList, setSharesToList] = useState("");
+  const [pricePerShareToList, setPricePerShareToList] = useState("");
+  const [listingDescription, setListingDescription] = useState("");
+
 
   const [isMockAdmin, setIsMockAdmin] = useState(false); 
   useEffect(() => {
@@ -46,9 +59,9 @@ export default function ProfilePage() {
   if (!user) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
-        <p className="mb-4">您需要登录后才能查看此页面。</p>
+        <p className="mb-4">You need to be logged in to view this page.</p>
         <Button asChild>
-          <Link href="/login">前往登录</Link>
+          <Link href="/login">Go to Login</Link>
         </Button>
       </div>
     );
@@ -67,7 +80,7 @@ export default function ProfilePage() {
   const handleAddFunds = () => {
     const amount = parseFloat(fundsToAdd);
     if (isNaN(amount) || amount <= 0) {
-        toast({ title: "金额无效", description: "请输入一个有效的正数金额。", variant: "destructive" });
+        toast({ title: "Invalid Amount", description: "Please enter a valid positive amount.", variant: "destructive" });
         return;
     }
     addFunds(amount);
@@ -78,7 +91,7 @@ export default function ProfilePage() {
   const handleWithdraw = async () => {
     const amount = parseFloat(fundsToWithdraw);
     if (isNaN(amount) || amount <= 0) {
-        toast({ title: "金额无效", description: "请输入一个有效的正数金额。", variant: "destructive" });
+        toast({ title: "Invalid Amount", description: "Please enter a valid positive amount.", variant: "destructive" });
         return;
     }
     const success = await withdrawFunds(amount);
@@ -88,8 +101,57 @@ export default function ProfilePage() {
     }
   };
 
+  const handleOpenListSharesDialog = (investment: UserInvestment) => {
+    setSelectedInvestmentToList(investment);
+    setSharesToList((investment.sharesOwned - (investment.sharesListed || 0)).toString()); // Default to remaining unlisted shares
+    setPricePerShareToList("");
+    setListingDescription("");
+    setIsListSharesDialogOpen(true);
+  };
+
+  const handleListShares = async () => {
+    if (!selectedInvestmentToList || !user) return;
+    const numShares = parseInt(sharesToList, 10);
+    const price = parseFloat(pricePerShareToList);
+
+    if (isNaN(numShares) || numShares <= 0) {
+      toast({ title: "Invalid Shares", description: "Number of shares must be a positive integer.", variant: "destructive" });
+      return;
+    }
+    if (isNaN(price) || price <= 0) {
+      toast({ title: "Invalid Price", description: "Price per share must be a positive number.", variant: "destructive" });
+      return;
+    }
+    if (listingDescription.length > 1000) {
+      toast({ title: "Description Too Long", description: "Listing description cannot exceed 1000 characters.", variant: "destructive" });
+      return;
+    }
+    const currentlyOwned = selectedInvestmentToList.sharesOwned;
+    const alreadyListed = selectedInvestmentToList.sharesListed || 0;
+    if (numShares > (currentlyOwned - alreadyListed) ) {
+        toast({ title: "Not Enough Shares", description: `You only have ${currentlyOwned - alreadyListed} unlisted shares available to sell for this manga.`, variant: "destructive"});
+        return;
+    }
+
+    const success = await listSharesForSale(selectedInvestmentToList.mangaId, numShares, price, listingDescription);
+    if (success) {
+      setIsListSharesDialogOpen(false);
+      setSelectedInvestmentToList(null);
+    }
+  };
+  
+  const handleDelistShares = async (investment: UserInvestment) => {
+    if (!investment.listingId) {
+        toast({title: "Error", description: "No active listing found for these shares.", variant: "destructive"});
+        return;
+    }
+    await delistSharesFromSale(investment.mangaId, investment.listingId);
+  }
+
+
   const isCreator = user.accountType === 'creator';
   const favoritedMangaList = user.favorites?.map(id => getMangaById(id)).filter(Boolean) || [];
+  const userShareListings = user.investments.filter(inv => inv.isListedForSale && inv.listingId).map(inv => getShareListingById(inv.listingId!)).filter(Boolean) as ShareListing[];
 
   return (
     <div className="space-y-8">
@@ -105,40 +167,40 @@ export default function ProfilePage() {
           {isCreator && (
             user.isApproved ? (
               <Badge variant="default" className="mx-auto mt-2 text-sm px-3 py-1 bg-green-600 hover:bg-green-700">
-                <CheckCircle className="mr-1.5 h-4 w-4" />已认证创作者
+                <CheckCircle className="mr-1.5 h-4 w-4" />Approved Creator
               </Badge>
             ) : (
               <Badge variant="destructive" className="mx-auto mt-2 text-sm px-3 py-1">
-                <Clock className="mr-1.5 h-4 w-4" />创作者账号待审批
+                <Clock className="mr-1.5 h-4 w-4" />Creator Account Pending Approval
               </Badge>
             )
           )}
-          {!isCreator && <Badge variant="outline" className="mx-auto mt-2 text-sm px-3 py-1">普通用户</Badge>}
+          {!isCreator && <Badge variant="outline" className="mx-auto mt-2 text-sm px-3 py-1">Regular User</Badge>}
 
         </CardHeader>
         <CardContent className="text-center space-y-2">
             <div className="flex items-center justify-center text-2xl font-semibold text-primary">
                 <DollarSign className="h-7 w-7 mr-2"/> 
-                钱包余额: ${user.walletBalance.toFixed(2)}
+                Wallet Balance: ${user.walletBalance.toFixed(2)}
             </div>
-          <p className="text-muted-foreground" suppressHydrationWarning>管理您的个人资料、订阅和投资。</p>
+          <p className="text-muted-foreground" suppressHydrationWarning>Manage your profile, subscriptions, and investments.</p>
         </CardContent>
         <CardFooter className="flex flex-wrap justify-center gap-4">
             {isCreator && user.isApproved && (
               <Button asChild variant="default" className="w-full sm:w-auto">
-                <Link href="/creator/dashboard"><BookUp className="mr-2 h-4 w-4"/> 创作者控制面板</Link>
+                <Link href="/creator/dashboard"><BookUp className="mr-2 h-4 w-4"/> Creator Dashboard</Link>
               </Button>
             )}
             <Button onClick={() => setIsAddFundsDialogOpen(true)} variant="secondary" className="w-full sm:w-auto">
-              <PlusCircle className="mr-2 h-4 w-4" /> 钱包充值 (模拟)
+              <PlusCircle className="mr-2 h-4 w-4" /> Add Funds (Simulated)
             </Button>
             {isCreator && user.isApproved && (
               <Button onClick={() => setIsWithdrawFundsDialogOpen(true)} variant="outline" className="w-full sm:w-auto">
-                <Landmark className="mr-2 h-4 w-4" /> 资金提现 (模拟)
+                <Landmark className="mr-2 h-4 w-4" /> Withdraw Funds (Simulated)
               </Button>
             )}
             <Button onClick={logout} variant="destructive" className="w-full sm:w-auto">
-                <LogOut className="mr-2 h-4 w-4" /> 登出
+                <LogOut className="mr-2 h-4 w-4" /> Logout
             </Button>
         </CardFooter>
       </Card>
@@ -146,14 +208,14 @@ export default function ProfilePage() {
       {isMockAdmin && user.accountType === 'creator' && !user.isApproved && (
         <Card className="w-full max-w-2xl mx-auto bg-yellow-50 border-yellow-300">
             <CardHeader>
-                <CardTitle className="flex items-center text-yellow-700"><AlertCircle className="mr-2 h-5 w-5"/>模拟管理员操作</CardTitle>
+                <CardTitle className="flex items-center text-yellow-700"><AlertCircle className="mr-2 h-5 w-5"/>Mock Admin Action</CardTitle>
             </CardHeader>
             <CardContent>
-                <p className="text-sm text-yellow-600">此创作者账号 ({user.email}) 当前待审批。</p>
+                <p className="text-sm text-yellow-600">This creator account ({user.email}) is currently pending approval.</p>
             </CardContent>
             <CardFooter>
                 <Button onClick={() => approveCreatorAccount(user.id)} variant="default" className="bg-yellow-500 hover:bg-yellow-600 text-white">
-                    <CheckCircle className="mr-2 h-4 w-4"/> 批准此创作者账号 (模拟)
+                    <CheckCircle className="mr-2 h-4 w-4"/> Approve Creator Account (Mock)
                 </Button>
             </CardFooter>
         </Card>
@@ -162,36 +224,39 @@ export default function ProfilePage() {
 
       <Card className="w-full max-w-2xl mx-auto">
         <CardHeader>
-          <CardTitle className="flex items-center"><BookOpenCheck className="mr-2 h-6 w-6 text-primary"/>我的订阅</CardTitle>
-          <CardDescription>您当前订阅的漫画系列。</CardDescription>
+          <CardTitle className="flex items-center"><BookOpenCheck className="mr-2 h-6 w-6 text-primary"/>My Subscriptions</CardTitle>
+          <CardDescription>Manga series you are currently subscribed to or chapters you've purchased.</CardDescription>
         </CardHeader>
         <CardContent>
           {user.subscriptions.length > 0 ? (
             <ScrollArea className="h-48">
               <ul className="space-y-3">
-                {user.subscriptions.map((sub) => (
-                  <li key={sub.mangaId} className="p-3 border rounded-md flex justify-between items-center">
+                {user.subscriptions.map((sub, index) => (
+                  <li key={`${sub.mangaId}-${sub.chapterId || index}`} className="p-3 border rounded-md flex justify-between items-center">
                     <div>
-                      <Link href={`/manga/${sub.mangaId}`} className="font-semibold hover:text-primary">{sub.mangaTitle}</Link>
+                      <Link href={`/manga/${sub.mangaId}${sub.chapterId ? `/${sub.chapterId}` : ''}`} className="font-semibold hover:text-primary">
+                        {sub.mangaTitle} {sub.type === 'chapter' && sub.chapterId ? `(Chapter ${getMangaById(sub.mangaId)?.chapters.find(c=>c.id===sub.chapterId)?.chapterNumber || 'N/A'})` : ''}
+                      </Link>
                       <p className="text-sm text-muted-foreground">
-                        ${sub.monthlyPrice.toFixed(2)}/月 - 订阅于: {new Date(sub.subscribedSince).toLocaleDateString()}
+                        {sub.type === 'monthly' ? `$${sub.pricePaid.toFixed(2)}/month - Subscribed: ${new Date(sub.subscribedSince).toLocaleDateString()}` : `Paid $${sub.pricePaid.toFixed(2)} - Purchased: ${new Date(sub.subscribedSince).toLocaleDateString()}`}
+                        {sub.type === 'monthly' && sub.expiresAt && ` (Renews: ${new Date(sub.expiresAt).toLocaleDateString()})`}
                       </p>
                     </div>
-                    <Badge variant="secondary">订阅中</Badge>
+                    <Badge variant={sub.type === 'monthly' ? "default" : "secondary"}>{sub.type === 'monthly' ? 'Subscribed' : 'Chapter Purchased'}</Badge>
                   </li>
                 ))}
               </ul>
             </ScrollArea>
           ) : (
-            <p className="text-muted-foreground">您尚未订阅任何漫画系列。</p>
+            <p className="text-muted-foreground">You have no active subscriptions or chapter purchases.</p>
           )}
         </CardContent>
       </Card>
 
       <Card className="w-full max-w-2xl mx-auto">
         <CardHeader>
-          <CardTitle className="flex items-center"><Heart className="mr-2 h-6 w-6 text-primary"/>我的收藏</CardTitle>
-          <CardDescription>您收藏的漫画系列。</CardDescription>
+          <CardTitle className="flex items-center"><Heart className="mr-2 h-6 w-6 text-primary"/>My Favorites</CardTitle>
+          <CardDescription>Manga series you have favorited.</CardDescription>
         </CardHeader>
         <CardContent>
           {favoritedMangaList.length > 0 ? (
@@ -200,33 +265,34 @@ export default function ProfilePage() {
                 {favoritedMangaList.map((manga) => manga && (
                   <li key={manga.id} className="p-3 border rounded-md flex justify-between items-center">
                     <Link href={`/manga/${manga.id}`} className="font-semibold hover:text-primary">{manga.title}</Link>
-                    <Badge variant="outline">已收藏</Badge>
+                    <Badge variant="outline">Favorited</Badge>
                   </li>
                 ))}
               </ul>
             </ScrollArea>
           ) : (
-            <p className="text-muted-foreground">您尚未收藏任何漫画系列。</p>
+            <p className="text-muted-foreground">You haven't favorited any manga series yet.</p>
           )}
         </CardContent>
       </Card>
 
       <Card className="w-full max-w-2xl mx-auto">
         <CardHeader>
-          <CardTitle className="flex items-center"><BarChart3 className="mr-2 h-6 w-6 text-primary"/>我的投资 (模拟)</CardTitle>
-          <CardDescription>您在漫画系列中的当前投资。</CardDescription>
+          <CardTitle className="flex items-center"><BarChart3 className="mr-2 h-6 w-6 text-primary"/>My Investments (Simulated)</CardTitle>
+          <CardDescription>Your current investments in manga series and options to list them for sale.</CardDescription>
         </CardHeader>
         <CardContent>
           {investmentsWithMockROI.length > 0 ? (
-             <ScrollArea className="h-60">
+             <ScrollArea className="h-72"> {/* Increased height slightly */}
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>漫画名称</TableHead>
-                      <TableHead className="text-right">持有份数</TableHead>
-                      <TableHead className="text-right">投资金额</TableHead>
-                      <TableHead className="text-right">模拟当前价值</TableHead>
-                      <TableHead className="text-right">模拟收益</TableHead>
+                      <TableHead>Manga</TableHead>
+                      <TableHead className="text-right">Shares</TableHead>
+                      <TableHead className="text-right">Cost</TableHead>
+                      <TableHead className="text-right">Value (Sim.)</TableHead>
+                      <TableHead className="text-right">Profit (Sim.)</TableHead>
+                      <TableHead className="text-center">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -234,7 +300,12 @@ export default function ProfilePage() {
                       <TableRow key={inv.mangaId}>
                         <TableCell>
                             <Link href={`/manga/${inv.mangaId}`} className="font-medium hover:text-primary">{inv.mangaTitle}</Link>
-                            <p className="text-xs text-muted-foreground">投资于: {new Date(inv.investmentDate).toLocaleDateString()}</p>
+                            <p className="text-xs text-muted-foreground">Invested: {new Date(inv.investmentDate).toLocaleDateString()}</p>
+                             {inv.isListedForSale && inv.listingId && (
+                                <Badge variant="secondary" className="mt-1 text-xs">
+                                    <Store className="mr-1 h-3 w-3"/> On Market ({inv.sharesListed} shares @ ${inv.listedPricePerShare?.toFixed(2)})
+                                </Badge>
+                            )}
                         </TableCell>
                         <TableCell className="text-right">{inv.sharesOwned}</TableCell>
                         <TableCell className="text-right">${inv.amountInvested.toFixed(2)}</TableCell>
@@ -242,33 +313,46 @@ export default function ProfilePage() {
                         <TableCell className={`text-right font-semibold ${inv.mockProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                             ${inv.mockProfit.toFixed(2)}
                         </TableCell>
+                        <TableCell className="text-center">
+                           {inv.isListedForSale && inv.listingId ? (
+                             <Button variant="outline" size="sm" onClick={() => handleDelistShares(inv)}>
+                                <MinusCircle className="mr-1 h-4 w-4"/> Delist
+                             </Button>
+                           ) : (
+                             (inv.sharesOwned - (inv.sharesListed || 0)) > 0 && (
+                                <Button variant="default" size="sm" onClick={() => handleOpenListSharesDialog(inv)}>
+                                    <Store className="mr-1 h-4 w-4"/> Sell Shares
+                                </Button>
+                             )
+                           )}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
              </ScrollArea>
           ) : (
-            <p className="text-muted-foreground">您尚未进行任何投资。</p>
+            <p className="text-muted-foreground">You have not made any investments yet.</p>
           )}
         </CardContent>
       </Card>
       
       <Card className="w-full max-w-2xl mx-auto">
         <CardHeader>
-          <CardTitle className="flex items-center"><Receipt className="mr-2 h-6 w-6 text-primary" />近期交易 (模拟)</CardTitle>
-          <CardDescription>您最近的模拟财务活动记录。</CardDescription>
+          <CardTitle className="flex items-center"><Receipt className="mr-2 h-6 w-6 text-primary" />Recent Transactions (Simulated)</CardTitle>
+          <CardDescription>Your latest simulated financial activities.</CardDescription>
         </CardHeader>
         <CardContent>
           {transactions.length > 0 ? (
             <ScrollArea className="h-60">
               <Table>
-                <TableCaption>您最近的模拟交易列表。</TableCaption>
+                <TableCaption>A list of your recent simulated transactions.</TableCaption>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>日期</TableHead>
-                    <TableHead>类型</TableHead>
-                    <TableHead>描述</TableHead>
-                    <TableHead className="text-right">金额</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -278,8 +362,8 @@ export default function ProfilePage() {
                       <TableCell><Badge variant="outline" className="capitalize text-xs whitespace-nowrap">{tx.type.replace(/_/g, ' ')}</Badge></TableCell>
                       <TableCell className="text-sm">{tx.description}</TableCell>
                       <TableCell className={`text-right font-medium ${tx.amount < 0 || tx.type === 'platform_earning' ? 'text-red-600' : 'text-green-600'}`}>
-                        {tx.amount < 0 ? '-' : (tx.amount > 0 && !['rating_update', 'manga_creation', 'manga_deletion', 'creator_approval_pending', 'creator_approved', 'platform_earning'].includes(tx.type) ? '+' : '')}
-                        ${tx.type === 'rating_update' || tx.type === 'manga_creation' || tx.type === 'manga_deletion' || tx.type === 'creator_approval_pending' || tx.type === 'creator_approved' ? Math.abs(tx.amount).toFixed(0) : Math.abs(tx.amount).toFixed(2)}
+                        {tx.amount < 0 ? '-' : (tx.amount > 0 && !['rating_update', 'manga_creation', 'manga_deletion', 'creator_approval_pending', 'creator_approved', 'platform_earning', 'list_shares_for_sale', 'delist_shares_from_sale'].includes(tx.type) ? '+' : '')}
+                        ${tx.type === 'rating_update' || tx.type === 'manga_creation' || tx.type === 'manga_deletion' || tx.type === 'creator_approval_pending' || tx.type === 'creator_approved' || tx.type === 'list_shares_for_sale' || tx.type === 'delist_shares_from_sale' ? Math.abs(tx.amount).toFixed(0) : Math.abs(tx.amount).toFixed(2)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -287,15 +371,15 @@ export default function ProfilePage() {
               </Table>
             </ScrollArea>
           ) : (
-            <p className="text-muted-foreground">暂无模拟交易记录。</p>
+            <p className="text-muted-foreground">No simulated transaction records yet.</p>
           )}
         </CardContent>
       </Card>
 
       <Card className="w-full max-w-2xl mx-auto">
         <CardHeader>
-          <CardTitle className="flex items-center"><Search className="mr-2 h-6 w-6 text-primary"/>搜索历史</CardTitle>
-          <CardDescription>您最近的搜索记录。</CardDescription>
+          <CardTitle className="flex items-center"><Search className="mr-2 h-6 w-6 text-primary"/>Search History</CardTitle>
+          <CardDescription>Your recent search queries.</CardDescription>
         </CardHeader>
         <CardContent>
           {user.searchHistory && user.searchHistory.length > 0 ? (
@@ -311,15 +395,15 @@ export default function ProfilePage() {
               </ul>
             </ScrollArea>
           ) : (
-            <p className="text-muted-foreground">暂无搜索历史。</p>
+            <p className="text-muted-foreground">No search history yet.</p>
           )}
         </CardContent>
       </Card>
 
       <Card className="w-full max-w-2xl mx-auto">
         <CardHeader>
-          <CardTitle>最近浏览历史</CardTitle>
-          <CardDescription>您上次观看的漫画章节。</CardDescription>
+          <CardTitle>Recent Viewing History</CardTitle>
+          <CardDescription>Manga chapters you last viewed.</CardDescription>
         </CardHeader>
         <CardContent>
           {recentViewing.length > 0 ? (
@@ -327,17 +411,17 @@ export default function ProfilePage() {
               {recentViewing.map(([mangaId, history]) => (
                 <li key={`${mangaId}-${history.chapterId}`} className="p-3 border rounded-md">
                   <Link href={`/manga/${mangaId}/${history.chapterId}#page=${history.pageIndex + 1}`} className="hover:text-primary">
-                    <p className="font-semibold">漫画ID: {mangaId}</p>
+                    <p className="font-semibold">Manga ID: {mangaId}</p>
                     <p className="text-sm text-muted-foreground">
-                      章节ID: {history.chapterId}, 页码: {history.pageIndex + 1}
+                      Chapter ID: {history.chapterId}, Page: {history.pageIndex + 1}
                     </p>
-                    <p className="text-xs text-muted-foreground">观看于: {history.date.toLocaleDateString()}</p>
+                    <p className="text-xs text-muted-foreground">Viewed on: {history.date.toLocaleDateString()}</p>
                   </Link>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-muted-foreground">暂无浏览历史。</p>
+            <p className="text-muted-foreground">No viewing history yet.</p>
           )}
         </CardContent>
       </Card>
@@ -345,27 +429,27 @@ export default function ProfilePage() {
       <Dialog open={isAddFundsDialogOpen} onOpenChange={setIsAddFundsDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>钱包充值 (模拟)</DialogTitle>
+            <DialogTitle>Add Funds (Simulated)</DialogTitle>
             <DialogDescription>
-              输入您希望添加到钱包的金额。此操作为模拟，不会产生真实交易。
+              Enter the amount you wish to add to your wallet. This is a simulation.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="fundsAmount" className="text-right">金额 ($)</Label>
+              <Label htmlFor="fundsAmount" className="text-right">Amount ($)</Label>
               <Input
                 id="fundsAmount"
                 type="number"
                 value={fundsToAdd}
                 onChange={(e) => setFundsToAdd(e.target.value)}
                 className="col-span-3"
-                placeholder="例如: 50.00"
+                placeholder="e.g.: 50.00"
               />
             </div>
           </div>
           <DialogFooter>
-            <DialogClose asChild><Button variant="outline">取消</Button></DialogClose>
-            <Button onClick={handleAddFunds}>确认充值</Button>
+            <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+            <Button onClick={handleAddFunds}>Confirm Deposit</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -373,28 +457,84 @@ export default function ProfilePage() {
       <Dialog open={isWithdrawFundsDialogOpen} onOpenChange={setIsWithdrawFundsDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>资金提现 (模拟)</DialogTitle>
+            <DialogTitle>Withdraw Funds (Simulated)</DialogTitle>
             <DialogDescription>
-              输入您希望从钱包提现的金额。此操作为模拟。
+              Enter the amount you wish to withdraw from your wallet. This is a simulation.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="withdrawAmount" className="text-right">金额 ($)</Label>
+              <Label htmlFor="withdrawAmount" className="text-right">Amount ($)</Label>
               <Input
                 id="withdrawAmount"
                 type="number"
                 value={fundsToWithdraw}
                 onChange={(e) => setFundsToWithdraw(e.target.value)}
                 className="col-span-3"
-                placeholder="例如: 20.00"
+                placeholder="e.g.: 20.00"
                 max={user.walletBalance}
               />
             </div>
           </div>
           <DialogFooter>
-            <DialogClose asChild><Button variant="outline">取消</Button></DialogClose>
-            <Button onClick={handleWithdraw}>确认提现</Button>
+            <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+            <Button onClick={handleWithdraw}>Confirm Withdrawal</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isListSharesDialogOpen} onOpenChange={setIsListSharesDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>List Shares for Sale</DialogTitle>
+            <DialogDescription>
+              Sell your shares of "{selectedInvestmentToList?.mangaTitle}" on the market.
+              You have {(selectedInvestmentToList?.sharesOwned || 0) - (selectedInvestmentToList?.sharesListed || 0)} unlisted shares.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="sharesToList" className="text-right col-span-1">Shares</Label>
+              <Input
+                id="sharesToList"
+                type="number"
+                value={sharesToList}
+                onChange={(e) => setSharesToList(e.target.value)}
+                className="col-span-3"
+                placeholder="Number of shares"
+                min="1"
+                max={((selectedInvestmentToList?.sharesOwned || 0) - (selectedInvestmentToList?.sharesListed || 0)).toString()}
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="pricePerShareToList" className="text-right col-span-1">Price/Share ($)</Label>
+              <Input
+                id="pricePerShareToList"
+                type="number"
+                value={pricePerShareToList}
+                onChange={(e) => setPricePerShareToList(e.target.value)}
+                className="col-span-3"
+                placeholder="e.g., 15.50"
+                step="0.01"
+                min="0.01"
+              />
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="listingDescription">Listing Description (Optional, Max 1000 chars)</Label>
+                <Textarea 
+                    id="listingDescription"
+                    value={listingDescription}
+                    onChange={(e) => setListingDescription(e.target.value)}
+                    placeholder="Why are you selling? What's special about this manga?"
+                    rows={3}
+                    maxLength={1000}
+                />
+                <p className="text-xs text-muted-foreground text-right">{listingDescription.length}/1000</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+            <Button onClick={handleListShares}>Confirm Listing</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -14,12 +14,13 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import type { MangaSeries, MangaInvestmentOffer, Chapter, MangaPage, AuthorContactDetails } from '@/lib/types';
 import { getMangaById, updateMockMangaData } from '@/lib/mock-data';
-import { Edit3, BookUp, PlusCircle, Trash2, AlertTriangle, UploadCloud, Mail, Link as LinkIcon, FileImage, RotateCcw, Images, Edit2, Save } from 'lucide-react';
+import { Edit3, BookUp, PlusCircle, Trash2, AlertTriangle, UploadCloud, Mail, Link as LinkIcon, FileImage, RotateCcw, Images, Edit2, Save, ScrollText } from 'lucide-react';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { MANGA_GENRES_DETAILS, MAX_CHAPTERS_PER_WORK, MAX_PAGES_PER_CHAPTER } from '@/lib/constants';
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -74,10 +75,13 @@ export default function EditMangaPage() {
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [editableChapters, setEditableChapters] = useState<EditableChapterState[]>([]);
 
+  const [subscriptionModel, setSubscriptionModel] = useState<MangaSeries['subscriptionModel']>('monthly');
+  const [monthlySubscriptionPrice, setMonthlySubscriptionPrice] = useState('');
+  const [chapterSubscriptionPrice, setChapterSubscriptionPrice] = useState('');
+  
   const [freePreviewPageCount, setFreePreviewPageCount] = useState('0');
   const [freePreviewChapterCount, setFreePreviewChapterCount] = useState('0');
-  const [subscriptionPrice, setSubscriptionPrice] = useState('');
-  const [isPublished, setIsPublished] = useState(true); // New state for publish status
+  const [isPublished, setIsPublished] = useState(true);
 
   const [enableCrowdfunding, setEnableCrowdfunding] = useState(false);
   const [sharesOfferedTotalPercent, setSharesOfferedTotalPercent] = useState('');
@@ -158,10 +162,14 @@ export default function EditMangaPage() {
             order: pageIndex,
           })).sort((a,b) => a.order - b.order),
         })));
+        
+        setSubscriptionModel(fetchedManga.subscriptionModel || 'monthly');
+        setMonthlySubscriptionPrice(fetchedManga.subscriptionPrice?.toString() || '');
+        setChapterSubscriptionPrice(fetchedManga.chapterSubscriptionPrice?.toString() || '');
+        
         setFreePreviewPageCount(fetchedManga.freePreviewPageCount.toString());
         setFreePreviewChapterCount(fetchedManga.freePreviewChapterCount?.toString() || '0');
-        setSubscriptionPrice(fetchedManga.subscriptionPrice?.toString() || '');
-        setIsPublished(fetchedManga.isPublished !== undefined ? fetchedManga.isPublished : true); // Load publish status
+        setIsPublished(fetchedManga.isPublished !== undefined ? fetchedManga.isPublished : true); 
         setAuthorContactEmail(fetchedManga.authorDetails?.email || user.email || '');
         setAuthorSocialLinks(fetchedManga.authorDetails?.socialLinks || []);
 
@@ -179,8 +187,10 @@ export default function EditMangaPage() {
         }
 
         const hasInvestors = fetchedManga.investors && fetchedManga.investors.length > 0;
-        const hasPotentialSubscribers = fetchedManga.subscriptionPrice !== undefined && fetchedManga.subscriptionPrice > 0; // Check based on if subs are possible
-        if (hasInvestors || (isSubscribedToManga(mangaId) && hasPotentialSubscribers) ) { // Simplified: if anyone is subscribed (mock)
+        // Simplified check for active subscriptions (replace with actual check if available)
+        const hasActiveSubscribers = user.subscriptions.some(sub => sub.mangaId === fetchedManga.id && (sub.type === 'monthly' && (!sub.expiresAt || new Date(sub.expiresAt) > new Date())));
+
+        if (hasInvestors || hasActiveSubscribers ) { 
           const lastActivityDate = Math.max(
             new Date(fetchedManga.publishedDate).getTime(),
             fetchedManga.lastInvestmentDate ? new Date(fetchedManga.lastInvestmentDate).getTime() : 0,
@@ -199,13 +209,6 @@ export default function EditMangaPage() {
     }
     setIsLoading(false);
   }, [mangaId, user, router, toast]);
-
-  // Dummy isSubscribedToManga for deletion check - replace with actual context method if available
-  const isSubscribedToManga = (mangaId: string) => {
-    // This is a placeholder. In a real app, you'd check actual subscriptions.
-    // For mock purposes, let's assume some mangas might have subscribers.
-    return mangaId === 'manga-1' || mangaId === 'manga-2';
-  };
 
 
   const handleCoverImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -414,7 +417,14 @@ export default function EditMangaPage() {
       toast({ title: "Incomplete Chapters", description: "All chapters must have at least one page, and all active pages must have an image.", variant: "destructive" });
       return;
     }
-
+    if (subscriptionModel === 'monthly' && (isNaN(parseFloat(monthlySubscriptionPrice)) || parseFloat(monthlySubscriptionPrice) <= 0)) {
+        toast({ title: "Invalid Monthly Price", description: "Monthly subscription price must be a positive number.", variant: "destructive"});
+        return;
+    }
+    if (subscriptionModel === 'per_chapter' && (isNaN(parseFloat(chapterSubscriptionPrice)) || parseFloat(chapterSubscriptionPrice) <= 0)) {
+        toast({ title: "Invalid Per-Chapter Price", description: "Per-chapter subscription price must be a positive number.", variant: "destructive"});
+        return;
+    }
     const parsedFreePageCount = parseInt(freePreviewPageCount, 10);
     const parsedFreeChapterCount = parseInt(freePreviewChapterCount, 10);
 
@@ -435,7 +445,7 @@ export default function EditMangaPage() {
             return;
         }
         updatedInvestmentOfferData = {
-            ...(mangaToEdit.investmentOffer || {}),
+            ...(mangaToEdit.investmentOffer || {} as MangaInvestmentOffer), // Ensure base object if new
             sharesOfferedTotalPercent: parseFloat(sharesOfferedTotalPercent),
             totalSharesInOffer: parseInt(totalSharesInOffer, 10),
             pricePerShare: parseFloat(pricePerShare),
@@ -445,7 +455,7 @@ export default function EditMangaPage() {
             isActive: true,
             dividendPayoutCycle: dividendPayoutCycle,
         };
-     } else if (mangaToEdit.investmentOffer) {
+     } else if (mangaToEdit.investmentOffer) { // if crowdfunding was enabled and is now disabled
         updatedInvestmentOfferData = { ...mangaToEdit.investmentOffer, isActive: false };
      }
 
@@ -465,16 +475,14 @@ export default function EditMangaPage() {
           id: editPage._isNew || !mangaToEdit.chapters.flatMap(c => c.pages).find(p => p.id === editPage.id)
             ? `${editCh.id.replace('new-chapter-', 'ch-')}-page-${Date.now()}-${pageIndex}`
             : editPage.id,
-          imageUrl: editPage.previewUrl || editPage.existingImageUrl || `https://picsum.photos/800/1200?error&text=Page+${pageIndex+1}`, // Fallback
+          imageUrl: editPage.previewUrl || editPage.existingImageUrl || `https://picsum.photos/800/1200?error&text=Page+${pageIndex+1}`, 
           altText: editPage.altText || `Page ${pageIndex + 1}`,
         })),
       };
     });
     
-    // Logic to calculate lastChapterUpdateInfo
     let calculatedLastChapterUpdateInfo: MangaSeries['lastChapterUpdateInfo'] = mangaToEdit.lastChapterUpdateInfo;
     if (mangaToEdit.chapters && processedChapters) {
-        // Simplified: check if the last chapter's page count changed or if a new chapter was added
         const oldLastChapter = mangaToEdit.chapters[mangaToEdit.chapters.length - 1];
         const newLastChapter = processedChapters[processedChapters.length - 1];
 
@@ -497,13 +505,15 @@ export default function EditMangaPage() {
       coverImage: coverImagePreview || mangaToEdit.coverImage,
       genres: selectedGenres,
       chapters: processedChapters,
+      subscriptionModel: subscriptionModel,
+      subscriptionPrice: subscriptionModel === 'monthly' ? parseFloat(monthlySubscriptionPrice) : undefined,
+      chapterSubscriptionPrice: subscriptionModel === 'per_chapter' ? parseFloat(chapterSubscriptionPrice) : undefined,
       freePreviewPageCount: parsedFreePageCount || 0,
       freePreviewChapterCount: parsedFreeChapterCount || 0,
-      subscriptionPrice: subscriptionPrice ? parseFloat(subscriptionPrice) : undefined,
       investmentOffer: updatedInvestmentOfferData,
       authorDetails: authorDetailsPayload,
       lastUpdatedDate: new Date().toISOString(),
-      isPublished: isPublished, // Save publish status
+      isPublished: isPublished, 
       lastChapterUpdateInfo: calculatedLastChapterUpdateInfo,
     };
 
@@ -691,7 +701,7 @@ export default function EditMangaPage() {
                           </Button>
                       </div>
                       {activePages.length === 0 && <p className="text-xs text-muted-foreground">No pages in this chapter. Click to add images.</p>}
-                      <div className="space-y-3">
+                      <ScrollArea className="max-h-[300px] border rounded-md p-2 space-y-3 bg-background/50"> {/* Scroll for pages */}
                         {chapter.pages.sort((a,b)=> a.order - b.order).map((page) => {
                           if (page._toBeDeleted && !page._isNew) {
                             return (
@@ -710,7 +720,7 @@ export default function EditMangaPage() {
                           if (page._toBeDeleted && page._isNew) return null;
 
                           return (
-                            <Card key={page.id} className="p-3 bg-background/70">
+                            <Card key={page.id} className="p-3 bg-background/70 shadow-sm">
                               <div className="flex justify-between items-center mb-2">
                                 <Label className="text-xs font-medium">Page {page.order + 1} Image</Label>
                                 <div className="flex items-center gap-1">
@@ -743,12 +753,43 @@ export default function EditMangaPage() {
                             </Card>
                           );
                         })}
-                      </div>
+                      </ScrollArea>
                     </Card>
                   );
                 })}
               </ScrollArea>
             </div>
+
+             <div className="space-y-4 pt-4 border-t">
+                <h3 className="text-lg font-semibold" suppressHydrationWarning>Subscription Model *</h3>
+                 <RadioGroup value={subscriptionModel} onValueChange={(value: MangaSeries['subscriptionModel']) => setSubscriptionModel(value)} className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="monthly" id="edit-sub-monthly" />
+                        <Label htmlFor="edit-sub-monthly" className="font-normal">Monthly Subscription</Label>
+                    </div>
+                    {subscriptionModel === 'monthly' && (
+                         <div className="pl-6 space-y-2">
+                            <Label htmlFor="monthlySubscriptionPrice-edit" suppressHydrationWarning>Monthly Price (USD) *</Label>
+                            <Input id="monthlySubscriptionPrice-edit" type="number" value={monthlySubscriptionPrice} onChange={(e) => setMonthlySubscriptionPrice(e.target.value)} placeholder="e.g., 4.99" step="0.01" min="0.01" required={subscriptionModel === 'monthly'} />
+                        </div>
+                    )}
+                    <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="per_chapter" id="edit-sub-per-chapter" />
+                        <Label htmlFor="edit-sub-per-chapter" className="font-normal">Per-Chapter Purchase</Label>
+                    </div>
+                     {subscriptionModel === 'per_chapter' && (
+                         <div className="pl-6 space-y-2">
+                            <Label htmlFor="chapterSubscriptionPrice-edit" suppressHydrationWarning>Price Per Chapter (USD) *</Label>
+                            <Input id="chapterSubscriptionPrice-edit" type="number" value={chapterSubscriptionPrice} onChange={(e) => setChapterSubscriptionPrice(e.target.value)} placeholder="e.g., 0.99" step="0.01" min="0.01" required={subscriptionModel === 'per_chapter'} />
+                        </div>
+                    )}
+                    <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="none" id="edit-sub-none" />
+                        <Label htmlFor="edit-sub-none" className="font-normal">None (Free or Donation/Investment Only)</Label>
+                    </div>
+                </RadioGroup>
+            </div>
+
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
               <div className="space-y-2">
@@ -762,10 +803,7 @@ export default function EditMangaPage() {
                  <p className="text-xs text-muted-foreground" suppressHydrationWarning>Additional total pages (from start of paid chapters) readable for free.</p>
               </div>
             </div>
-            <div className="space-y-2">
-                <Label htmlFor="subscriptionPrice-edit" suppressHydrationWarning>Subscription Price (USD/month, Optional)</Label>
-                <Input id="subscriptionPrice-edit" type="number" value={subscriptionPrice} onChange={(e) => setSubscriptionPrice(e.target.value)} step="0.01" min="0" />
-            </div>
+
 
             <div className="space-y-4 pt-4 border-t">
               <div className="flex items-center space-x-3">
@@ -818,7 +856,7 @@ export default function EditMangaPage() {
                     <div className="space-y-2">
                       <Label htmlFor="minSubscriptionRequirement-edit" suppressHydrationWarning>Min. Subscription Requirement (Optional)</Label>
                       <Input id="minSubscriptionRequirement-edit" type="number" value={minSubscriptionRequirement} onChange={(e) => setMinSubscriptionRequirement(e.target.value)} placeholder="e.g.: 5" min="0" />
-                       <p className="text-xs text-muted-foreground">Number of manga an investor must subscribe to.</p>
+                       <p className="text-xs text-muted-foreground">Number of manga series an investor must subscribe to, to be eligible to invest.</p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="maxSharesPerUser-edit" suppressHydrationWarning>Max Shares per Investor (Optional)</Label>

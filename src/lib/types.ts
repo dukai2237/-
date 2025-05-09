@@ -12,37 +12,46 @@ export interface User {
   ratingsGiven?: Record<string, 1 | 2 | 3>; // mangaId -> score. Stores the rating a user has given to a manga.
   favorites?: string[]; // mangaIds
   searchHistory?: string[];
+  followedShareListings?: string[]; // IDs of share listings the user is following
 }
 
 export interface UserSubscription {
   mangaId: string;
-  mangaTitle: string; // For display purposes
-  subscribedSince: string; // ISO date string
-  monthlyPrice: number;
+  mangaTitle: string; 
+  type: 'monthly' | 'chapter'; // Indicates if it's a monthly subscription or a single chapter purchase
+  chapterId?: string; // Only present if type is 'chapter'
+  pricePaid: number; // The amount paid for this specific subscription/purchase
+  subscribedSince: string; // ISO date string of initial subscription or chapter purchase
+  expiresAt?: string; // ISO date string, only for 'monthly' type
 }
 
 export interface UserInvestment {
   mangaId: string;
-  mangaTitle: string; // For display purposes
+  mangaTitle: string; 
   sharesOwned: number;
-  amountInvested: number; // Total amount user paid for these shares
-  investmentDate: string; // ISO date string
-  lastDividendReceivedDate?: string; // ISO date string
+  amountInvested: number; 
+  investmentDate: string; 
+  lastDividendReceivedDate?: string; 
   totalDividendsReceived?: number;
-  isForSale?: boolean; // For secondary market
-  sellingPricePerShare?: number; // For secondary market
+  
+  // Fields for when user lists their shares for sale on the secondary market
+  isListedForSale?: boolean;
+  listingId?: string; // ID of the ShareListing on the market
+  sharesListed?: number;
+  listedPricePerShare?: number;
+  listingDescription?: string;
 }
 
-export interface AuthorContactDetails { // New interface for author details embedded in MangaSeries
+export interface AuthorContactDetails { 
   email?: string;
   socialLinks?: { platform: string; url: string }[];
 }
 
-export interface AuthorInfo { // Existing interface, represents the basic author stub
+export interface AuthorInfo { 
   id:string;
   name: string;
   avatarUrl: string;
-  contactDetails?: AuthorContactDetails; // Added for potential direct use, though primarily via MangaSeries.authorDetails
+  contactDetails?: AuthorContactDetails; 
 }
 
 export interface MangaPage {
@@ -59,28 +68,26 @@ export interface Chapter {
 }
 
 export interface MangaInvestmentOffer {
-  sharesOfferedTotalPercent: number; // Percentage of manga's earnings allocated to investors
-  totalSharesInOffer: number; // Max 100, total shares author makes available for this crowdfunding
-  pricePerShare: number; // Price per share set by author
+  sharesOfferedTotalPercent: number; 
+  totalSharesInOffer: number; 
+  pricePerShare: number; 
   maxSharesPerUser?: number;
   minSubscriptionRequirement?: number;
   description: string;
   isActive: boolean;
-  dividendPayoutCycle?: 1 | 3 | 6 | 12; // Payout cycle in months
-  lastDividendPayoutDate?: string; // ISO date string for the entire offer
-  totalCapitalRaised?: number; // Sum of (sharesBought * pricePerShare) from initial offerings
+  dividendPayoutCycle?: 1 | 3 | 6 | 12; 
+  lastDividendPayoutDate?: string; 
+  totalCapitalRaised?: number; 
 }
 
-export interface MangaInvestor { // Tracks who invested in the initial offering by the author
+export interface MangaInvestor { 
   userId: string;
   userName: string;
-  sharesOwned: number; // Shares bought directly from author's offering
-  totalAmountInvested: number; // Amount paid to author for these shares
-  joinedDate: string; // ISO date string
-  lastDividendReceivedDate?: string; // ISO date string
+  sharesOwned: number; 
+  totalAmountInvested: number; 
+  joinedDate: string; 
+  lastDividendReceivedDate?: string; 
   totalDividendsReceived?: number;
-  isForSale?: boolean; // For secondary market
-  sellingPricePerShare?: number; // For secondary market
 }
 
 export interface MangaSeries {
@@ -92,16 +99,20 @@ export interface MangaSeries {
   coverImage: string;
   genres: string[];
   chapters: Chapter[];
+  
+  subscriptionModel: 'monthly' | 'per_chapter' | 'none'; // New: Subscription model
+  subscriptionPrice?: number; // For 'monthly' model
+  chapterSubscriptionPrice?: number; // For 'per_chapter' model, price per chapter
+
   freePreviewPageCount: number;
   freePreviewChapterCount?: number;
-  subscriptionPrice?: number;
 
   totalRevenueFromSubscriptions: number;
   totalRevenueFromDonations: number;
-  totalRevenueFromMerchandise: number; // Profit from merchandise sales
+  totalRevenueFromMerchandise: number; 
 
   investmentOffer?: MangaInvestmentOffer;
-  investors: MangaInvestor[]; // Users who invested directly in the author's offering
+  investors: MangaInvestor[]; 
 
   publishedDate: string;
   lastUpdatedDate?: string;
@@ -110,14 +121,14 @@ export interface MangaSeries {
   averageRating?: number;
   ratingCount?: number;
   viewCount: number;
-  isPublished: boolean; // New field to control visibility
-  lastChapterUpdateInfo?: { // New field for update notifications
+  isPublished: boolean; 
+  lastChapterUpdateInfo?: { 
     chapterId: string;
     chapterNumber: number;
     chapterTitle: string;
-    pagesAdded: number; // Number of pages added in the last update to this chapter
-    newTotalPagesInChapter: number; // Total pages in this chapter after update
-    date: string; // ISO date string of the update
+    pagesAdded: number; 
+    newTotalPagesInChapter: number; 
+    date: string; 
   };
 }
 
@@ -125,30 +136,32 @@ export interface SimulatedTransaction {
   id: string;
   type:
     | 'subscription_payment'
+    | 'chapter_purchase' // New for per-chapter model
     | 'donation_payment'
-    | 'investment_payment' // User pays author for shares
+    | 'investment_payment' 
     | 'merchandise_purchase'
-    | 'author_earning' // Generic author earning, or specific if from sub/donation/merch
-    | 'investor_payout' // Dividend payout from author to investor
-    | 'platform_fee' // Old, to be deprecated
-    | 'platform_earning' // Platform's cut from any user payment to author/platform
+    | 'author_earning' 
+    | 'investor_payout' 
+    | 'platform_earning' 
     | 'rating_update'
     | 'account_creation'
     | 'manga_creation'
     | 'manga_deletion'
     | 'wallet_deposit'
-    | 'wallet_withdrawal' // Author withdrawing funds
+    | 'wallet_withdrawal' 
     | 'creator_approval_pending'
     | 'creator_approved'
-    | 'shares_purchase_secondary' // User buys shares from another user
-    | 'shares_sale_secondary'; // User sells shares to another user
-  amount: number;
-  userId?: string; // User initiating or receiving funds
-  authorId?: string; // Author involved
+    | 'shares_purchase_secondary' 
+    | 'shares_sale_secondary'
+    | 'list_shares_for_sale' // New
+    | 'delist_shares_from_sale'; // New
+  amount: number; // Can be 0 for non-financial transactions like listing shares
+  userId?: string; 
+  authorId?: string; 
   mangaId?: string;
   description: string;
-  timestamp: string; // ISO date string
-  relatedData?: any; // e.g., { shares: 5, pricePerShare: 10 } for investment
+  timestamp: string; 
+  relatedData?: any; 
 }
 
 export interface MangaRating {
@@ -158,13 +171,27 @@ export interface MangaRating {
   timestamp: string;
 }
 
-// For the secondary market of shares (Conceptual)
+// For the secondary market of shares
 export interface ShareListing {
-    id: string;
-    mangaId: string;
-    sellerUserId: string;
-    sharesOffered: number;
-    pricePerShare: number;
-    listedDate: string;
-    isActive: boolean;
+  id: string;
+  mangaId: string;
+  mangaTitle: string;
+  coverImage: string; // Manga's cover image for display
+  authorName: string; // Manga's author name
+  sellerUserId: string;
+  sellerName: string; // Name of the user selling the shares
+  sharesOffered: number;
+  pricePerShare: number;
+  description: string; // Seller's description for the listing
+  listedDate: string; // ISO date string
+  isActive: boolean; // If the listing is currently active
+  followersCount?: number; // Number of users following this listing
+}
+
+// Represents a user's intent to buy shares from a listing
+export interface UserShareTradeRequest {
+    listingId: string;
+    buyerUserId: string;
+    sharesToBuy: number;
+    // Potential execution details can be added if a more complex trade execution model is built
 }

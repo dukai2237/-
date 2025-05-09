@@ -3,12 +3,12 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
-import type { MangaPage, MangaSeries } from '@/lib/types';
+import type { MangaPage, MangaSeries, Chapter } from '@/lib/types'; // Added Chapter
 import { MangaReaderControls } from './MangaReaderControls';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { XCircle, Lock, ShoppingCart } from "lucide-react";
+import { XCircle, Lock, ShoppingCart, BookOpen } from "lucide-react"; // Added BookOpen
 import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
@@ -27,7 +27,7 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { user, isSubscribedToManga, subscribeToManga, updateViewingHistory, getViewingHistory } = useAuth(); 
+  const { user, purchaseAccess, hasPurchasedChapter, isSubscribedToManga, updateViewingHistory, getViewingHistory } = useAuth(); 
   
   const [manga, setManga] = useState<MangaSeries>(initialManga); 
   const router = useRouter();
@@ -45,18 +45,21 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
 
   useEffect(() => {
     const history = getViewingHistory(mangaId);
+    let initialPageIdx = 0;
     if (history && history.chapterId === chapterId && history.pageIndex < pages.length) {
-      setCurrentPageIndex(history.pageIndex);
+      initialPageIdx = history.pageIndex;
     } else {
-       // Check for #page=N in URL for initial load
       const hash = window.location.hash;
       if (hash.startsWith("#page=")) {
         const pageNum = parseInt(hash.substring(6), 10);
         if (!isNaN(pageNum) && pageNum > 0 && pageNum <= pages.length) {
-          setCurrentPageIndex(pageNum - 1);
+          initialPageIdx = pageNum - 1;
         }
       }
     }
+    setCurrentPageIndex(initialPageIdx);
+    // Ensure loading is true initially if pages exist, to show skeleton then image
+    setIsLoading(pages.length > 0);
   }, [mangaId, chapterId, getViewingHistory, pages.length]);
 
 
@@ -71,17 +74,21 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
   const currentPageData = pages[currentPageIndex];
 
   const handleNextPage = useCallback(() => {
-    setCurrentPageIndex((prev) => Math.min(prev + 1, totalPages - 1));
-  }, [totalPages]);
+    if (currentPageIndex < totalPages - 1) {
+      setCurrentPageIndex((prev) => prev + 1);
+    }
+  }, [currentPageIndex, totalPages]);
 
   const handlePrevPage = useCallback(() => {
-    setCurrentPageIndex((prev) => Math.max(prev - 1, 0));
-  }, []);
+     if (currentPageIndex > 0) {
+      setCurrentPageIndex((prev) => prev - 1);
+    }
+  }, [currentPageIndex]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
-        return; // Don't interfere with form inputs
+        return; 
       }
       if (event.key === 'ArrowRight') {
         handleNextPage();
@@ -94,7 +101,7 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
   }, [handleNextPage, handlePrevPage]);
   
   useEffect(() => {
-    setIsLoading(true);
+    setIsLoading(true); // Reset loading state when page index changes
     setError(null);
     if (!currentPageData) {
         setError("Page data not found.");
@@ -128,9 +135,9 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
     const isLeftSwipe = distance > MIN_SWIPE_DISTANCE;
     const isRightSwipe = distance < -MIN_SWIPE_DISTANCE;
   
-    if (isLeftSwipe) {
+    if (isLeftSwipe && currentPageIndex < totalPages -1) {
       handleNextPage();
-    } else if (isRightSwipe) {
+    } else if (isRightSwipe && currentPageIndex > 0) {
       handlePrevPage();
     }
   
@@ -152,11 +159,40 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
   const freePreviewTotalPageCount = manga.freePreviewPageCount || 0;
   const freePreviewChapterCount = manga.freePreviewChapterCount || 0;
 
-  const isChapterFree = initialChapterNumber <= freePreviewChapterCount;
-  const isPageInFreePreview = isChapterFree || currentPageIndex < freePreviewTotalPageCount;
+  const isChapterWithinFreeChapterLimit = initialChapterNumber <= freePreviewChapterCount;
+  const isPageWithinFreePageLimitOfChapter = currentPageIndex < freePreviewTotalPageCount;
   
-  const userIsSubscribed = isSubscribedToManga(mangaId); 
-  const needsSubscription = !isPageInFreePreview && !userIsSubscribed;
+  const isContentFree = isChapterWithinFreeChapterLimit || (manga.subscriptionModel !== 'per_chapter' && isPageWithinFreePageLimitOfChapter);
+
+  let needsAccess = false;
+  let accessButtonText = "";
+  let accessIcon = <ShoppingCart className="mr-2 h-5 w-5" />;
+  let accessAction = async () => {};
+
+  if (!isContentFree) {
+    if (manga.subscriptionModel === 'monthly' && manga.subscriptionPrice && !isSubscribedToManga(mangaId)) {
+        needsAccess = true;
+        accessButtonText = `Subscribe Monthly for $${manga.subscriptionPrice.toFixed(2)}`;
+        accessAction = async () => {
+            if (!user) {
+                 toast({ title: "Login Required", description: "Please log in to subscribe.", variant: "destructive", action: <Button onClick={() => router.push('/login?redirect=' + pathname + `#page=${currentPageIndex + 1}`)}>Login</Button> });
+                 return;
+            }
+            await purchaseAccess(mangaId, 'monthly', mangaId, manga.subscriptionPrice!);
+        };
+    } else if (manga.subscriptionModel === 'per_chapter' && manga.chapterSubscriptionPrice && !hasPurchasedChapter(mangaId, chapterId)) {
+        needsAccess = true;
+        accessButtonText = `Buy Chapter for $${manga.chapterSubscriptionPrice.toFixed(2)}`;
+        accessIcon = <BookOpen className="mr-2 h-5 w-5" />;
+        accessAction = async () => {
+            if (!user) {
+                 toast({ title: "Login Required", description: "Please log in to purchase this chapter.", variant: "destructive", action: <Button onClick={() => router.push('/login?redirect=' + pathname + `#page=${currentPageIndex + 1}`)}>Login</Button> });
+                 return;
+            }
+            await purchaseAccess(mangaId, 'chapter', chapterId, manga.chapterSubscriptionPrice!);
+        };
+    }
+  }
 
 
   if (!totalPages) {
@@ -179,7 +215,7 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
     );
   }
 
-  if (needsSubscription) {
+  if (needsAccess) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-250px)] text-center p-6 bg-card shadow-lg rounded-lg max-w-md mx-auto my-8">
         <Lock className="w-20 h-20 text-primary mb-6" />
@@ -188,29 +224,14 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
           You've reached the end of the free preview for <span className="font-semibold">{manga.title}</span>.
         </p>
         <p className="text-md text-muted-foreground mb-8">
-          Subscribe to continue reading this chapter and get access to all chapters.
+          {manga.subscriptionModel === 'monthly' ? "Subscribe monthly to continue reading this chapter and get access to all chapters." : "Purchase this chapter to continue reading."}
         </p>
         <Button 
             size="lg" 
             className="text-lg py-6 px-8"
-            onClick={async () => {
-                if (!user) {
-                    toast({
-                        title: "Login Required",
-                        description: "Please log in to subscribe.",
-                        variant: "destructive",
-                        action: <Button onClick={() => router.push('/login?redirect=' + `/manga/${mangaId}/${chapterId}`)}>Login</Button>
-                    });
-                    return;
-                }
-                if (manga.subscriptionPrice) {
-                    await subscribeToManga(mangaId, manga.title, manga.subscriptionPrice);
-                } else {
-                    toast({ title: "Subscription Not Available", description: "This manga does not have a subscription price set.", variant: "destructive"});
-                }
-            }}
+            onClick={accessAction}
         >
-          <ShoppingCart className="mr-2 h-5 w-5" /> Subscribe for ${manga.subscriptionPrice?.toFixed(2) || 'N/A'}/month
+          {accessIcon} {accessButtonText}
         </Button>
         <Link href={`/manga/${mangaId}`} className="mt-4">
           <Button variant="outline">Back to Manga Details</Button>
@@ -227,7 +248,7 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
-        style={{ touchAction: 'pan-y' }} // Allow vertical scroll if content overflows, but prioritize horizontal for swipe
+        style={{ touchAction: 'pan-y' }} 
       >
         {isLoading && currentPageData && ( 
             <Skeleton className="absolute inset-0 w-full h-full" />
@@ -235,7 +256,7 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
         {currentPageData && (
           <>
             <Image
-                key={currentPageData.id}
+                key={currentPageData.id + currentPageIndex} // Add index to key to force re-render on page change if necessary
                 src={currentPageData.imageUrl}
                 alt={currentPageData.altText}
                 layout="fill"
@@ -248,9 +269,8 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
                 }}
                 className={`transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'} `}
                 data-ai-hint="manga page comic"
-                unoptimized={true} // Can help with some image optimization issues if they cause problems with context menu prevention
+                unoptimized={true} 
             />
-            {/* Transparent overlay to make direct image saving/interaction harder */}
             <div className="absolute inset-0 w-full h-full z-10"></div>
           </>
         )}

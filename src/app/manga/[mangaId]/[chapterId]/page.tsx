@@ -47,15 +47,15 @@ export default function MangaReaderPage({ params }: MangaReaderPageProps) {
                 <AvatarImage src={manga.author.avatarUrl} alt={manga.author.name} data-ai-hint="author avatar small"/>
                 <AvatarFallback>{manga.author.name[0]}</AvatarFallback>
             </Avatar>
-            <span>{manga.author.name}</span>
+            <span>by {manga.author.name}</span>
         </Link>
       </div>
       <MangaReaderView 
         pages={chapter.pages} 
         mangaId={mangaId} 
         chapterId={chapterId} 
-        initialManga={manga}
-        initialChapterNumber={chapter.chapterNumber}
+        initialManga={manga} // Pass full manga object
+        initialChapterNumber={chapter.chapterNumber} // Pass chapter number for paywall logic
       />
     </div>
   );

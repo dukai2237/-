@@ -1,13 +1,18 @@
 
 "use client";
 // src/contexts/AuthContext.tsx
-import type { User, UserSubscription, UserInvestment, SimulatedTransaction, MangaSeries, MangaInvestor, Chapter, MangaPage, AuthorContactDetails } from '@/lib/types';
+import type { User, UserSubscription, UserInvestment, SimulatedTransaction, MangaSeries, MangaInvestor, Chapter, MangaPage, AuthorContactDetails, ShareListing } from '@/lib/types';
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { updateMockMangaData, getMangaById, addMockMangaSeries as globalAddMockManga, deleteMockMangaData as globalDeleteManga, getAuthorById as fetchAuthorDetails, modifiableMockMangaSeries } from '@/lib/mock-data';
+import { 
+    updateMockMangaData, getMangaById, addMockMangaSeries as globalAddMockManga, 
+    deleteMockMangaData as globalDeleteManga, getAuthorById as fetchAuthorDetails, 
+    modifiableMockMangaSeries, addShareListing, updateShareListingOnPurchase, 
+    removeShareListing as globalRemoveShareListing, getShareListingById, updateListingFollowerCount
+} from '@/lib/mock-data';
 import { MAX_WORKS_PER_CREATOR, MAX_SHARES_PER_OFFER } from '@/lib/constants'; 
 
-const PLATFORM_FEE_RATE = 0.10; // 10% platform fee for all transactions benefiting an author
+const PLATFORM_FEE_RATE = 0.10; 
 const ONE_YEAR_IN_MS = 365 * 24 * 60 * 60 * 1000;
 
 interface ChapterInputForAdd {
@@ -20,29 +25,42 @@ interface AuthContextType {
   login: (userData: User) => void;
   signup: (name: string, email: string, accountType: 'user' | 'creator') => User | null;
   logout: () => void;
-  isSubscribedToManga: (mangaId: string) => boolean;
-  subscribeToManga: (mangaId: string, mangaTitle: string, price: number) => Promise<boolean>;
+  
+  // Subscription and Access
+  isSubscribedToManga: (mangaId: string) => boolean; // Checks for active monthly subscription
+  hasPurchasedChapter: (mangaId: string, chapterId: string) => boolean; // Checks for per-chapter purchase
+  purchaseAccess: (mangaId: string, accessType: 'monthly' | 'chapter', itemId: string, price: number) => Promise<boolean>; // Combined purchase function
+
   donateToManga: (mangaId: string, mangaTitle: string, authorId: string, amount: number) => Promise<boolean>;
   investInManga: (mangaId: string, mangaTitle: string, sharesToBuy: number, pricePerShare: number, totalCost: number) => Promise<boolean>;
   rateManga: (mangaId: string, score: 1 | 2 | 3) => Promise<boolean>;
+  
   addMangaSeries: (
     newMangaData: Omit<MangaSeries, 'id' | 'author' | 'publishedDate' | 'averageRating' | 'ratingCount' | 'viewCount' | 'totalRevenueFromSubscriptions' | 'totalRevenueFromDonations' | 'totalRevenueFromMerchandise' | 'investors' | 'chapters' | 'authorDetails' | 'lastUpdatedDate' | 'lastInvestmentDate' | 'lastSubscriptionDate'>
                   & { chaptersInput?: ChapterInputForAdd[], authorDetails?: AuthorContactDetails }
   ) => Promise<MangaSeries | null>;
   deleteMangaSeries: (mangaId: string) => Promise<boolean>;
+  
   viewingHistory: Map<string, { chapterId: string, pageIndex: number, date: Date }>;
   updateViewingHistory: (mangaId: string, chapterId: string, pageIndex: number) => void;
   getViewingHistory: (mangaId: string) => { chapterId: string, pageIndex: number, date: Date } | undefined;
+  
   transactions: SimulatedTransaction[];
   addFunds: (amount: number) => void;
-  withdrawFunds: (amount: number) => Promise<boolean>; // Author withdrawing funds
+  withdrawFunds: (amount: number) => Promise<boolean>; 
   approveCreatorAccount: (creatorId: string) => void;
+  
   isFavorited: (mangaId: string) => boolean;
   toggleFavorite: (mangaId: string, mangaTitle: string) => void;
   updateUserSearchHistory: (searchTerm: string) => void;
-  // Conceptual: processDividendPayouts: (mangaId: string) => Promise<void>;
-  // Conceptual: sellSharesOnMarket: (investmentId: string, sharesToSell: number, pricePerShare: number) => Promise<boolean>;
-  // Conceptual: buySharesFromMarket: (listingId: string, sharesToBuy: number) => Promise<boolean>;
+
+  // Share Market Functions
+  listSharesForSale: (mangaId: string, shares: number, pricePerShare: number, description: string) => Promise<ShareListing | null>;
+  delistSharesFromSale: (mangaId: string, listingId: string) => Promise<boolean>;
+  purchaseSharesFromListing: (listingId: string, sharesToBuy: number) => Promise<boolean>;
+  followShareListing: (listingId: string) => void;
+  unfollowShareListing: (listingId: string) => void;
+  isShareListingFollowed: (listingId: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -54,13 +72,14 @@ export const MOCK_USER_VALID: User = {
   avatarUrl: 'https://picsum.photos/100/100?random=creator',
   walletBalance: 1000,
   subscriptions: [],
-  investments: [],
+  investments: [{ mangaId: 'manga-1', mangaTitle: 'The Wandering Blade', sharesOwned: 10, amountInvested: 500, investmentDate: new Date(Date.now() - 1000*60*60*24*40).toISOString(), totalDividendsReceived: 25 }],
   authoredMangaIds: ['manga-4'],
   accountType: 'creator',
   isApproved: true,
   ratingsGiven: {},
   favorites: [],
   searchHistory: [],
+  followedShareListings: [],
 };
 
 
@@ -96,6 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ratingsGiven: parsedUser.ratingsGiven || {},
         favorites: parsedUser.favorites || [],
         searchHistory: parsedUser.searchHistory || [],
+        followedShareListings: parsedUser.followedShareListings || [],
       });
     }
     const storedViewingHistory = localStorage.getItem('authViewingHistory');
@@ -143,8 +163,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const accountType = userData.accountType || (userData.id === MOCK_USER_VALID.id ? 'creator' : 'user');
 
     const fullUserData: User = {
-      ...MOCK_USER_VALID,
-      ...userData,
+      ...MOCK_USER_VALID, // Base defaults
+      ...userData, // User specific data from login
       accountType,
       authoredMangaIds: userData.id === MOCK_USER_VALID.id && MOCK_USER_VALID.authoredMangaIds
                         ? MOCK_USER_VALID.authoredMangaIds
@@ -153,6 +173,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ratingsGiven: userData.ratingsGiven || {},
       favorites: userData.favorites || [],
       searchHistory: userData.searchHistory || [],
+      followedShareListings: userData.followedShareListings || [],
     };
 
     if (fullUserData.accountType === 'creator' && !fullUserData.isApproved) {
@@ -184,7 +205,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (userIndex !== -1) {
           mockUserList[userIndex].isApproved = true;
           localStorage.setItem('mockUserList', JSON.stringify(mockUserList));
-          if (user && user.id === creatorId) {
+          if (user && user.id === creatorId) { // if the admin is approving their own pending account from another session
              setUser(prev => prev ? ({ ...prev, isApproved: true }) : null);
           }
           toast({ title: "Creator Approved", description: `Creator account ${mockUserList[userIndex].name} has been approved.` });
@@ -223,6 +244,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ratingsGiven: {},
       favorites: [],
       searchHistory: [],
+      followedShareListings: [],
     };
 
     mockUserList.push(newUser);
@@ -248,11 +270,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         description: `Welcome, ${name}! Your creator account is registered and awaiting admin approval. You will be able to log in and publish once approved.`,
         duration: 10000
       });
+      // Auto-approve if it's the MOCK_USER_VALID email for easier testing
       if (email === MOCK_USER_VALID.email) {
+        // Simulate admin approval after a short delay
         setTimeout(() => approveCreatorAccount(newUser.id), 2000); 
       }
     } else {
-      setUser(newUser); 
+      setUser(newUser); // Auto-login user type accounts
       toast({ title: "Signup Successful!", description: `Welcome, ${name}! Your account has been created.` });
     }
     return newUser;
@@ -264,19 +288,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [setUser, toast]);
 
   const isSubscribedToManga = useCallback((mangaId: string) => {
-    return user?.subscriptions.some(sub => sub.mangaId === mangaId) || false;
+    return user?.subscriptions.some(sub => sub.mangaId === mangaId && sub.type === 'monthly' && (!sub.expiresAt || new Date(sub.expiresAt) > new Date())) || false;
   }, [user]);
 
-  const subscribeToManga = useCallback(async (mangaId: string, mangaTitle: string, price: number): Promise<boolean> => {
+  const hasPurchasedChapter = useCallback((mangaId: string, chapterId: string) => {
+    return user?.subscriptions.some(sub => sub.mangaId === mangaId && sub.type === 'chapter' && sub.chapterId === chapterId) || false;
+  }, [user]);
+
+  const purchaseAccess = useCallback(async (mangaId: string, accessType: 'monthly' | 'chapter', itemId: string, price: number): Promise<boolean> => {
     if (!user) {
-      toast({ title: "Login Required", description: "Please log in to subscribe.", variant: "destructive" });
+      toast({ title: "Login Required", description: "Please log in to purchase access.", variant: "destructive" });
       return false;
     }
     if (user.walletBalance < price) {
-      toast({ title: "Insufficient Balance", description: `Subscription costs $${price.toFixed(2)}. Your balance is $${user.walletBalance.toFixed(2)}.`, variant: "destructive" });
+      toast({ title: "Insufficient Balance", description: `Purchase costs $${price.toFixed(2)}. Your balance is $${user.walletBalance.toFixed(2)}.`, variant: "destructive" });
       return false;
     }
-
     const manga = getMangaById(mangaId);
     if (!manga || !manga.author) {
       toast({ title: "Error", description: "Manga or author details not found.", variant: "destructive" });
@@ -285,11 +312,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     const platformCut = price * PLATFORM_FEE_RATE;
     const revenueToAuthor = price - platformCut;
+    const now = new Date();
+    const expiresAt = accessType === 'monthly' ? new Date(now.setMonth(now.getMonth() + 1)).toISOString() : undefined;
 
     setUser(prevUser => {
       if (!prevUser) return null;
       const newBalance = prevUser.walletBalance - price;
-      const newSubscription: UserSubscription = { mangaId, mangaTitle, monthlyPrice: price, subscribedSince: new Date().toISOString() };
+      const newSubscription: UserSubscription = { 
+        mangaId, 
+        mangaTitle: manga.title, 
+        type: accessType,
+        chapterId: accessType === 'chapter' ? itemId : undefined,
+        pricePaid: price, 
+        subscribedSince: new Date().toISOString(),
+        expiresAt: expiresAt
+      };
       return { ...prevUser, walletBalance: newBalance, subscriptions: [...prevUser.subscriptions, newSubscription] };
     });
     
@@ -298,19 +335,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       lastSubscriptionDate: new Date().toISOString() 
     });
 
+    const transactionType = accessType === 'monthly' ? 'subscription_payment' : 'chapter_purchase';
     recordTransaction({
-      type: 'subscription_payment', amount: -price, userId: user.id, mangaId,
-      description: `Subscribed to ${mangaTitle}`,
+      type: transactionType, amount: -price, userId: user.id, mangaId,
+      description: `${accessType === 'monthly' ? 'Subscribed to' : 'Purchased chapter of'} ${manga.title}`,
+      relatedData: { chapterId: accessType === 'chapter' ? itemId : undefined }
     });
     recordTransaction({
       type: 'platform_earning', amount: platformCut, mangaId, authorId: manga.author.id,
-      description: `Platform fee from ${mangaTitle} subscription`,
+      description: `Platform fee from ${manga.title} ${accessType} purchase`,
       relatedData: { originalAmount: price }
     });
     
-    toast({ title: "Subscription Successful!", description: `You've subscribed to ${mangaTitle} for $${price.toFixed(2)}.` });
+    toast({ title: "Purchase Successful!", description: `You've ${accessType === 'monthly' ? 'subscribed to' : 'purchased chapter of'} ${manga.title} for $${price.toFixed(2)}.` });
     return true;
-  }, [user, setUser, toast, recordTransaction]);
+
+  }, [user, toast, recordTransaction]);
+
 
   const donateToManga = useCallback(async (mangaId: string, mangaTitle: string, authorId: string, amount: number): Promise<boolean> => {
     if (!user) {
@@ -370,8 +411,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toast({ title: "Investment Error", description: `Manga shares offered (${manga.investmentOffer.totalSharesInOffer}) exceed the maximum limit of ${MAX_SHARES_PER_OFFER}.`, variant: "destructive" });
       return false;
     }
-    if (manga.investmentOffer.minSubscriptionRequirement && (!user.subscriptions || user.subscriptions.length < manga.investmentOffer.minSubscriptionRequirement)) {
-      toast({ title: "Investment Requirement Not Met", description: `You need to subscribe to at least ${manga.investmentOffer.minSubscriptionRequirement} manga series to invest. You have ${user.subscriptions?.length || 0} subscriptions.`, variant: "destructive", duration: 7000 });
+    if (manga.investmentOffer.minSubscriptionRequirement && (!user.subscriptions || user.subscriptions.filter(s=>s.type === 'monthly').length < manga.investmentOffer.minSubscriptionRequirement)) {
+      toast({ title: "Investment Requirement Not Met", description: `You need to subscribe to at least ${manga.investmentOffer.minSubscriptionRequirement} manga series (monthly) to invest. You currently have ${user.subscriptions?.filter(s=>s.type==='monthly').length || 0} monthly subscriptions.`, variant: "destructive", duration: 7000 });
       return false;
     }
     if (user.walletBalance < totalCost) {
@@ -453,8 +494,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toast({ title: "Login Required", description: "Please log in to rate.", variant: "destructive" });
       return false;
     }
-    if (!isSubscribedToManga(mangaId)) {
-      toast({ title: "Subscription Required", description: "You must be subscribed to this manga to rate it.", variant: "destructive" });
+    if (!isSubscribedToManga(mangaId) && !user.investments.some(inv => inv.mangaId === mangaId)) { // Check if subscribed OR invested
+      toast({ title: "Access Required", description: "You must be subscribed to or invested in this manga to rate it.", variant: "destructive" });
       return false;
     }
     if (user.ratingsGiven && user.ratingsGiven[mangaId]) {
@@ -533,6 +574,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       totalRevenueFromSubscriptions: 0, totalRevenueFromDonations: 0, totalRevenueFromMerchandise: 0,
       investors: [],
       investmentOffer: newMangaData.investmentOffer ? { ...newMangaData.investmentOffer, totalCapitalRaised: 0 } : undefined,
+      subscriptionModel: newMangaData.subscriptionModel || 'monthly', // Default to monthly
     };
 
     globalAddMockManga(newManga);
@@ -563,9 +605,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const hasInvestors = mangaToDelete.investors && mangaToDelete.investors.length > 0;
-    const isActivelySubscribed = modifiableMockMangaSeries.some(m => m.id === mangaId && m.subscriptionPrice && m.subscriptionPrice > 0); 
+    // Check for active monthly subscriptions or any per-chapter purchases
+    const hasActiveSubscribersOrPurchasers = user.subscriptions.some(sub => 
+        sub.mangaId === mangaId && 
+        (
+            (sub.type === 'monthly' && (!sub.expiresAt || new Date(sub.expiresAt) > new Date())) || 
+            sub.type === 'chapter'
+        )
+    );
 
-    if (hasInvestors || isActivelySubscribed) {
+    if (hasInvestors || hasActiveSubscribersOrPurchasers) {
       const lastActivityDate = Math.max(
         new Date(mangaToDelete.publishedDate).getTime(), 
         mangaToDelete.lastInvestmentDate ? new Date(mangaToDelete.lastInvestmentDate).getTime() : 0,
@@ -574,7 +623,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if ((Date.now() - lastActivityDate) < ONE_YEAR_IN_MS) {
         toast({
           title: "Deletion Restricted",
-          description: "This manga cannot be deleted yet due to active investments or subscriptions within the last year.",
+          description: "This manga cannot be deleted yet due to active investments or subscriptions/purchases within the last year.",
           variant: "destructive", duration: 7000,
         });
         return false;
@@ -644,6 +693,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         nextPayoutDueDate.setMonth(nextPayoutDueDate.getMonth() + cycleMonths);
 
         if (new Date() >= nextPayoutDueDate) {
+          // Simplified check: if dividends are due, block withdrawal. Real app would calculate actual dividend amount.
           const totalEarningsForManga = (manga.totalRevenueFromSubscriptions + manga.totalRevenueFromDonations + manga.totalRevenueFromMerchandise);
           const potentialDividendPool = totalEarningsForManga * (manga.investmentOffer.sharesOfferedTotalPercent / 100);
           
@@ -708,15 +758,178 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, [setUser]);
 
+  // Share Market Functions
+  const listSharesForSale = useCallback(async (mangaId: string, shares: number, pricePerShare: number, description: string): Promise<ShareListing | null> => {
+    if (!user) {
+      toast({ title: "Login Required", description: "Please log in to list shares.", variant: "destructive" });
+      return null;
+    }
+    const investment = user.investments.find(inv => inv.mangaId === mangaId);
+    if (!investment) {
+      toast({ title: "No Investment Found", description: "You do not own shares in this manga.", variant: "destructive" });
+      return null;
+    }
+    if (investment.isListedForSale && investment.listingId) {
+        toast({ title: "Already Listed", description: `You already have ${investment.sharesListed} shares of this manga listed. Please delist first to create a new listing.`, variant: "destructive", duration: 6000});
+        return null;
+    }
+    if (shares > investment.sharesOwned) {
+      toast({ title: "Insufficient Shares", description: `You only own ${investment.sharesOwned} shares.`, variant: "destructive" });
+      return null;
+    }
+
+    const mangaDetails = getMangaById(mangaId);
+    if (!mangaDetails) {
+      toast({ title: "Manga Not Found", variant: "destructive" });
+      return null;
+    }
+
+    const newListing = addShareListing({
+      mangaId,
+      sellerUserId: user.id,
+      sellerName: user.name,
+      sharesOffered: shares,
+      pricePerShare,
+      description,
+      mangaTitle: mangaDetails.title,
+      coverImage: mangaDetails.coverImage,
+      authorName: mangaDetails.author.name,
+    });
+
+    setUser(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        investments: prev.investments.map(inv => 
+          inv.mangaId === mangaId 
+          ? { ...inv, isListedForSale: true, listingId: newListing.id, sharesListed: shares, listedPricePerShare: pricePerShare, listingDescription: description } 
+          : inv
+        )
+      };
+    });
+    recordTransaction({ type: 'list_shares_for_sale', amount: 0, userId: user.id, mangaId, description: `Listed ${shares} shares of ${mangaDetails.title} for $${pricePerShare.toFixed(2)}/share. Listing ID: ${newListing.id}`, relatedData: { listingId: newListing.id, shares, pricePerShare } });
+    toast({ title: "Shares Listed!", description: `${shares} shares of ${mangaDetails.title} are now on the market.` });
+    return newListing;
+  }, [user, toast, recordTransaction]);
+
+  const delistSharesFromSale = useCallback(async (mangaId: string, listingId: string): Promise<boolean> => {
+     if (!user) {
+      toast({ title: "Login Required", variant: "destructive" });
+      return false;
+    }
+    const investment = user.investments.find(inv => inv.mangaId === mangaId && inv.listingId === listingId);
+    if (!investment || !investment.isListedForSale) {
+        toast({ title: "Listing Not Found", description: "No active listing by you for these shares.", variant: "destructive" });
+        return false;
+    }
+    
+    globalRemoveShareListing(listingId); // Remove from global mock listings
+
+    setUser(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        investments: prev.investments.map(inv => 
+          inv.mangaId === mangaId 
+          ? { ...inv, isListedForSale: false, listingId: undefined, sharesListed: 0, listedPricePerShare: undefined, listingDescription: undefined } 
+          : inv
+        )
+      };
+    });
+    recordTransaction({ type: 'delist_shares_from_sale', amount: 0, userId: user.id, mangaId, description: `Delisted shares of ${investment.mangaTitle}. Listing ID: ${listingId}`, relatedData: { listingId } });
+    toast({ title: "Shares Delisted", description: `Your shares of ${investment.mangaTitle} have been removed from the market.` });
+    return true;
+  }, [user, toast, recordTransaction]);
+
+  const purchaseSharesFromListing = useCallback(async (listingId: string, sharesToBuy: number): Promise<boolean> => {
+    if (!user) {
+      toast({ title: "Login Required", description: "Please login to purchase shares.", variant: "destructive" });
+      return false;
+    }
+    const listing = getShareListingById(listingId);
+    if (!listing || !listing.isActive || listing.sharesOffered < sharesToBuy) {
+      toast({ title: "Listing Unavailable", description: "This listing is no longer available or doesn't have enough shares.", variant: "destructive" });
+      return false;
+    }
+    if (user.id === listing.sellerUserId) {
+      toast({ title: "Cannot Buy Own Shares", variant: "default" });
+      return false;
+    }
+    const totalCost = sharesToBuy * listing.pricePerShare;
+    if (user.walletBalance < totalCost) {
+      toast({ title: "Insufficient Balance", description: `Purchase requires $${totalCost.toFixed(2)}. Your balance: $${user.walletBalance.toFixed(2)}.`, variant: "destructive" });
+      return false;
+    }
+
+    // Simulate transaction
+    // 1. Update buyer's wallet and investments
+    setUser(prevUser => {
+      if (!prevUser) return null;
+      const newBalance = prevUser.walletBalance - totalCost;
+      let updatedInvestments = [...prevUser.investments];
+      const existingInvestment = updatedInvestments.find(inv => inv.mangaId === listing.mangaId);
+      if (existingInvestment) {
+        updatedInvestments = updatedInvestments.map(inv => 
+          inv.mangaId === listing.mangaId 
+          ? { ...inv, sharesOwned: inv.sharesOwned + sharesToBuy, amountInvested: inv.amountInvested + totalCost } // Note: amountInvested should reflect what buyer paid
+          : inv
+        );
+      } else {
+        updatedInvestments.push({ mangaId: listing.mangaId, mangaTitle: listing.mangaTitle, sharesOwned: sharesToBuy, amountInvested: totalCost, investmentDate: new Date().toISOString() });
+      }
+      return { ...prevUser, walletBalance: newBalance, investments: updatedInvestments };
+    });
+    recordTransaction({ type: 'shares_purchase_secondary', amount: -totalCost, userId: user.id, mangaId: listing.mangaId, description: `Purchased ${sharesToBuy} shares of ${listing.mangaTitle} from market. Listing ID: ${listingId}`, relatedData: { listingId, sharesToBuy, pricePerShare: listing.pricePerShare, sellerUserId: listing.sellerUserId } });
+
+    // 2. Update seller's wallet (This needs a way to update another user's data in mock, complex for now. Assume backend handles)
+    // For mock, we'll just log a transaction for the seller receiving funds
+    const platformCut = totalCost * PLATFORM_FEE_RATE;
+    const proceedsToSeller = totalCost - platformCut;
+    recordTransaction({ type: 'shares_sale_secondary', amount: proceedsToSeller, userId: listing.sellerUserId, mangaId: listing.mangaId, description: `Sold ${sharesToBuy} shares of ${listing.mangaTitle} on market. Listing ID: ${listingId}`, relatedData: { listingId, sharesSold: sharesToBuy, pricePerShare: listing.pricePerShare, buyerUserId: user.id } });
+    recordTransaction({ type: 'platform_earning', amount: platformCut, mangaId: listing.mangaId, description: `Platform fee from secondary market sale of ${listing.mangaTitle} shares. Listing ID: ${listingId}`, relatedData: { originalAmount: totalCost, listingId }});
+
+
+    // 3. Update the listing in mock-data
+    updateShareListingOnPurchase(listingId, sharesToBuy);
+    
+    // 4. Update seller's UserInvestment in localStorage (if they are the current user, this would be handled by setUser)
+    // This is tricky with mock data if seller is not current user.
+    // For now, assume the `updateMockMangaData` or similar would adjust seller's investment record if needed by a backend.
+
+    toast({ title: "Purchase Successful!", description: `You bought ${sharesToBuy} shares of ${listing.mangaTitle}.`});
+    return true;
+  }, [user, toast, recordTransaction]);
+
+  const followShareListing = useCallback((listingId: string) => {
+    if (!user) return;
+    setUser(prev => prev ? ({ ...prev, followedShareListings: [...(prev.followedShareListings || []), listingId] }) : null);
+    updateListingFollowerCount(listingId, true);
+    toast({title: "Followed Listing", description: "You will now receive updates for this listing."});
+  }, [user, toast]);
+
+  const unfollowShareListing = useCallback((listingId: string) => {
+    if (!user) return;
+    setUser(prev => prev ? ({ ...prev, followedShareListings: (prev.followedShareListings || []).filter(id => id !== listingId) }) : null);
+    updateListingFollowerCount(listingId, false);
+    toast({title: "Unfollowed Listing", description: "You will no longer receive updates."});
+  }, [user, toast]);
+
+  const isShareListingFollowed = useCallback((listingId: string) => {
+    return user?.followedShareListings?.includes(listingId) || false;
+  }, [user]);
+
 
   return (
     <AuthContext.Provider value={{
         user, login, signup, logout,
-        isSubscribedToManga, subscribeToManga, donateToManga, investInManga, rateManga,
+        isSubscribedToManga, hasPurchasedChapter, purchaseAccess, 
+        donateToManga, investInManga, rateManga,
         addMangaSeries, deleteMangaSeries,
         viewingHistory, updateViewingHistory, getViewingHistory,
         transactions, addFunds, withdrawFunds, approveCreatorAccount,
         isFavorited, toggleFavorite, updateUserSearchHistory,
+        listSharesForSale, delistSharesFromSale, purchaseSharesFromListing,
+        followShareListing, unfollowShareListing, isShareListingFollowed,
     }}>
       {children}
     </AuthContext.Provider>
