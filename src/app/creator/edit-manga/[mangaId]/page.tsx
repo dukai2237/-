@@ -3,6 +3,7 @@
 
 import { useState, useEffect, type FormEvent, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -13,7 +14,7 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import type { MangaSeries, MangaInvestmentOffer, Chapter, MangaPage } from '@/lib/types';
 import { getMangaById, updateMockMangaData } from '@/lib/mock-data';
-import { Edit3, BookUp, PlusCircle, Trash2, AlertTriangle } from 'lucide-react';
+import { Edit3, BookUp, PlusCircle, Trash2, AlertTriangle, UploadCloud } from 'lucide-react';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { MANGA_GENRES_DETAILS, MAX_CHAPTERS_PER_WORK, MAX_PAGES_PER_CHAPTER } from '@/lib/constants';
 import { Checkbox } from "@/components/ui/checkbox";
@@ -180,8 +181,6 @@ export default function EditMangaPage() {
   }
   
   if (!mangaToEdit) {
-     // This handles the case where mangaId is invalid or user was redirected due to lack of approval/permissions
-     // and isLoading is set to false.
     return (
       <div className="flex flex-col items-center justify-center py-10 text-center">
         <AlertTriangle className="w-12 h-12 text-destructive mb-4" />
@@ -211,14 +210,14 @@ export default function EditMangaPage() {
       return;
     }
 
-    let updatedInvestmentOffer: MangaInvestmentOffer | undefined = mangaToEdit.investmentOffer;
+    let updatedInvestmentOfferData: MangaInvestmentOffer | undefined = mangaToEdit.investmentOffer;
     if (enableInvestment) {
       if (!sharesOfferedTotalPercent || !totalSharesInOffer || !pricePerShare || !investmentDescription) {
-        toast({ title: "Missing Investment Fields", variant: "destructive" });
+        toast({ title: "Missing Crowdfunding Fields", variant: "destructive" });
         return;
       }
-      updatedInvestmentOffer = {
-        ...(mangaToEdit.investmentOffer || {}), // preserve any existing non-editable fields
+      updatedInvestmentOfferData = {
+        ...(mangaToEdit.investmentOffer || {}), 
         sharesOfferedTotalPercent: parseFloat(sharesOfferedTotalPercent),
         totalSharesInOffer: parseInt(totalSharesInOffer, 10),
         pricePerShare: parseFloat(pricePerShare),
@@ -227,8 +226,8 @@ export default function EditMangaPage() {
         maxSharesPerUser: maxSharesPerUser ? parseInt(maxSharesPerUser, 10) : undefined,
         isActive: true,
       };
-    } else if (mangaToEdit.investmentOffer) { // if it was enabled and now it's not
-      updatedInvestmentOffer = { ...mangaToEdit.investmentOffer, isActive: false };
+    } else if (mangaToEdit.investmentOffer) { 
+      updatedInvestmentOfferData = { ...mangaToEdit.investmentOffer, isActive: false };
     }
 
 
@@ -254,7 +253,7 @@ export default function EditMangaPage() {
       chapters: processedChapters,
       freePreviewPageCount: parseInt(freePreviewPageCount, 10) || 0,
       subscriptionPrice: subscriptionPrice ? parseFloat(subscriptionPrice) : undefined,
-      investmentOffer: updatedInvestmentOffer,
+      investmentOffer: updatedInvestmentOfferData,
     };
 
     try {
@@ -282,28 +281,35 @@ export default function EditMangaPage() {
       <form onSubmit={handleSubmit}>
         <Card className="shadow-lg">
           <CardHeader>
-            <CardTitle className="text-2xl flex items-center" suppressHydrationWarning><Edit3 className="mr-3 h-7 w-7 text-primary"/>Edit Manga Series</CardTitle>
+            <CardTitle className="text-2xl flex items-center" suppressHydrationWarning><Edit3 className="mr-3 h-7 w-7 text-primary"/>编辑漫画系列</CardTitle>
             <CardDescription suppressHydrationWarning>
-              Modify details for: "{mangaToEdit.title}". Max {MAX_CHAPTERS_PER_WORK} chapters, {MAX_PAGES_PER_CHAPTER} pages/chapter.
+              修改 "{mangaToEdit.title}" 的详细信息。最多 {MAX_CHAPTERS_PER_WORK} 章，每章 {MAX_PAGES_PER_CHAPTER} 页。
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="title" suppressHydrationWarning>Title *</Label>
+              <Label htmlFor="title" suppressHydrationWarning>标题 *</Label>
               <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="summary" suppressHydrationWarning>Summary *</Label>
+              <Label htmlFor="summary" suppressHydrationWarning>摘要 *</Label>
               <Textarea id="summary" value={summary} onChange={(e) => setSummary(e.target.value)} rows={4} required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="coverImage" suppressHydrationWarning>Cover Image URL *</Label>
-              <Input id="coverImage" value={coverImage} onChange={(e) => setCoverImage(e.target.value)} required />
-              <p className="text-xs text-muted-foreground" suppressHydrationWarning>Simulated: In real app, a file upload.</p>
+              <Label htmlFor="coverImage-edit" suppressHydrationWarning>封面图片 *</Label>
+              {coverImage && (
+                <div className="mt-2 relative aspect-[2/3] w-full max-w-[200px] rounded-md overflow-hidden border">
+                  <Image src={coverImage} alt="封面预览" layout="fill" objectFit="cover" data-ai-hint="manga cover preview edit"/>
+                </div>
+              )}
+              <Button type="button" variant="outline" onClick={() => setCoverImage(`https://picsum.photos/400/600?random=${Date.now()}`)}>
+                 <UploadCloud className="mr-2 h-4 w-4" /> 更改封面 (模拟)
+              </Button>
+              <p className="text-xs text-muted-foreground" suppressHydrationWarning>点击按钮以更改封面图片（当前为模拟上传）。</p>
             </div>
             
             <div className="space-y-2">
-              <Label suppressHydrationWarning>Genres * (Select at least one)</Label>
+              <Label suppressHydrationWarning>类型 * (至少选择一个)</Label>
               <ScrollArea className="h-32 border rounded-md p-2">
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {MANGA_GENRES_DETAILS.map(genre => (
@@ -318,27 +324,27 @@ export default function EditMangaPage() {
                   ))}
                 </div>
               </ScrollArea>
-               {selectedGenres.length === 0 && <p className="text-xs text-destructive">Please select at least one genre.</p>}
+               {selectedGenres.length === 0 && <p className="text-xs text-destructive">请至少选择一个类型。</p>}
             </div>
 
             <div className="space-y-4 pt-4 border-t">
               <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold" suppressHydrationWarning>Chapters ({editableChapters.filter(ch => !ch._toBeDeleted).length}/{MAX_CHAPTERS_PER_WORK})</h3>
+                <h3 className="text-lg font-semibold" suppressHydrationWarning>章节 ({editableChapters.filter(ch => !ch._toBeDeleted).length}/{MAX_CHAPTERS_PER_WORK})</h3>
                 <Button type="button" variant="outline" size="sm" onClick={addChapter} disabled={editableChapters.filter(ch => !ch._toBeDeleted).length >= MAX_CHAPTERS_PER_WORK}>
-                  <PlusCircle className="mr-2 h-4 w-4" /> Add Chapter
+                  <PlusCircle className="mr-2 h-4 w-4" /> 添加章节
                 </Button>
               </div>
-              {editableChapters.filter(ch => !ch._toBeDeleted).length === 0 && <p className="text-sm text-muted-foreground">No active chapters. Add one or undelete.</p>}
+              {editableChapters.filter(ch => !ch._toBeDeleted).length === 0 && <p className="text-sm text-muted-foreground">没有活动章节。添加一个或取消删除。</p>}
               <ScrollArea className="max-h-72 space-y-3 pr-3">
                 {editableChapters.map((chapter, index) => (
                   <Card key={chapter.id} className={`p-3 ${chapter._toBeDeleted ? 'bg-red-100 dark:bg-red-900/30 opacity-60' : 'bg-secondary/30'}`}>
                     <div className="flex justify-between items-center mb-2">
                       <Label htmlFor={`edit-chapter-title-${index}`} className="text-sm font-medium" suppressHydrationWarning>
-                        {chapter._isNew ? `New Chapter ${index + 1}` : `Chapter ${mangaToEdit.chapters.find(c=>c.id===chapter.id)?.chapterNumber || index+1} Title`}
-                        {chapter._toBeDeleted && " (Marked for Deletion)"}
+                        {chapter._isNew ? `新章节 ${index + 1}` : `章节 ${mangaToEdit.chapters.find(c=>c.id===chapter.id)?.chapterNumber || index+1} 标题`}
+                        {chapter._toBeDeleted && " (标记为删除)"}
                       </Label>
                       {chapter._toBeDeleted ? (
-                         <Button type="button" variant="outline" size="sm" onClick={() => unmarkChapterForDeletion(chapter.id)}>Undo Delete</Button>
+                         <Button type="button" variant="outline" size="sm" onClick={() => unmarkChapterForDeletion(chapter.id)}>撤销删除</Button>
                       ) : (
                         <Button type="button" variant="ghost" size="icon" onClick={() => markChapterForDeletion(chapter.id)} className="text-destructive hover:bg-destructive/10 h-7 w-7">
                           <Trash2 className="h-4 w-4" />
@@ -349,11 +355,11 @@ export default function EditMangaPage() {
                       id={`edit-chapter-title-${index}`}
                       value={chapter.title}
                       onChange={(e) => updateChapterField(chapter.id, 'title', e.target.value)}
-                      placeholder="Chapter Title"
+                      placeholder="章节标题"
                       className="mb-2"
                       disabled={chapter._toBeDeleted}
                     />
-                    <Label htmlFor={`edit-chapter-pages-${index}`} className="text-sm font-medium" suppressHydrationWarning>Page Count (1-{MAX_PAGES_PER_CHAPTER})</Label>
+                    <Label htmlFor={`edit-chapter-pages-${index}`} className="text-sm font-medium" suppressHydrationWarning>页数 (1-{MAX_PAGES_PER_CHAPTER})</Label>
                     <Input
                       id={`edit-chapter-pages-${index}`}
                       type="number"
@@ -364,7 +370,7 @@ export default function EditMangaPage() {
                       className="w-full"
                       disabled={chapter._toBeDeleted}
                     />
-                    <p className="text-xs text-muted-foreground mt-1" suppressHydrationWarning>Simulated: Change count to add/remove pages. Full page management is simplified.</p>
+                    <p className="text-xs text-muted-foreground mt-1" suppressHydrationWarning>模拟：更改数量以添加/删除页面。完整的页面管理已简化。</p>
                   </Card>
                 ))}
               </ScrollArea>
@@ -372,47 +378,47 @@ export default function EditMangaPage() {
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
               <div className="space-y-2">
-                <Label htmlFor="freePreviewPageCount" suppressHydrationWarning>Free Preview Pages * (max {totalPagesInManga})</Label>
+                <Label htmlFor="freePreviewPageCount" suppressHydrationWarning>免费预览页数 * (最多 {totalPagesInManga})</Label>
                 <Input id="freePreviewPageCount" type="number" value={freePreviewPageCount} onChange={(e) => setFreePreviewPageCount(e.target.value)} min="0" max={totalPagesInManga > 0 ? totalPagesInManga.toString() : '0'} required />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="subscriptionPrice" suppressHydrationWarning>Subscription Price (USD/month, optional)</Label>
+                <Label htmlFor="subscriptionPrice" suppressHydrationWarning>订阅价格 (美元/月, 可选)</Label>
                 <Input id="subscriptionPrice" type="number" value={subscriptionPrice} onChange={(e) => setSubscriptionPrice(e.target.value)} step="0.01" min="0" />
               </div>
             </div>
 
             <div className="space-y-4 pt-4 border-t">
               <div className="flex items-center space-x-3">
-                <Switch id="enableInvestment" checked={enableInvestment} onCheckedChange={setEnableInvestment} aria-label="Enable Investment Offer"/>
-                <Label htmlFor="enableInvestment" className="text-base font-medium cursor-pointer" suppressHydrationWarning>Enable Investment Offer</Label>
+                <Switch id="enableInvestment-edit" checked={enableInvestment} onCheckedChange={setEnableInvestment} aria-label="启用漫画众筹"/>
+                <Label htmlFor="enableInvestment-edit" className="text-base font-medium cursor-pointer" suppressHydrationWarning>启用漫画众筹?</Label>
               </div>
               {enableInvestment && (
                 <div className="space-y-4 p-4 border rounded-md bg-secondary/30">
-                   <h3 className="text-lg font-semibold" suppressHydrationWarning>Investment Offer Details</h3>
+                   <h3 className="text-lg font-semibold" suppressHydrationWarning>众筹详情</h3>
                   <div className="space-y-2">
-                    <Label htmlFor="investmentDescription-edit" suppressHydrationWarning>Offer Description *</Label>
-                    <Textarea id="investmentDescription-edit" value={investmentDescription} onChange={(e) => setInvestmentDescription(e.target.value)} placeholder="Describe the benefits for investors..." rows={3} required={enableInvestment} />
+                    <Label htmlFor="investmentDescription-edit" suppressHydrationWarning>众筹描述 *</Label>
+                    <Textarea id="investmentDescription-edit" value={investmentDescription} onChange={(e) => setInvestmentDescription(e.target.value)} placeholder="简述本次众筹的目的，以及对支持者的回报承诺。" rows={3} required={enableInvestment} />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="sharesOfferedTotalPercent-edit" suppressHydrationWarning>Total Revenue Share for Investors Pool (%) *</Label>
-                      <Input id="sharesOfferedTotalPercent-edit" type="number" value={sharesOfferedTotalPercent} onChange={(e) => setSharesOfferedTotalPercent(e.target.value)} placeholder="e.g., 20" min="1" max="100" required={enableInvestment} />
+                      <Label htmlFor="sharesOfferedTotalPercent-edit" suppressHydrationWarning>支持者总收益分成 (%) *</Label>
+                      <Input id="sharesOfferedTotalPercent-edit" type="number" value={sharesOfferedTotalPercent} onChange={(e) => setSharesOfferedTotalPercent(e.target.value)} placeholder="例如: 20" min="1" max="100" required={enableInvestment} />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="totalSharesInOffer-edit" suppressHydrationWarning>Total Shares in This Offer *</Label>
-                      <Input id="totalSharesInOffer-edit" type="number" value={totalSharesInOffer} onChange={(e) => setTotalSharesInOffer(e.target.value)} placeholder="e.g., 100" min="1" required={enableInvestment} />
+                      <Label htmlFor="totalSharesInOffer-edit" suppressHydrationWarning>众筹总份额 *</Label>
+                      <Input id="totalSharesInOffer-edit" type="number" value={totalSharesInOffer} onChange={(e) => setTotalSharesInOffer(e.target.value)} placeholder="例如: 100" min="1" required={enableInvestment} />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="pricePerShare-edit" suppressHydrationWarning>Price Per Share (USD) *</Label>
-                      <Input id="pricePerShare-edit" type="number" value={pricePerShare} onChange={(e) => setPricePerShare(e.target.value)} placeholder="e.g., 10" step="0.01" min="0.01" required={enableInvestment} />
+                      <Label htmlFor="pricePerShare-edit" suppressHydrationWarning>每份支持金额 (USD) *</Label>
+                      <Input id="pricePerShare-edit" type="number" value={pricePerShare} onChange={(e) => setPricePerShare(e.target.value)} placeholder="例如: 10" step="0.01" min="0.01" required={enableInvestment} />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="minSubscriptionRequirement-edit" suppressHydrationWarning>Min. User Subscriptions to Invest (optional)</Label>
-                      <Input id="minSubscriptionRequirement-edit" type="number" value={minSubscriptionRequirement} onChange={(e) => setMinSubscriptionRequirement(e.target.value)} placeholder="e.g., 5" min="0" />
+                      <Label htmlFor="minSubscriptionRequirement-edit" suppressHydrationWarning>最低订阅漫画要求 (可选)</Label>
+                      <Input id="minSubscriptionRequirement-edit" type="number" value={minSubscriptionRequirement} onChange={(e) => setMinSubscriptionRequirement(e.target.value)} placeholder="例如: 5" min="0" />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="maxSharesPerUser-edit" suppressHydrationWarning>Max Shares Per Investor (optional)</Label>
-                      <Input id="maxSharesPerUser-edit" type="number" value={maxSharesPerUser} onChange={(e) => setMaxSharesPerUser(e.target.value)} placeholder="e.g., 10" min="1" />
+                      <Label htmlFor="maxSharesPerUser-edit" suppressHydrationWarning>每人最多支持份额 (可选)</Label>
+                      <Input id="maxSharesPerUser-edit" type="number" value={maxSharesPerUser} onChange={(e) => setMaxSharesPerUser(e.target.value)} placeholder="例如: 10" min="1" />
                     </div>
                   </div>
                 </div>
@@ -423,21 +429,21 @@ export default function EditMangaPage() {
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button type="button" variant="destructive" className="w-full">
-                      <Trash2 className="mr-2 h-4 w-4" /> Delete Manga Series
+                      <Trash2 className="mr-2 h-4 w-4" /> 删除漫画系列
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle className="flex items-center"><AlertTriangle className="mr-2 text-destructive"/>Are you absolutely sure?</AlertDialogTitle>
+                      <AlertDialogTitle className="flex items-center"><AlertTriangle className="mr-2 text-destructive"/>您确定吗?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        This action cannot be undone. This will permanently delete the manga series
-                        "{mangaToEdit.title}" and all of its data.
+                        此操作无法撤销。这将永久删除漫画系列
+                        "{mangaToEdit.title}" 及其所有数据。
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogCancel>取消</AlertDialogCancel>
                       <AlertDialogAction onClick={handleDeleteManga} className="bg-destructive hover:bg-destructive/90">
-                        Yes, delete manga
+                        是的，删除漫画
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
@@ -446,8 +452,8 @@ export default function EditMangaPage() {
 
           </CardContent>
           <CardFooter className="flex flex-col sm:flex-row justify-between items-center gap-3">
-            <Button type="button" variant="outline" onClick={() => router.back()} className="w-full sm:w-auto">Cancel</Button>
-            <Button type="submit" className="text-lg py-3 w-full sm:w-auto">Save Changes</Button>
+            <Button type="button" variant="outline" onClick={() => router.back()} className="w-full sm:w-auto">取消</Button>
+            <Button type="submit" className="text-lg py-3 w-full sm:w-auto">保存更改</Button>
           </CardFooter>
         </Card>
       </form>
