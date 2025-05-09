@@ -2,6 +2,7 @@
 export const MAX_WORKS_PER_CREATOR = 20;
 export const MAX_CHAPTERS_PER_WORK = 30;
 export const MAX_PAGES_PER_CHAPTER = 60;
+export const MAX_SHARES_PER_OFFER = 100; // Maximum shares an author can offer for a single manga's crowdfunding
 
 export interface MangaGenreDetail {
   id: string;
@@ -9,20 +10,20 @@ export interface MangaGenreDetail {
 }
 
 export const MANGA_GENRES_DETAILS: MangaGenreDetail[] = [
-  { id: 'comedy', name: '搞笑 (Comedy)' },
-  { id: 'action', name: '热血 (Action)' },
-  { id: 'tearjerker', name: '催泪 (Tear-jerker)' },
-  { id: 'healing', name: '治愈 (Healing)' },
-  { id: 'bizarre', name: '猎奇 (Bizarre)' },
-  { id: 'inspirational', name: '励志 (Inspirational)' },
-  { id: 'sci-fi', name: '科幻 (Sci-Fi)' },
-  { id: 'harem', name: '后宫 (Harem)' },
-  { id: 'romance', name: '恋爱 (Romance)' },
-  { id: 'fantasy', name: '奇幻 (Fantasy)' },
-  { id: 'mystery', name: '推理 (Mystery)' },
-  { id: 'urban', name: '都市 (Urban)' },
-  { id: 'sports', name: '竞技 (Sports)' },
-  { id: 'adventure', name: '冒险 (Adventure)' },
-  { id: 'historical', name: '历史 (Historical)' },
-  { id: 'mafan', name: '麻烦 (Trouble/Drama)' },
+  { id: 'comedy', name: 'Comedy (搞笑)' },
+  { id: 'action', name: 'Action (热血)' },
+  { id: 'tearjerker', name: 'Tear-jerker (催泪)' },
+  { id: 'healing', name: 'Healing (治愈)' },
+  { id: 'bizarre', name: 'Bizarre (猎奇)' },
+  { id: 'inspirational', name: 'Inspirational (励志)' },
+  { id: 'sci-fi', name: 'Sci-Fi (科幻)' },
+  { id: 'harem', name: 'Harem (后宫)' },
+  { id: 'romance', name: 'Romance (恋爱)' },
+  { id: 'fantasy', name: 'Fantasy (奇幻)' },
+  { id: 'mystery', name: 'Mystery (推理)' },
+  { id: 'urban', name: 'Urban (都市)' },
+  { id: 'sports', name: 'Sports (竞技)' },
+  { id: 'adventure', name: 'Adventure (冒险)' },
+  { id: 'historical', name: 'Historical (历史)' },
+  { id: 'mafan', name: 'Drama (麻烦)' }, // Changed to Drama for better English understanding
 ];

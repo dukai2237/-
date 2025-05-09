@@ -1,6 +1,6 @@
 
 import type { MangaSeries, MangaPage, AuthorInfo, MangaInvestmentOffer, AuthorContactDetails, Chapter } from './types';
-import { MANGA_GENRES_DETAILS } from './constants';
+import { MANGA_GENRES_DETAILS, MAX_SHARES_PER_OFFER } from './constants';
 
 const generatePages = (chapterId: string, count: number): MangaPage[] => {
   return Array.from({ length: count }, (_, i) => ({
@@ -54,118 +54,132 @@ const mockAuthors: (AuthorInfo & { contactDetails?: AuthorContactDetails, isSyst
 
 const investmentOffer1: MangaInvestmentOffer = {
   sharesOfferedTotalPercent: 20,
-  totalSharesInOffer: 100, 
+  totalSharesInOffer: Math.min(100, MAX_SHARES_PER_OFFER), 
   pricePerShare: 50, 
   minSubscriptionRequirement: 5, 
-  description: "投资《流浪之刃》，获得其订阅、打赏和周边销售收入分成。您还将拥有该漫画IP未来改编（如动画、电影等）的一部分权益。",
+  description: "Invest in 'The Wandering Blade' and share in its subscription, donation, and merchandise revenue. You'll also own a piece of the IP for future adaptations (anime, movies, etc.).",
   isActive: true,
+  dividendPayoutCycle: 3, // Quarterly
+  totalCapitalRaised: 750, // Example: 15 shares * $50
 };
 
 const investmentOffer2: MangaInvestmentOffer = {
   sharesOfferedTotalPercent: 15,
-  totalSharesInOffer: 150,
+  totalSharesInOffer: Math.min(80, MAX_SHARES_PER_OFFER),
   pricePerShare: 25,
-  description: "成为《赛博之心》的投资者！获得收入分成和IP所有权。非常适合赛博朋克和悬疑爱好者。",
+  description: "Become an investor in 'Cybernetic Heart'! Share in revenue and IP ownership. Perfect for cyberpunk and mystery fans.",
   isActive: true,
   minSubscriptionRequirement: 3,
+  dividendPayoutCycle: 6, // Semi-annually
+  totalCapitalRaised: 0,
 };
 
 
 export const mockMangaSeriesData: MangaSeries[] = [
   {
     id: 'manga-1',
-    title: '流浪之刃 (The Wandering Blade)',
+    title: 'The Wandering Blade',
     author: mockAuthors[0],
     authorDetails: mockAuthors[0].contactDetails,
-    summary: '一位孤独的剑客在饱受战争蹂躏的土地上旅行，寻求救赎和一件失落的强大神器。他的旅程充满了危险的遭遇和道德困境。',
+    summary: 'A lone swordsman travels a war-torn land, seeking redemption and a lost, powerful artifact. His journey is fraught with perilous encounters and moral dilemmas.',
     coverImage: 'https://picsum.photos/400/600?random=manga1',
     genres: [MANGA_GENRES_DETAILS.find(g=>g.id==='action')!.id, MANGA_GENRES_DETAILS.find(g=>g.id==='adventure')!.id, MANGA_GENRES_DETAILS.find(g=>g.id==='fantasy')!.id],
     chapters: [
-      { id: 'manga-1-chapter-1', title: '十字路口', chapterNumber: 1, pages: generatePages('m1c1', 8) },
-      { id: 'manga-1-chapter-2', title: '林中低语', chapterNumber: 2, pages: generatePages('m1c2', 10) },
-      { id: 'manga-1-chapter-3', title: '暗影之城', chapterNumber: 3, pages: generatePages('m1c3', 12) },
+      { id: 'manga-1-chapter-1', title: 'Crossroads', chapterNumber: 1, pages: generatePages('m1c1', 8) },
+      { id: 'manga-1-chapter-2', title: 'Whispers in the Woods', chapterNumber: 2, pages: generatePages('m1c2', 10) },
+      { id: 'manga-1-chapter-3', title: 'City of Shadows', chapterNumber: 3, pages: generatePages('m1c3', 12) },
     ],
     freePreviewPageCount: 2,
+    freePreviewChapterCount: 0,
     subscriptionPrice: 5,
     totalRevenueFromSubscriptions: 1250, 
     totalRevenueFromDonations: 350,
-    totalRevenueFromMerchandise: 0,
+    totalRevenueFromMerchandise: 120, // Added merchandise revenue
     investmentOffer: investmentOffer1,
-    investors: [
+    investors: [ // Users who bought shares from the author
       { userId: 'investor-alpha', userName: 'Alpha Investor', sharesOwned: 10, totalAmountInvested: 500, joinedDate: new Date(Date.now() - 1000*60*60*24*30).toISOString()},
       { userId: 'investor-beta', userName: 'Beta Investor', sharesOwned: 5, totalAmountInvested: 250, joinedDate: new Date(Date.now() - 1000*60*60*24*15).toISOString()},
     ],
     publishedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 60).toISOString(), 
+    lastUpdatedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 10).toISOString(),
+    lastInvestmentDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 15).toISOString(),
+    lastSubscriptionDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
     averageRating: 2.8,
     ratingCount: 150,
     viewCount: 12000,
   },
   {
     id: 'manga-2',
-    title: '赛博之心 (Cybernetic Heart)',
+    title: 'Cybernetic Heart',
     author: mockAuthors[1],
     authorDetails: mockAuthors[1].contactDetails,
-    summary: '在一个未来城市，一名拥有半机械强化装置的侦探揭露了一个触及社会最高层的阴谋，同时努力应对自己的人性。',
+    summary: 'In a futuristic city, a detective with cybernetic enhancements uncovers a conspiracy reaching the highest echelons of society, all while struggling with his own humanity.',
     coverImage: 'https://picsum.photos/400/600?random=manga2',
     genres: [MANGA_GENRES_DETAILS.find(g=>g.id==='sci-fi')!.id, MANGA_GENRES_DETAILS.find(g=>g.id==='mystery')!.id, MANGA_GENRES_DETAILS.find(g=>g.id==='action')!.id],
     chapters: [
-      { id: 'manga-2-chapter-1', title: '霓虹幻梦', chapterNumber: 1, pages: generatePages('m2c1', 10) },
-      { id: 'manga-2-chapter-2', title: '数据幽灵', chapterNumber: 2, pages: generatePages('m2c2', 9) },
+      { id: 'manga-2-chapter-1', title: 'Neon Illusions', chapterNumber: 1, pages: generatePages('m2c1', 10) },
+      { id: 'manga-2-chapter-2', title: 'Data Ghosts', chapterNumber: 2, pages: generatePages('m2c2', 9) },
     ],
     freePreviewPageCount: 3,
+    freePreviewChapterCount: 1,
     subscriptionPrice: 7,
     totalRevenueFromSubscriptions: 2100,
     totalRevenueFromDonations: 150,
     totalRevenueFromMerchandise: 0,
     investmentOffer: investmentOffer2,
     investors: [],
-    publishedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).toISOString(), 
+    publishedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).toISOString(),
+    lastUpdatedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(),
     averageRating: 2.5,
     ratingCount: 95,
     viewCount: 8500,
   },
   {
     id: 'manga-3',
-    title: '艾尔多利亚编年史 (Chronicles of Eldoria)',
+    title: 'Chronicles of Eldoria',
     author: mockAuthors[2],
     authorDetails: mockAuthors[2].contactDetails,
-    summary: '一位年轻的法师发现了自己的潜能，必须踏上拯救魔法王国艾尔多利亚免遭远古邪恶侵害的征途。一路上，她结识了勇敢的同伴，并揭开了被遗忘的传说。',
+    summary: 'A young mage discovers her latent powers and must embark on a quest to save the magical kingdom of Eldoria from an ancient evil. Along the way, she meets brave companions and uncovers forgotten legends.',
     coverImage: 'https://picsum.photos/400/600?random=manga3',
     genres: [MANGA_GENRES_DETAILS.find(g=>g.id==='fantasy')!.id, MANGA_GENRES_DETAILS.find(g=>g.id==='adventure')!.id],
     chapters: [
-      { id: 'manga-3-chapter-1', title: '觉醒', chapterNumber: 1, pages: generatePages('m3c1', 15) },
-      { id: 'manga-3-chapter-2', title: '禁忌森林', chapterNumber: 2, pages: generatePages('m3c2', 11) },
-      { id: 'manga-3-chapter-3', title: '尖塔秘闻', chapterNumber: 3, pages: generatePages('m3c3', 14) },
-      { id: 'manga-3-chapter-4', title: '暗影议会', chapterNumber: 4, pages: generatePages('m3c4', 10) },
+      { id: 'manga-3-chapter-1', title: 'The Awakening', chapterNumber: 1, pages: generatePages('m3c1', 15) },
+      { id: 'manga-3-chapter-2', title: 'Forbidden Forest', chapterNumber: 2, pages: generatePages('m3c2', 11) },
+      { id: 'manga-3-chapter-3', title: 'Secrets of the Spire', chapterNumber: 3, pages: generatePages('m3c3', 14) },
+      { id: 'manga-3-chapter-4', title: 'Council of Shadows', chapterNumber: 4, pages: generatePages('m3c4', 10) },
     ],
     freePreviewPageCount: 1,
-    totalRevenueFromSubscriptions: 0,
+    freePreviewChapterCount: 0,
+    totalRevenueFromSubscriptions: 0, // No subscription price set
     totalRevenueFromDonations: 50,
     totalRevenueFromMerchandise: 0,
     investors: [],
-    publishedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 90).toISOString(), 
+    publishedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 90).toISOString(),
+    lastUpdatedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 20).toISOString(),
     averageRating: 2.2,
     ratingCount: 200,
     viewCount: 15000,
   },
   {
     id: 'manga-4', 
-    title: '我的创作者冒险 (My Author Adventure)',
+    title: 'My Author Adventure',
     author: mockAuthors.find(a => a.id === 'user-123')!,
     authorDetails: mockAuthors.find(a => a.id === 'user-123')?.contactDetails,
-    summary: '由我们平台的测试创作者创作的特别漫画系列！跟随他们的创作之旅。',
+    summary: 'A special manga series created by our platform\'s test creator! Follow their journey in creation.',
     coverImage: 'https://picsum.photos/400/600?random=manga4',
     genres: [MANGA_GENRES_DETAILS.find(g=>g.id==='comedy')!.id, MANGA_GENRES_DETAILS.find(g=>g.id==='healing')!.id],
     chapters: [
-      { id: 'manga-4-chapter-1', title: '最初的火花', chapterNumber: 1, pages: generatePages('m4c1', 5) },
+      { id: 'manga-4-chapter-1', title: 'The First Spark', chapterNumber: 1, pages: generatePages('m4c1', 5) },
     ],
     freePreviewPageCount: 2,
+    freePreviewChapterCount: 1,
     subscriptionPrice: 2,
     totalRevenueFromSubscriptions: 50,
     totalRevenueFromDonations: 10,
     totalRevenueFromMerchandise: 0,
     investors: [],
     publishedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(), 
+    lastUpdatedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 1).toISOString(),
     averageRating: undefined, 
     ratingCount: 0,
     viewCount: 100,
@@ -200,7 +214,7 @@ export const updateMockMangaData = (mangaId: string, updates: Partial<MangaSerie
           const existingPage = existingChapter?.pages.find(p => p.id === updatedPage.id);
           return {
             id: existingPage?.id || updatedPage.id || `${updatedCh.id}-page-${Date.now()}-${pageIdx}`,
-            imageUrl: updatedPage.imageUrl, // This should now come from previewUrl or existingImageUrl
+            imageUrl: updatedPage.imageUrl, 
             altText: updatedPage.altText || `Page ${pageIdx + 1}`,
           };
         });
@@ -213,17 +227,29 @@ export const updateMockMangaData = (mangaId: string, updates: Partial<MangaSerie
       });
     }
     
+    // Merge investmentOffer carefully
+    let mergedInvestmentOffer = existingManga.investmentOffer;
+    if (updates.investmentOffer) {
+        mergedInvestmentOffer = {
+            ...(existingManga.investmentOffer || {}), // Base with existing or empty object
+            ...updates.investmentOffer, // Apply updates
+        };
+    }
+
+
     modifiableMockMangaSeries[mangaIndex] = { 
       ...existingManga, 
       ...updates,
-      chapters: updatedChapters || existingManga.chapters // Use updated or existing chapters
+      chapters: updatedChapters || existingManga.chapters,
+      investmentOffer: mergedInvestmentOffer,
+      lastUpdatedDate: new Date().toISOString(), // Always update lastUpdatedDate on any change
     };
   }
 };
 
 export const addMockMangaSeries = (newManga: MangaSeries) => {
   const authorExists = mockAuthors.some(a => a.id === newManga.author.id);
-  if (!authorExists) {
+  if (!authorExists && !mockAuthors.find(a => a.isSystemUser && a.id === newManga.author.id)) {
     const newAuthorData = { 
         id: newManga.author.id, 
         name: newManga.author.name, 
@@ -240,3 +266,20 @@ export const deleteMockMangaData = (mangaId: string) => {
 };
 
     
+// Conceptual: Function to allow users to list their shares for sale
+// export const listSharesForSale = (userId: string, mangaId: string, sharesToSell: number, pricePerShare: number) => {
+//   // Find user's investment
+//   // Check if they own enough shares
+//   // Create a ShareListing entry
+//   // Update user's UserInvestment to mark shares as for sale (or reduce directly if sold immediately)
+// };
+
+// Conceptual: Function for users to buy shares from the secondary market
+// export const buySharesFromListing = (buyerUserId: string, listingId: string, sharesToBuy: number) => {
+//   // Find ShareListing
+//   // Check if buyer has enough funds
+//   // Transfer funds from buyer to seller (minus platform fee)
+//   // Update buyer's UserInvestment (add/update)
+//   // Update seller's UserInvestment (reduce/remove)
+//   // Update ShareListing (reduce shares or mark as inactive/sold)
+// };

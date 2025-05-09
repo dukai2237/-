@@ -14,8 +14,9 @@ import { MANGA_GENRES_DETAILS } from '@/lib/constants';
 
 export default function HomePage() {
   const searchParams = useSearchParams();
-  const searchTerm = searchParams.get('search');
-  const genreFilter = searchParams.get('genre');
+  const searchTerm = searchParams.get('search') || '';
+  const genreFilter = searchParams.get('genre') || '';
+  const { updateUserSearchHistory, user } = useAuth(); // Assume useAuth is available
 
   const [filteredManga, setFilteredManga] = useState<MangaSeries[]>(allMockMangaSeries);
 
@@ -27,6 +28,9 @@ export default function HomePage() {
         manga.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         manga.author.name.toLowerCase().includes(searchTerm.toLowerCase())
       );
+      if (user) { // Only update search history if a user is logged in
+        updateUserSearchHistory(searchTerm);
+      }
     }
 
     if (genreFilter) {
@@ -36,7 +40,7 @@ export default function HomePage() {
     }
     
     setFilteredManga(mangaToDisplay);
-  }, [searchTerm, genreFilter]);
+  }, [searchTerm, genreFilter, user, updateUserSearchHistory]);
 
 
   const newestManga = useMemo(() => 
@@ -60,12 +64,12 @@ export default function HomePage() {
     return (
       <div className="text-center py-12">
         <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-        <h2 className="text-2xl font-semibold mb-2">未找到结果</h2>
-        <p className="text-muted-foreground">
-          对于 "<span className="font-semibold">{searchTerm}</span>" 没有找到匹配的漫画或作者。
+        <h2 className="text-2xl font-semibold mb-2" suppressHydrationWarning>No Results Found</h2>
+        <p className="text-muted-foreground" suppressHydrationWarning>
+          No manga or authors matched "<span className="font-semibold">{searchTerm}</span>".
         </p>
         <Button asChild className="mt-6">
-          <Link href="/">返回首页</Link>
+          <Link href="/">Back to Home</Link>
         </Button>
       </div>
     );
@@ -74,13 +78,13 @@ export default function HomePage() {
   return (
     <div className="space-y-12">
       <section className="text-center pt-8 pb-4">
-        <h1 className="text-4xl font-bold tracking-tight mb-2">探索您喜爱的漫画</h1>
-        <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+        <h1 className="text-4xl font-bold tracking-tight mb-2" suppressHydrationWarning>Explore Your Favorite Manga</h1>
+        <p className="text-xl text-muted-foreground max-w-2xl mx-auto" suppressHydrationWarning>
           {searchTerm 
-            ? <>搜索 "<span className="text-primary font-semibold">{searchTerm}</span>" 的结果 {currentGenreName && <>在类别 "<span className="text-primary font-semibold">{currentGenreName}</span>"</>}:</> 
+            ? <>Results for "<span className="text-primary font-semibold">{searchTerm}</span>" {currentGenreName && <>in category "<span className="text-primary font-semibold">{currentGenreName}</span>"</>}:</> 
             : currentGenreName 
-            ? <>类别 "<span className="text-primary font-semibold">{currentGenreName}</span>" 下的漫画:</>
-            : "浏览我们各类型的精彩漫画系列。"}
+            ? <>Manga in category "<span className="text-primary font-semibold">{currentGenreName}</span>":</>
+            : "Browse our exciting collection of manga series across various genres."}
         </p>
       </section>
 
@@ -88,13 +92,13 @@ export default function HomePage() {
         {MANGA_GENRES_DETAILS.map(genre => (
           <Button key={genre.id} variant={genreFilter === genre.id ? "default" : "outline"} size="sm" asChild>
             <Link href={genreFilter === genre.id ? "/" : `/?genre=${genre.id}${searchTerm ? `&search=${searchTerm}` : ''}`}>
-              {genre.name}
+              <Tag className="mr-1.5 h-3.5 w-3.5"/> {genre.name.split('(')[0].trim()}
             </Link>
           </Button>
         ))}
         {(genreFilter || searchTerm) && (
           <Button variant="ghost" size="sm" asChild>
-            <Link href="/">清除筛选</Link>
+            <Link href="/">Clear Filters</Link>
           </Button>
         )}
       </div>
@@ -103,9 +107,9 @@ export default function HomePage() {
       {filteredManga.length === 0 && (genreFilter || searchTerm) && (
          <div className="text-center py-12">
           <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-          <h2 className="text-2xl font-semibold mb-2">该类别下无结果</h2>
-          <p className="text-muted-foreground">
-            在当前筛选条件下没有找到漫画。
+          <h2 className="text-2xl font-semibold mb-2" suppressHydrationWarning>No Results in this Category</h2>
+          <p className="text-muted-foreground" suppressHydrationWarning>
+            No manga found with the current filters.
           </p>
         </div>
       )}
@@ -114,8 +118,8 @@ export default function HomePage() {
         <>
           {newestManga.length > 0 && (
             <section>
-              <h2 className="text-3xl font-semibold mb-6 tracking-tight flex items-center"><Zap className="mr-3 h-7 w-7 text-yellow-500"/>最新发布</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              <h2 className="text-3xl font-semibold mb-6 tracking-tight flex items-center" suppressHydrationWarning><Zap className="mr-3 h-7 w-7 text-yellow-500"/>Latest Releases</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-8">
                 {newestManga.map((manga) => (
                   <MangaCard key={manga.id} manga={manga} />
                 ))}
@@ -123,12 +127,13 @@ export default function HomePage() {
             </section>
           )}
           
-          <Separator />
+          {popularManga.length > 0 && newestManga.length > 0 && <Separator className="my-10" />}
+
 
           {popularManga.length > 0 && (
              <section>
-              <h2 className="text-3xl font-semibold mb-6 tracking-tight flex items-center"><Flame className="mr-3 h-7 w-7 text-red-500"/>热门漫画 (按浏览量)</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              <h2 className="text-3xl font-semibold mb-6 tracking-tight flex items-center" suppressHydrationWarning><Flame className="mr-3 h-7 w-7 text-red-500"/>Popular Manga (by Views)</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-8">
                 {popularManga.map((manga) => (
                   <MangaCard key={manga.id} manga={manga} />
                 ))}
@@ -136,12 +141,12 @@ export default function HomePage() {
             </section>
           )}
 
-          <Separator />
+          {randomManga.length > 0 && popularManga.length > 0 && <Separator className="my-10" />}
           
           {randomManga.length > 0 && (
              <section>
-              <h2 className="text-3xl font-semibold mb-6 tracking-tight flex items-center"><Shuffle className="mr-3 h-7 w-7 text-green-500"/>随机推荐</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              <h2 className="text-3xl font-semibold mb-6 tracking-tight flex items-center" suppressHydrationWarning><Shuffle className="mr-3 h-7 w-7 text-green-500"/>Random Recommendations</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-8">
                 {randomManga.map((manga) => (
                   <MangaCard key={manga.id} manga={manga} />
                 ))}
@@ -154,9 +159,16 @@ export default function HomePage() {
 
       {allMockMangaSeries.length === 0 && !searchTerm && !genreFilter && (
         <div className="text-center py-12">
-          <p className="text-lg text-muted-foreground">目前没有漫画系列。请稍后再回来查看！</p>
+          <p className="text-lg text-muted-foreground" suppressHydrationWarning>No manga series available at the moment. Check back later!</p>
         </div>
       )}
     </div>
   );
 }
+
+// Mock useAuth hook if not available globally, for standalone testing of this component
+// In a real app, this would come from your AuthContext
+const useAuth = () => ({
+  user: null, // Or a mock user object
+  updateUserSearchHistory: (term: string) => console.log("Search term:", term)
+});
