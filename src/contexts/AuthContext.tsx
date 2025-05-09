@@ -1,5 +1,6 @@
-// src/contexts/AuthContext.tsx
+
 "use client";
+// src/contexts/AuthContext.tsx
 import type { User, UserSubscription, UserInvestment, SimulatedTransaction, MangaSeries, MangaInvestor, Chapter, MangaPage, AuthorContactDetails } from '@/lib/types';
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
@@ -7,6 +8,12 @@ import { updateMockMangaData, getMangaById, addMockMangaSeries as globalAddMockM
 import { MAX_WORKS_PER_CREATOR } from '@/lib/constants';
 
 const PLATFORM_FEE_RATE = 0.10; // 10% platform fee
+
+// Define the structure for chapter input when adding a new manga series
+interface ChapterInputForAdd {
+  title: string;
+  pages: { previewUrl: string }[]; // Each page will have a preview URL (base64 data URI for mock)
+}
 
 interface AuthContextType {
   user: User | null;
@@ -18,14 +25,16 @@ interface AuthContextType {
   donateToManga: (mangaId: string, mangaTitle: string, authorId: string, amount: number) => Promise<boolean>;
   investInManga: (mangaId: string, mangaTitle: string, sharesToBuy: number, pricePerShare: number, totalCost: number) => Promise<boolean>;
   rateManga: (mangaId: string, score: 1 | 2 | 3) => Promise<boolean>;
-  addMangaSeries: (newMangaData: Omit<MangaSeries, 'id' | 'author' | 'publishedDate' | 'averageRating' | 'ratingCount' | 'viewCount' | 'totalRevenueFromSubscriptions' | 'totalRevenueFromDonations' | 'totalRevenueFromMerchandise' | 'investors' | 'chapters' | 'authorDetails'> & { chaptersInput?: {title: string, pageCount: number}[], authorDetails?: AuthorContactDetails }) => Promise<MangaSeries | null>;
+  addMangaSeries: (
+    newMangaData: Omit<MangaSeries, 'id' | 'author' | 'publishedDate' | 'averageRating' | 'ratingCount' | 'viewCount' | 'totalRevenueFromSubscriptions' | 'totalRevenueFromDonations' | 'totalRevenueFromMerchandise' | 'investors' | 'chapters' | 'authorDetails'> 
+                  & { chaptersInput?: ChapterInputForAdd[], authorDetails?: AuthorContactDetails }
+  ) => Promise<MangaSeries | null>;
   deleteMangaSeries: (mangaId: string) => Promise<boolean>;
   viewingHistory: Map<string, { chapterId: string, pageIndex: number, date: Date }>;
   updateViewingHistory: (mangaId: string, chapterId: string, pageIndex: number) => void;
   getViewingHistory: (mangaId: string) => { chapterId: string, pageIndex: number, date: Date } | undefined;
   transactions: SimulatedTransaction[];
-  addFunds: (amount: number) => void; // User adds funds to their wallet
-  // Conceptual: Admin approves a creator
+  addFunds: (amount: number) => void;
   approveCreatorAccount: (creatorId: string) => void; 
 }
 
@@ -145,8 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signup = (name: string, email: string, accountType: 'user' | 'creator'): User | null => {
-     // Check if email already exists (simple mock check)
-    const storedUsersString = localStorage.getItem('mockUserList'); // Assume we store a list of users for this check
+    const storedUsersString = localStorage.getItem('mockUserList');
     const mockUserList: User[] = storedUsersString ? JSON.parse(storedUsersString) : [];
     if (mockUserList.some(u => u.email === email)) {
         toast({ title: "注册失败", description: "该邮箱已被注册。", variant: "destructive" });
@@ -159,19 +167,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       name,
       avatarUrl: `https://picsum.photos/100/100?random=${newUserId}`,
-      walletBalance: accountType === 'creator' ? 0 : 50, // Creators start with 0, users with 50
+      walletBalance: accountType === 'creator' ? 0 : 50,
       subscriptions: [],
       investments: [],
       authoredMangaIds: [],
       accountType,
-      isApproved: accountType === 'user' ? true : false, // Regular users are auto-approved
+      isApproved: accountType === 'user' ? true : false,
     };
     
-    // Add to mock user list in localStorage for uniqueness check
     mockUserList.push(newUser);
     localStorage.setItem('mockUserList', JSON.stringify(mockUserList));
     
-    setUser(newUser); 
+    // Do not setUser here directly if creator approval is pending, or handle login separately
+    // setUser(newUser); 
 
     recordTransaction({
       type: 'account_creation',
@@ -193,11 +201,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         description: `欢迎, ${name}! 您的创作者账号已注册，并等待管理员审批。审批通过后即可登录和发布作品。`,
         duration: 10000
       });
-       // Simulate auto-approval for 'test@example.com' for easier testing
       if (email === MOCK_USER_VALID.email) {
-        setTimeout(() => approveCreatorAccount(newUser.id), 2000); // Auto-approve mock creator after 2s
+        setTimeout(() => approveCreatorAccount(newUser.id), 2000); 
       }
     } else {
+      setUser(newUser); // Set user for regular users immediately
       toast({ title: "注册成功!", description: `欢迎, ${name}! 您的账号已创建。` });
     }
     return newUser;
@@ -376,11 +384,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     
     const platformCut = totalCost * PLATFORM_FEE_RATE;
-    const authorGets = totalCost - platformCut; // Creator receives investment amount minus platform fee
+    const authorGets = totalCost - platformCut; 
     updateMockMangaData(mangaId, { 
         investors: updatedMangaInvestors,
-        // Assuming investment amount also contributes to a conceptual "project fund" or directly to author
-        // totalRevenueFromDonations: (manga.totalRevenueFromDonations || 0) + authorGets // Or a new field like totalInvestmentReceived
     }); 
     
     recordTransaction({
@@ -399,7 +405,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         relatedData: { from: 'user_payment', originalAmount: totalCost }
     });
     recordTransaction({
-        type: 'author_earning', // Or 'project_funding'
+        type: 'author_earning', 
         amount: authorGets,
         authorId: manga.author.id,
         mangaId,
@@ -443,7 +449,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
   
   const addMangaSeries = async (
-    newMangaData: Omit<MangaSeries, 'id' | 'author' | 'publishedDate' | 'averageRating' | 'ratingCount' | 'viewCount' | 'totalRevenueFromSubscriptions' | 'totalRevenueFromDonations' | 'totalRevenueFromMerchandise' | 'investors' | 'chapters' | 'authorDetails'> & { chaptersInput?: {title: string, pageCount: number}[], authorDetails?: AuthorContactDetails }
+    newMangaData: Omit<MangaSeries, 'id' | 'author' | 'publishedDate' | 'averageRating' | 'ratingCount' | 'viewCount' | 'totalRevenueFromSubscriptions' | 'totalRevenueFromDonations' | 'totalRevenueFromMerchandise' | 'investors' | 'chapters' | 'authorDetails'> 
+                  & { chaptersInput?: ChapterInputForAdd[], authorDetails?: AuthorContactDetails }
   ): Promise<MangaSeries | null> => {
     if (!user || user.accountType !== 'creator') {
       toast({ title: "权限不足", description: "仅创作者可添加新漫画系列。", variant: "destructive" });
@@ -460,7 +467,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const newMangaId = `manga-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     
-    // Fetch full author details to embed if provided, otherwise use basic user info
     const authorInfoForManga: MangaSeries['author'] = {
       id: user.id,
       name: user.name,
@@ -469,7 +475,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     const mangaAuthorDetails: AuthorContactDetails | undefined = newMangaData.authorDetails 
         ? newMangaData.authorDetails 
-        : { email: user.email }; // Default to user email if no specific details provided
+        : { email: user.email }; 
 
 
     const newManga: MangaSeries = {
@@ -477,14 +483,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       author: authorInfoForManga,
       authorDetails: mangaAuthorDetails,
       ...newMangaData,
-      chapters: (newMangaData.chaptersInput || []).map((chap, index) => ({
-        id: `${newMangaId}-chapter-${index + 1}`,
-        title: chap.title,
-        chapterNumber: index + 1,
-        pages: Array.from({ length: chap.pageCount }, (_, i) => ({
-            id: `${newMangaId}-chapter-${index + 1}-page-${i + 1}`,
-            imageUrl: `https://picsum.photos/800/1200?random=${newMangaId}c${index+1}p${i+1}`, // Mock image
-            altText: `Page ${i + 1}`,
+      chapters: (newMangaData.chaptersInput || []).map((chapInput, chapterIndex) => ({
+        id: `${newMangaId}-chapter-${chapterIndex + 1}`,
+        title: chapInput.title,
+        chapterNumber: chapterIndex + 1,
+        pages: chapInput.pages.map((pageInput, pageIndex) => ({
+            id: `${newMangaId}-chapter-${chapterIndex + 1}-page-${pageIndex + 1}`,
+            // For mock, imageUrl will be the base64 previewUrl. In real app, this would be a CDN URL after upload.
+            imageUrl: pageInput.previewUrl, 
+            altText: `Page ${pageIndex + 1}`,
         })),
       })),
       publishedDate: new Date().toISOString(),
@@ -497,7 +504,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       investors: [],
     };
 
-    globalAddMockManga(newManga); // Adds to the global mock data list
+    globalAddMockManga(newManga);
     setUser(prevUser => prevUser ? ({ ...prevUser, authoredMangaIds: [...prevUser.authoredMangaIds, newManga.id] }) : null);
     
     recordTransaction({
@@ -528,7 +535,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return false;
     }
 
-    globalDeleteManga(mangaId); // Deletes from global mock data list
+    globalDeleteManga(mangaId); 
     setUser(prevUser => {
       if (!prevUser) return null;
       return { ...prevUser, authoredMangaIds: prevUser.authoredMangaIds.filter(id => id !== mangaId) };
@@ -555,7 +562,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return viewingHistory.get(mangaId);
   };
 
-  const addFunds = (amount: number) => { // User adds funds to their wallet
+  const addFunds = (amount: number) => { 
     if (!user) return;
     if (amount <= 0) {
       toast({ title: "金额无效", description: "充值金额必须为正数。", variant: "destructive" });
@@ -571,21 +578,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     toast({ title: "充值成功", description: `$${amount.toFixed(2)} 已添加到您的钱包。` });
   };
   
-  // Conceptual admin function to approve a creator
   const approveCreatorAccount = (creatorId: string) => {
-    // In a real app, this would be an admin-only action, likely calling a backend API.
-    // For this mock setup, we'll directly modify the user state if the current user is the one being approved (for testing)
-    // or try to update localStorage for a potential offline user.
-    
     let userWasUpdated = false;
-
     if (user && user.id === creatorId && user.accountType === 'creator' && !user.isApproved) {
       setUser(prev => prev ? ({ ...prev, isApproved: true }) : null);
       toast({ title: "创作者已审批", description: `创作者 ${user.name} (${user.email}) 已被批准。` });
       recordTransaction({ type: 'creator_approved', amount: 0, userId: creatorId, description: `创作者 ${user.name} 账号已批准。` });
       userWasUpdated = true;
     } else {
-      // Try to update a non-logged-in user from the mock list in localStorage (if exists)
       const storedUsersString = localStorage.getItem('mockUserList');
       if (storedUsersString) {
         let mockUserList: User[] = JSON.parse(storedUsersString);
@@ -638,3 +638,5 @@ export function useAuth() {
   }
   return context;
 }
+
+    

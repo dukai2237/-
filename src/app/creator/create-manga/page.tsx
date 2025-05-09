@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, type FormEvent, useEffect, useMemo, useRef } from 'react';
@@ -12,16 +13,21 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import type { MangaInvestmentOffer, AuthorContactDetails } from '@/lib/types';
 import { Switch } from '@/components/ui/switch';
-import { BookUp, PlusCircle, Trash2, AlertTriangle, UploadCloud, Mail, Link as LinkIcon } from 'lucide-react';
+import { BookUp, PlusCircle, Trash2, AlertTriangle, UploadCloud, Mail, Link as LinkIcon, FileImage } from 'lucide-react';
 import { MANGA_GENRES_DETAILS, MAX_CHAPTERS_PER_WORK, MAX_PAGES_PER_CHAPTER, MAX_WORKS_PER_CREATOR } from '@/lib/constants';
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from '@/components/ui/scroll-area';
 
+interface EditablePageInput {
+  localId: string;
+  file: File | null;
+  previewUrl: string | null;
+}
+
 interface EditableChapterInput {
   localId: string; 
   title: string;
-  pageCount: number;
-  // Store base64 mock data for chapter pages if needed, or just count for now
+  pages: EditablePageInput[];
 }
 
 export default function CreateMangaPage() {
@@ -31,8 +37,8 @@ export default function CreateMangaPage() {
 
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
-  const [coverImagePreview, setCoverImagePreview] = useState<string | null>(null); // For previewing selected local file
-  const coverImageFileRef = useRef<File | null>(null); // To store the actual file for "upload"
+  const [coverImagePreview, setCoverImagePreview] = useState<string | null>(null);
+  const coverImageFileRef = useRef<File | null>(null);
 
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [freePreviewPageCount, setFreePreviewPageCount] = useState('2');
@@ -53,9 +59,8 @@ export default function CreateMangaPage() {
   const [authorSocialLinkUrl, setAuthorSocialLinkUrl] = useState('');
   const [authorSocialLinks, setAuthorSocialLinks] = useState<{platform: string, url: string}[]>([]);
 
-
   const totalPagesInManga = useMemo(() => {
-    return chaptersInput.reduce((sum, ch) => sum + ch.pageCount, 0);
+    return chaptersInput.reduce((sum, ch) => sum + ch.pages.length, 0);
   }, [chaptersInput]);
 
   useEffect(() => {
@@ -78,7 +83,6 @@ export default function CreateMangaPage() {
       router.push('/creator/dashboard'); 
       return;
     }
-    // Initialize author contact email from user profile
     setAuthorContactEmail(user.email || '');
   }, [user, router, toast]);
 
@@ -112,7 +116,6 @@ export default function CreateMangaPage() {
     setAuthorSocialLinks(authorSocialLinks.filter((_, i) => i !== index));
   };
 
-
   const handleGenreChange = (genreId: string) => {
     setSelectedGenres(prev =>
       prev.includes(genreId) ? prev.filter(g => g !== genreId) : [...prev, genreId]
@@ -124,17 +127,64 @@ export default function CreateMangaPage() {
       toast({ title: "章节已达上限", description: `一部漫画最多只能有 ${MAX_CHAPTERS_PER_WORK} 个章节。`, variant: "destructive" });
       return;
     }
-    setChaptersInput([...chaptersInput, { localId: `new-${Date.now()}`, title: `第 ${chaptersInput.length + 1} 章`, pageCount: 10 }]);
+    setChaptersInput([...chaptersInput, { 
+      localId: `new-chapter-${Date.now()}`, 
+      title: `第 ${chaptersInput.length + 1} 章`, 
+      pages: [{ localId: `new-page-${Date.now()}`, file: null, previewUrl: null }] // Start with one empty page
+    }]);
   };
 
-  const updateChapterInput = (localId: string, field: keyof EditableChapterInput, value: string | number) => {
+  const updateChapterTitleInput = (chapterLocalId: string, title: string) => {
     setChaptersInput(chaptersInput.map(ch =>
-      ch.localId === localId ? { ...ch, [field]: field === 'pageCount' ? Math.max(1, Math.min(Number(value), MAX_PAGES_PER_CHAPTER)) : value } : ch
+      ch.localId === chapterLocalId ? { ...ch, title } : ch
     ));
   };
 
-  const removeChapterInput = (localId: string) => {
-    setChaptersInput(chaptersInput.filter(ch => ch.localId !== localId));
+  const removeChapterInput = (chapterLocalId: string) => {
+    setChaptersInput(chaptersInput.filter(ch => ch.localId !== chapterLocalId));
+  };
+
+  const addPageToChapterInput = (chapterLocalId: string) => {
+    setChaptersInput(chaptersInput.map(ch => {
+      if (ch.localId === chapterLocalId) {
+        if (ch.pages.length >= MAX_PAGES_PER_CHAPTER) {
+          toast({ title: "页面已达上限", description: `每章节最多只能有 ${MAX_PAGES_PER_CHAPTER} 页。`, variant: "destructive" });
+          return ch;
+        }
+        return { ...ch, pages: [...ch.pages, { localId: `new-page-${Date.now()}`, file: null, previewUrl: null }] };
+      }
+      return ch;
+    }));
+  };
+
+  const removePageFromChapterInput = (chapterLocalId: string, pageLocalId: string) => {
+    setChaptersInput(chaptersInput.map(ch =>
+      ch.localId === chapterLocalId 
+        ? { ...ch, pages: ch.pages.filter(p => p.localId !== pageLocalId) } 
+        : ch
+    ));
+  };
+
+  const handlePageImageChange = (chapterLocalId: string, pageLocalId: string, event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setChaptersInput(prevChapters => prevChapters.map(ch => 
+          ch.localId === chapterLocalId 
+            ? { 
+                ...ch, 
+                pages: ch.pages.map(p => 
+                  p.localId === pageLocalId 
+                    ? { ...p, file: file, previewUrl: reader.result as string } 
+                    : p
+                ) 
+              } 
+            : ch
+        ));
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
 
@@ -157,7 +207,7 @@ export default function CreateMangaPage() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!title || !summary || !coverImagePreview || selectedGenres.length === 0) { // Check coverImagePreview
+    if (!title || !summary || !coverImagePreview || selectedGenres.length === 0) {
       toast({ title: "缺少必填项", description: "请填写标题、摘要、上传封面图片并选择至少一个类型。", variant: "destructive" });
       return;
     }
@@ -165,11 +215,14 @@ export default function CreateMangaPage() {
       toast({ title: "没有章节", description: "请至少添加一个章节。", variant: "destructive" });
       return;
     }
+    if (chaptersInput.some(ch => ch.pages.length === 0 || ch.pages.some(p => !p.previewUrl))) {
+      toast({ title: "章节不完整", description: "所有章节必须至少有一页，并且所有页面都必须上传图片。", variant: "destructive" });
+      return;
+    }
     if (parseInt(freePreviewPageCount, 10) > totalPagesInManga && totalPagesInManga > 0) { 
       toast({ title: "免费预览页数无效", description: "免费预览页数不能超过漫画总页数。", variant: "destructive" });
       return;
     }
-
 
     let investmentOfferData: MangaInvestmentOffer | undefined = undefined;
     if (enableCrowdfunding) {
@@ -189,20 +242,22 @@ export default function CreateMangaPage() {
     }
     
     const authorDetailsPayload: AuthorContactDetails = {
-        email: authorContactEmail || undefined, // Ensure undefined if empty
+        email: authorContactEmail || undefined,
         socialLinks: authorSocialLinks.length > 0 ? authorSocialLinks : undefined,
     };
-
 
     const newManga = await addMangaSeries({
       title,
       summary,
-      coverImage: coverImagePreview, // Using preview as placeholder for actual uploaded URL
+      coverImage: coverImagePreview, 
       genres: selectedGenres,
       freePreviewPageCount: parseInt(freePreviewPageCount, 10) || 0,
       subscriptionPrice: subscriptionPrice ? parseFloat(subscriptionPrice) : undefined,
       investmentOffer: investmentOfferData,
-      chaptersInput: chaptersInput.map(ch => ({ title: ch.title, pageCount: ch.pageCount })),
+      chaptersInput: chaptersInput.map(ch => ({ 
+        title: ch.title, 
+        pages: ch.pages.map(p => ({ previewUrl: p.previewUrl! /* Already checked for null */ }))
+      })),
       authorDetails: authorDetailsPayload,
     });
 
@@ -223,6 +278,7 @@ export default function CreateMangaPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* ... (title, summary, coverImage, genres, author contact - unchanged) ... */}
             <div className="space-y-2">
               <Label htmlFor="title" suppressHydrationWarning>标题 *</Label>
               <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="例如：银河历险记" required />
@@ -300,7 +356,7 @@ export default function CreateMangaPage() {
               </div>
             </div>
 
-
+            {/* Chapters Section - Modified */}
             <div className="space-y-4 pt-4 border-t">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-semibold" suppressHydrationWarning>章节 ({chaptersInput.length}/{MAX_CHAPTERS_PER_WORK})</h3>
@@ -309,33 +365,63 @@ export default function CreateMangaPage() {
                 </Button>
               </div>
               {chaptersInput.length === 0 && <p className="text-sm text-muted-foreground">尚未添加章节。点击“添加章节”开始。</p>}
-              <ScrollArea className="max-h-60 space-y-3 pr-3">
-                {chaptersInput.map((chapter, index) => (
-                  <Card key={chapter.localId} className="p-3 bg-secondary/30">
-                    <div className="flex justify-between items-center mb-2">
-                       <Label htmlFor={`chapter-title-${index}`} className="text-sm font-medium" suppressHydrationWarning>章节 {index + 1} 标题</Label>
+              <ScrollArea className="max-h-[500px] space-y-3 pr-3">
+                {chaptersInput.map((chapter, chapterIndex) => (
+                  <Card key={chapter.localId} className="p-4 bg-secondary/30 space-y-3">
+                    <div className="flex justify-between items-center">
+                       <Label htmlFor={`chapter-title-${chapterIndex}`} className="text-base font-medium" suppressHydrationWarning>章节 {chapterIndex + 1} 标题</Label>
                        <Button type="button" variant="ghost" size="icon" onClick={() => removeChapterInput(chapter.localId)} className="text-destructive hover:bg-destructive/10 h-7 w-7">
                           <Trash2 className="h-4 w-4" />
                        </Button>
                     </div>
                     <Input
-                      id={`chapter-title-${index}`}
+                      id={`chapter-title-${chapterIndex}`}
                       value={chapter.title}
-                      onChange={(e) => updateChapterInput(chapter.localId, 'title', e.target.value)}
+                      onChange={(e) => updateChapterTitleInput(chapter.localId, e.target.value)}
                       placeholder="例如：开端"
-                      className="mb-2"
                     />
-                    <Label htmlFor={`chapter-pages-${index}`} className="text-sm font-medium" suppressHydrationWarning>页数 (1-{MAX_PAGES_PER_CHAPTER})</Label>
-                    <Input
-                      id={`chapter-pages-${index}`}
-                      type="number"
-                      value={chapter.pageCount}
-                      onChange={(e) => updateChapterInput(chapter.localId, 'pageCount', parseInt(e.target.value, 10))}
-                      min="1"
-                      max={MAX_PAGES_PER_CHAPTER.toString()}
-                      className="w-full"
-                    />
-                     <p className="text-xs text-muted-foreground mt-1" suppressHydrationWarning>页面图片将进行模拟。在实际应用中，您将在此处上传每一页的图片文件。</p>
+                    <div className="space-y-1">
+                      <Label className="text-sm font-medium" suppressHydrationWarning>页面 ({chapter.pages.length}/{MAX_PAGES_PER_CHAPTER})</Label>
+                       <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => addPageToChapterInput(chapter.localId)} 
+                          disabled={chapter.pages.length >= MAX_PAGES_PER_CHAPTER}
+                          className="ml-2"
+                        >
+                          <PlusCircle className="mr-1 h-3.5 w-3.5" /> 添加页面
+                        </Button>
+                    </div>
+                     {chapter.pages.length === 0 && <p className="text-xs text-muted-foreground">此章节没有页面。点击“添加页面”上传图片。</p>}
+                    <div className="space-y-3">
+                      {chapter.pages.map((page, pageIndex) => (
+                        <Card key={page.localId} className="p-3 bg-background/70">
+                          <div className="flex justify-between items-center mb-2">
+                            <Label className="text-xs font-medium" suppressHydrationWarning>第 {pageIndex + 1} 页</Label>
+                            <Button type="button" variant="ghost" size="icon" onClick={() => removePageFromChapterInput(chapter.localId, page.localId)} className="text-destructive hover:bg-destructive/10 h-6 w-6">
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <Input 
+                            type="file" 
+                            accept="image/*" 
+                            onChange={(e) => handlePageImageChange(chapter.localId, page.localId, e)} 
+                            className="text-xs mb-2"
+                          />
+                          {page.previewUrl && (
+                            <div className="relative aspect-[2/3] w-full max-w-[150px] rounded border overflow-hidden mx-auto">
+                              <Image src={page.previewUrl} alt={`Page ${pageIndex + 1} preview`} layout="fill" objectFit="contain" data-ai-hint="manga page create"/>
+                            </div>
+                          )}
+                          {!page.previewUrl && (
+                            <div className="flex items-center justify-center aspect-[2/3] w-full max-w-[150px] rounded border border-dashed bg-muted/30 mx-auto">
+                              <FileImage className="h-8 w-8 text-muted-foreground" />
+                            </div>
+                          )}
+                        </Card>
+                      ))}
+                    </div>
                   </Card>
                 ))}
               </ScrollArea>
@@ -352,6 +438,7 @@ export default function CreateMangaPage() {
               </div>
             </div>
 
+            {/* Crowdfunding Section - Unchanged */}
             <div className="space-y-4 pt-4 border-t">
               <div className="flex items-center space-x-3">
                 <Switch id="enableCrowdfunding" checked={enableCrowdfunding} onCheckedChange={setEnableCrowdfunding} aria-label="启用漫画众筹" />
@@ -404,3 +491,5 @@ export default function CreateMangaPage() {
     </div>
   );
 }
+
+    

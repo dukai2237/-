@@ -1,5 +1,6 @@
+ts
 
-import type { MangaSeries, MangaPage, AuthorInfo, MangaInvestmentOffer, AuthorContactDetails } from './types';
+import type { MangaSeries, MangaPage, AuthorInfo, MangaInvestmentOffer, AuthorContactDetails, Chapter } from './types';
 import { MANGA_GENRES_DETAILS } from './constants';
 
 const generatePages = (chapterId: string, count: number): MangaPage[] => {
@@ -10,8 +11,6 @@ const generatePages = (chapterId: string, count: number): MangaPage[] => {
   }));
 };
 
-// Combined AuthorInfo and AuthorContactDetails for easier management in mock data.
-// In a real DB, AuthorInfo might be separate and AuthorContactDetails embedded or linked.
 const mockAuthors: (AuthorInfo & { contactDetails?: AuthorContactDetails, isSystemUser?: boolean })[] = [
   { 
     id: 'author-1', 
@@ -35,13 +34,12 @@ const mockAuthors: (AuthorInfo & { contactDetails?: AuthorContactDetails, isSyst
     id: 'author-3', 
     name: 'Aiko Suzuki', 
     avatarUrl: 'https://picsum.photos/100/100?random=author3',
-    // No specific contact details, will use default user email if this author logs in
   },
   { 
-    id: 'user-123', // Corresponds to MOCK_USER_VALID in AuthContext
+    id: 'user-123', 
     name: 'Test Creator', 
     avatarUrl: 'https://picsum.photos/100/100?random=creator',
-    isSystemUser: true, // Flag to identify this as the main test creator
+    isSystemUser: true, 
     contactDetails: {
       email: 'test@example.com',
       socialLinks: [{ platform: 'Website', url: 'https://testcreator.com'}]
@@ -52,7 +50,6 @@ const mockAuthors: (AuthorInfo & { contactDetails?: AuthorContactDetails, isSyst
     name: 'Pending Approval Sensei',
     avatarUrl: 'https://picsum.photos/100/100?random=authorpending',
     contactDetails: { email: 'pending@example.com' }
-    // This author, if signed up as a creator, would start with isApproved: false
   }
 ];
 
@@ -143,7 +140,6 @@ export const mockMangaSeriesData: MangaSeries[] = [
       { id: 'manga-3-chapter-4', title: '暗影议会', chapterNumber: 4, pages: generatePages('m3c4', 10) },
     ],
     freePreviewPageCount: 1,
-    // No subscription price, implies free to read or donation-based
     totalRevenueFromSubscriptions: 0,
     totalRevenueFromDonations: 50,
     totalRevenueFromMerchandise: 0,
@@ -154,9 +150,9 @@ export const mockMangaSeriesData: MangaSeries[] = [
     viewCount: 15000,
   },
   {
-    id: 'manga-4', // Belongs to Test Creator (user-123)
+    id: 'manga-4', 
     title: '我的创作者冒险 (My Author Adventure)',
-    author: mockAuthors.find(a => a.id === 'user-123')!, // Ensure this author exists
+    author: mockAuthors.find(a => a.id === 'user-123')!,
     authorDetails: mockAuthors.find(a => a.id === 'user-123')?.contactDetails,
     summary: '由我们平台的测试创作者创作的特别漫画系列！跟随他们的创作之旅。',
     coverImage: 'https://picsum.photos/400/600?random=manga4',
@@ -195,31 +191,40 @@ export const getChapterById = (mangaId: string, chapterId: string) => {
 export const updateMockMangaData = (mangaId: string, updates: Partial<MangaSeries>) => {
   const mangaIndex = modifiableMockMangaSeries.findIndex(m => m.id === mangaId);
   if (mangaIndex !== -1) {
+    const existingManga = modifiableMockMangaSeries[mangaIndex];
+    let updatedChapters: Chapter[] | undefined = updates.chapters;
+
     if (updates.chapters) {
-      updates.chapters = updates.chapters.map((ch, index) => {
-        let pagesArray: MangaPage[];
-        if (Array.isArray(ch.pages) && ch.pages.every(p => typeof p === 'object' && p.id && p.imageUrl)) {
-          pagesArray = ch.pages;
-        } else {
-          const pageCount = Array.isArray(ch.pages) ? ch.pages.length : (typeof (ch as any).pageCount === 'number' ? (ch as any).pageCount : 10);
-          pagesArray = generatePages(ch.id || `${mangaId}-chapter-${index + 1}-regen`, pageCount);
-        }
+      updatedChapters = updates.chapters.map((updatedCh, chapterIdx) => {
+        const existingChapter = existingManga.chapters.find(c => c.id === updatedCh.id);
+        const newPages: MangaPage[] = updatedCh.pages.map((updatedPage, pageIdx) => {
+          const existingPage = existingChapter?.pages.find(p => p.id === updatedPage.id);
+          return {
+            id: existingPage?.id || updatedPage.id || `${updatedCh.id}-page-${Date.now()}-${pageIdx}`,
+            imageUrl: updatedPage.imageUrl, // This should now come from previewUrl or existingImageUrl
+            altText: updatedPage.altText || `Page ${pageIdx + 1}`,
+          };
+        });
         return {
-          ...ch,
-          id: ch.id || `${mangaId}-chapter-${index + 1}-updated-${Date.now()}`,
-          chapterNumber: ch.chapterNumber || index + 1,
-          pages: pagesArray,
+          ...updatedCh,
+          id: existingChapter?.id || updatedCh.id || `${mangaId}-chapter-${Date.now()}-${chapterIdx}`,
+          chapterNumber: updatedCh.chapterNumber || chapterIdx + 1,
+          pages: newPages,
         };
       });
     }
-    modifiableMockMangaSeries[mangaIndex] = { ...modifiableMockMangaSeries[mangaIndex], ...updates };
+    
+    modifiableMockMangaSeries[mangaIndex] = { 
+      ...existingManga, 
+      ...updates,
+      chapters: updatedChapters || existingManga.chapters // Use updated or existing chapters
+    };
   }
 };
 
 export const addMockMangaSeries = (newManga: MangaSeries) => {
   const authorExists = mockAuthors.some(a => a.id === newManga.author.id);
   if (!authorExists) {
-    // This case should ideally be handled by creator signup, but as a fallback:
     const newAuthorData = { 
         id: newManga.author.id, 
         name: newManga.author.name, 
@@ -234,3 +239,5 @@ export const addMockMangaSeries = (newManga: MangaSeries) => {
 export const deleteMockMangaData = (mangaId: string) => {
   modifiableMockMangaSeries = modifiableMockMangaSeries.filter(manga => manga.id !== mangaId);
 };
+
+    
