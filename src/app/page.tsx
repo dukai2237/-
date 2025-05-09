@@ -1,24 +1,36 @@
 
-"use client"; // Required for useSearchParams
+"use client"; 
 
 import { MangaCard } from '@/components/manga/MangaCard';
 import { modifiableMockMangaSeries as allMockMangaSeries } from '@/lib/mock-data'; 
 import type { MangaSeries } from '@/lib/types';
 import { Separator } from '@/components/ui/separator';
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Shuffle, Flame, Zap, AlertCircle, Tag } from 'lucide-react';
 import { MANGA_GENRES_DETAILS } from '@/lib/constants';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function HomePage() {
   const searchParams = useSearchParams();
-  const searchTerm = searchParams.get('search') || '';
-  const genreFilter = searchParams.get('genre') || '';
-  const { updateUserSearchHistory, user } = useAuth(); // Assume useAuth is available
+  const { user, updateUserSearchHistory } = useAuth(); 
 
+  const [searchTerm, setSearchTerm] = useState('');
+  const [genreFilter, setGenreFilter] = useState('');
+  
   const [filteredManga, setFilteredManga] = useState<MangaSeries[]>(allMockMangaSeries);
+  const [clientRandomManga, setClientRandomManga] = useState<MangaSeries[]>([]);
+
+  useEffect(() => {
+    const currentSearch = searchParams.get('search') || '';
+    const currentGenre = searchParams.get('genre') || '';
+    setSearchTerm(currentSearch);
+    setGenreFilter(currentGenre);
+  }, [searchParams]);
+
+  const memoizedUpdateUserSearchHistory = useCallback(updateUserSearchHistory, []);
 
   useEffect(() => {
     let mangaToDisplay = [...allMockMangaSeries];
@@ -28,8 +40,8 @@ export default function HomePage() {
         manga.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         manga.author.name.toLowerCase().includes(searchTerm.toLowerCase())
       );
-      if (user) { // Only update search history if a user is logged in
-        updateUserSearchHistory(searchTerm);
+      if (user) { 
+        memoizedUpdateUserSearchHistory(searchTerm);
       }
     }
 
@@ -40,7 +52,14 @@ export default function HomePage() {
     }
     
     setFilteredManga(mangaToDisplay);
-  }, [searchTerm, genreFilter, user, updateUserSearchHistory]);
+  }, [searchTerm, genreFilter, user, memoizedUpdateUserSearchHistory]);
+
+  useEffect(() => {
+    // Generate random manga on client side after initial render to avoid hydration mismatch
+    setClientRandomManga(
+      [...filteredManga].sort(() => 0.5 - Math.random()).slice(0, 8)
+    );
+  }, [filteredManga]);
 
 
   const newestManga = useMemo(() => 
@@ -53,11 +72,6 @@ export default function HomePage() {
     .sort((a, b) => b.viewCount - a.viewCount)
     .slice(0, 8), [filteredManga]);
   
-  const randomManga = useMemo(() => 
-    [...filteredManga].sort(() => 0.5 - Math.random()).slice(0, 8), 
-  [filteredManga]);
-
-
   const currentGenreName = genreFilter ? MANGA_GENRES_DETAILS.find(g => g.id === genreFilter)?.name : null;
 
   if (searchTerm && filteredManga.length === 0 && !genreFilter) {
@@ -92,7 +106,7 @@ export default function HomePage() {
         {MANGA_GENRES_DETAILS.map(genre => (
           <Button key={genre.id} variant={genreFilter === genre.id ? "default" : "outline"} size="sm" asChild>
             <Link href={genreFilter === genre.id ? "/" : `/?genre=${genre.id}${searchTerm ? `&search=${searchTerm}` : ''}`}>
-              <Tag className="mr-1.5 h-3.5 w-3.5"/> {genre.name.split('(')[0].trim()}
+              <Tag className="mr-1.5 h-3.5 w-3.5"/> {genre.name}
             </Link>
           </Button>
         ))}
@@ -141,13 +155,13 @@ export default function HomePage() {
             </section>
           )}
 
-          {randomManga.length > 0 && popularManga.length > 0 && <Separator className="my-10" />}
+          {clientRandomManga.length > 0 && popularManga.length > 0 && <Separator className="my-10" />}
           
-          {randomManga.length > 0 && (
+          {clientRandomManga.length > 0 && (
              <section>
               <h2 className="text-3xl font-semibold mb-6 tracking-tight flex items-center" suppressHydrationWarning><Shuffle className="mr-3 h-7 w-7 text-green-500"/>Random Recommendations</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-8">
-                {randomManga.map((manga) => (
+                {clientRandomManga.map((manga) => (
                   <MangaCard key={manga.id} manga={manga} />
                 ))}
               </div>
@@ -165,10 +179,3 @@ export default function HomePage() {
     </div>
   );
 }
-
-// Mock useAuth hook if not available globally, for standalone testing of this component
-// In a real app, this would come from your AuthContext
-const useAuth = () => ({
-  user: null, // Or a mock user object
-  updateUserSearchHistory: (term: string) => console.log("Search term:", term)
-});
