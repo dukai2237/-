@@ -3,14 +3,14 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
-import type { MangaPage, MangaSeries } from '@/lib/types'; // Added MangaSeries
+import type { MangaPage, MangaSeries } from '@/lib/types';
 import { MangaReaderControls } from './MangaReaderControls';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { XCircle, Lock, ShoppingCart } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
-import { getMangaById } from '@/lib/mock-data'; // To fetch manga details for freePreviewPageCount
+import { getMangaById as fetchMangaById } from '@/lib/mock-data'; // Renamed to avoid conflict
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -20,16 +20,24 @@ interface MangaReaderViewProps {
   pages: MangaPage[];
   mangaId: string;
   chapterId: string;
+  initialManga: MangaSeries; // Pass initial manga data to avoid re-fetch on load
 }
 
-export function MangaReaderView({ pages, mangaId, chapterId }: MangaReaderViewProps) {
+export function MangaReaderView({ pages, mangaId, chapterId, initialManga }: MangaReaderViewProps) {
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { user, isSubscribed, subscribe: attemptSubscription, updateViewingHistory, getViewingHistory } = useAuth();
-  const manga = getMangaById(mangaId); // Fetch manga details
+  const { user, isSubscribedToManga, subscribeToManga, updateViewingHistory, getViewingHistory } = useAuth(); // Use new isSubscribedToManga
+  
+  // Use initialManga prop first, then allow updates if necessary (though mock data is fairly static here)
+  const [manga, setManga] = useState<MangaSeries>(initialManga); 
   const router = useRouter();
   const { toast } = useToast();
+
+  useEffect(() => {
+    // Update local manga state if initialManga changes (e.g., parent re-renders with new props)
+    setManga(initialManga);
+  }, [initialManga]);
 
   useEffect(() => {
     const history = getViewingHistory(mangaId);
@@ -40,7 +48,7 @@ export function MangaReaderView({ pages, mangaId, chapterId }: MangaReaderViewPr
 
 
   useEffect(() => {
-    if (user && mangaId && chapterId) { // only update if user is logged in
+    if (user && mangaId && chapterId) { 
       updateViewingHistory(mangaId, chapterId, currentPageIndex);
     }
   }, [currentPageIndex, mangaId, chapterId, user, updateViewingHistory]);
@@ -75,7 +83,6 @@ export function MangaReaderView({ pages, mangaId, chapterId }: MangaReaderViewPr
     if (!currentPageData) {
         setError("Page data not found.");
     }
-    // Jump to page from URL hash if present
     const hash = window.location.hash;
     if (hash.startsWith("#page=")) {
       const pageNum = parseInt(hash.substring(6), 10);
@@ -86,7 +93,6 @@ export function MangaReaderView({ pages, mangaId, chapterId }: MangaReaderViewPr
 
   }, [currentPageIndex, currentPageData, totalPages]);
 
-  // Update URL hash
   useEffect(() => {
     if (totalPages > 0) {
        router.replace(`#page=${currentPageIndex + 1}`, { scroll: false });
@@ -94,7 +100,7 @@ export function MangaReaderView({ pages, mangaId, chapterId }: MangaReaderViewPr
   }, [currentPageIndex, router, totalPages]);
 
 
-  if (!manga) {
+  if (!manga) { // Should ideally not happen if initialManga is passed correctly
      return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] text-center p-4">
         <XCircle className="w-16 h-16 text-destructive mb-4" />
@@ -105,7 +111,8 @@ export function MangaReaderView({ pages, mangaId, chapterId }: MangaReaderViewPr
   }
 
   const freePreviewPageCount = manga.freePreviewPageCount || 0;
-  const needsSubscription = currentPageIndex >= freePreviewPageCount && !isSubscribed(mangaId);
+  const userIsSubscribed = isSubscribedToManga(mangaId); // Use new function
+  const needsSubscription = currentPageIndex >= freePreviewPageCount && !userIsSubscribed;
 
   if (!totalPages) {
     return (
@@ -141,7 +148,7 @@ export function MangaReaderView({ pages, mangaId, chapterId }: MangaReaderViewPr
         <Button 
             size="lg" 
             className="text-lg py-6 px-8"
-            onClick={() => {
+            onClick={async () => {
                 if (!user) {
                     toast({
                         title: "Login Required",
@@ -151,12 +158,15 @@ export function MangaReaderView({ pages, mangaId, chapterId }: MangaReaderViewPr
                     });
                     return;
                 }
-                if (typeof attemptSubscription === 'function') {
-                    attemptSubscription(mangaId, manga.title);
+                if (manga.subscriptionPrice) {
+                    await subscribeToManga(mangaId, manga.title, manga.subscriptionPrice);
+                    // State will update via AuthContext, re-evaluating `needsSubscription`
+                } else {
+                    toast({ title: "Subscription Not Available", description: "This manga does not have a subscription price set.", variant: "destructive"});
                 }
             }}
         >
-          <ShoppingCart className="mr-2 h-5 w-5" /> Subscribe for ${manga.subscriptionPrice || 'N/A'}/month
+          <ShoppingCart className="mr-2 h-5 w-5" /> Subscribe for ${manga.subscriptionPrice?.toFixed(2) || 'N/A'}/month
         </Button>
         <Link href={`/manga/${mangaId}`} className="mt-4">
           <Button variant="outline">Back to Manga Details</Button>
@@ -167,7 +177,7 @@ export function MangaReaderView({ pages, mangaId, chapterId }: MangaReaderViewPr
 
 
   return (
-    <div className="flex flex-col items-center pb-24"> {/* Added pb-24 for controls space */}
+    <div className="flex flex-col items-center pb-24"> 
       <div className="w-full max-w-3xl aspect-[800/1200] relative my-4 bg-muted rounded-md overflow-hidden shadow-lg">
         {isLoading && (
             <Skeleton className="absolute inset-0 w-full h-full" />
@@ -180,7 +190,7 @@ export function MangaReaderView({ pages, mangaId, chapterId }: MangaReaderViewPr
                 layout="fill"
                 objectFit="contain"
                 priority={currentPageIndex < 2} 
-                onLoadingComplete={() => setIsLoading(false)}
+                onLoad={() => setIsLoading(false)} // Changed from onLoadingComplete for potentially better sync
                 onError={() => {
                   setError(`Failed to load image for page ${currentPageIndex + 1}.`);
                   setIsLoading(false);
