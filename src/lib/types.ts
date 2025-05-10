@@ -14,7 +14,9 @@ export interface User {
   favorites?: string[]; // mangaIds
   searchHistory?: string[];
   followedShareListings?: string[]; // IDs of share listings the user is following
-  bankDetails?: BankAccountDetails; 
+  bankDetails?: BankAccountDetails;
+  donationCount?: number; // Number of donations made
+  investmentOpportunitiesAvailable?: number; // Number of investment chances unlocked
 }
 
 export interface BankAccountDetails {
@@ -84,7 +86,7 @@ export interface MangaInvestmentOffer {
   totalSharesInOffer: number; 
   pricePerShare: number; 
   maxSharesPerUser?: number;
-  minSubscriptionRequirement?: number;
+  minSubscriptionRequirement?: number; // This was the old creator-specific subscription requirement, might deprecate or adjust if MIN_SUBSCRIPTIONS_FOR_INVESTMENT from constants.ts is the main global one.
   description: string;
   isActive: boolean;
   dividendPayoutCycle?: 1 | 3 | 6 | 12; 

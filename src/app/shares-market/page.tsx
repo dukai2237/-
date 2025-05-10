@@ -1,24 +1,22 @@
 // src/app/shares-market/page.tsx
 "use client";
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Search, Store, AlertCircle } from 'lucide-react';
 import { ShareListingCard } from '@/components/shares-market/ShareListingCard';
 import type { ShareListing } from '@/lib/types';
-import { getActiveShareListings } from '@/lib/mock-data'; // Assume this function will be created
+import { getActiveShareListings } from '@/lib/mock-data'; 
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function SharesMarketPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [allListings, setAllListings] = useState<ShareListing[]>([]);
   const [filteredListings, setFilteredListings] = useState<ShareListing[]>([]);
-  const { user } = useAuth(); // To potentially filter out user's own listings or add follow buttons
+  const { user } = useAuth(); 
 
   useEffect(() => {
-    // Fetch all active share listings
-    // In a real app, this would be an API call. For mock, we use a function from mock-data.
     setAllListings(getActiveShareListings());
   }, []);
 
@@ -36,7 +34,6 @@ export default function SharesMarketPage() {
 
   const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // Filtering is already handled by useEffect on searchTerm change
   };
   
   const pageTitle = "Manga Shares Trading Market";
@@ -88,3 +85,4 @@ export default function SharesMarketPage() {
     </div>
   );
 }
+

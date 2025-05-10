@@ -10,7 +10,7 @@ const generatePages = (chapterId: string, count: number): MangaPage[] => {
   }));
 };
 
-export const mockAuthors: (AuthorInfo & { contactDetails?: AuthorContactDetails, isSystemUser?: boolean, walletBalance: number, bankDetails?: BankAccountDetails })[] = [
+export const mockAuthors: (AuthorInfo & { contactDetails?: AuthorContactDetails, isSystemUser?: boolean, walletBalance: number, bankDetails?: BankAccountDetails, donationCount?: number, investmentOpportunitiesAvailable?: number })[] = [
   {
     id: 'author-1',
     name: 'Kenji Tanaka',
@@ -22,6 +22,8 @@ export const mockAuthors: (AuthorInfo & { contactDetails?: AuthorContactDetails,
     walletBalance: 1500,
     bankDetails: { accountHolderName: 'Kenji Tanaka', bankName: 'Sumitomo Mitsui Banking Corporation', accountNumber: '123456789', routingNumber: '021000021' },
     isSystemUser: false,
+    donationCount: 0,
+    investmentOpportunitiesAvailable: 0,
   },
   {
     id: 'author-2',
@@ -34,6 +36,8 @@ export const mockAuthors: (AuthorInfo & { contactDetails?: AuthorContactDetails,
     walletBalance: 800,
     bankDetails: { accountHolderName: 'Yuki Sato', bankName: 'Mizuho Bank', accountNumber: '987654321', routingNumber: '021000089' },
     isSystemUser: false,
+    donationCount: 0,
+    investmentOpportunitiesAvailable: 0,
   },
   {
     id: 'author-3',
@@ -41,6 +45,8 @@ export const mockAuthors: (AuthorInfo & { contactDetails?: AuthorContactDetails,
     avatarUrl: 'https://picsum.photos/100/100?random=author3',
     walletBalance: 300,
     isSystemUser: false,
+    donationCount: 0,
+    investmentOpportunitiesAvailable: 0,
   },
   {
     id: 'user-123', // This is also MOCK_USER_VALID.id from AuthContext
@@ -52,7 +58,9 @@ export const mockAuthors: (AuthorInfo & { contactDetails?: AuthorContactDetails,
       socialLinks: [{ platform: 'Website', url: 'https://testcreator.com'}]
     },
     walletBalance: 500, 
-    bankDetails: { accountHolderName: 'Test Creator', bankName: 'Bank of America', accountNumber: '1122334455', routingNumber: '026009593' }
+    bankDetails: { accountHolderName: 'Test Creator', bankName: 'Bank of America', accountNumber: '1122334455', routingNumber: '026009593' },
+    donationCount: 0, // Initialize for MOCK_USER_VALID
+    investmentOpportunitiesAvailable: 2, // MOCK_USER_VALID has 10 subscriptions, so 10/5 = 2 opportunities
   },
   {
     id: 'author-pending',
@@ -61,6 +69,8 @@ export const mockAuthors: (AuthorInfo & { contactDetails?: AuthorContactDetails,
     contactDetails: { email: 'pending@example.com' },
     walletBalance: 0,
     isSystemUser: false,
+    donationCount: 0,
+    investmentOpportunitiesAvailable: 0,
   }
 ];
 
@@ -244,7 +254,7 @@ export const getMangaById = (id: string): MangaSeries | undefined => {
   return modifiableMockMangaSeries.find(manga => manga.id === id);
 };
 
-export const getAuthorById = (id: string): (AuthorInfo & { contactDetails?: AuthorContactDetails, walletBalance: number, bankDetails?: BankAccountDetails, isSystemUser?: boolean }) | undefined => {
+export const getAuthorById = (id: string): (AuthorInfo & { contactDetails?: AuthorContactDetails, walletBalance: number, bankDetails?: BankAccountDetails, isSystemUser?: boolean, donationCount?:number, investmentOpportunitiesAvailable?:number }) | undefined => {
   return mockAuthors.find(author => author.id === id);
 }
 
@@ -373,6 +383,8 @@ export const addMockMangaSeries = (newManga: MangaSeries) => {
         contactDetails: newManga.authorDetails,
         walletBalance: 0, // Initialize wallet for new author
         isSystemUser: false, // New authors added this way are not system users
+        donationCount: 0,
+        investmentOpportunitiesAvailable: 0,
     };
     mockAuthors.push(newAuthorData);
   }
@@ -456,3 +468,4 @@ export const addCommentToMockManga = (mangaId: string, newComment: Comment): Com
   }
   return null;
 };
+

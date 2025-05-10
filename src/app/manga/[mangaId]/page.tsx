@@ -26,7 +26,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { MangaSeries } from '@/lib/types';
-import { MANGA_GENRES_DETAILS, MIN_SUBSCRIPTIONS_FOR_INVESTMENT } from '@/lib/constants';
+import { MANGA_GENRES_DETAILS } from '@/lib/constants';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { CommentSection } from '@/components/manga/CommentSection';
 
@@ -82,7 +82,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
       }
     }, 1000); 
     return () => clearInterval(interval);
-  }, [mangaId, manga]); 
+  }, [mangaId]); 
 
 
   if (!manga) {
@@ -158,8 +158,8 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
       toast({ title: "Investment Closed", description: "This manga is not currently open for investment.", variant: "destructive" });
       return;
     }
-    if ((user.subscriptions?.length || 0) < MIN_SUBSCRIPTIONS_FOR_INVESTMENT) {
-        toast({ title: "Platform Investment Requirement Not Met", description: `You need to subscribe to or purchase at least ${MIN_SUBSCRIPTIONS_FOR_INVESTMENT} manga/chapters to invest. You currently have ${user.subscriptions?.length || 0}.`, variant: "destructive", duration: 7000 });
+    if ((user.investmentOpportunitiesAvailable || 0) <= 0) {
+        toast({ title: "Investment Locked", description: `You need an available investment opportunity. Earn one by making 5 combined subscriptions or donations. You currently have ${user.investmentOpportunitiesAvailable || 0} opportunities.`, variant: "destructive", duration: 8000 });
         return;
     }
     if (manga.investmentOffer.minSubscriptionRequirement && (!user.subscriptions || user.subscriptions.filter(s => s.type === 'monthly' && s.mangaId === manga.id).length < manga.investmentOffer.minSubscriptionRequirement)) {
@@ -173,6 +173,11 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
     if (!user || !manga.investmentOffer) return;
     if (isCreatorViewingOtherManga) {
         toast({ title: "Action Not Allowed", description: "Creators cannot invest in other creators' works.", variant: "destructive" });
+        setIsInvestmentDialogOpen(false);
+        return;
+    }
+    if ((user.investmentOpportunitiesAvailable || 0) <= 0) { // Re-check before actual investment
+        toast({ title: "Investment Locked", description: `No investment opportunities available.`, variant: "destructive" });
         setIsInvestmentDialogOpen(false);
         return;
     }
@@ -206,6 +211,10 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
         toast({ title: "Action Not Allowed", description: "Creators cannot favorite other creators' works.", variant: "destructive" });
         return;
     }
+    if (!user) {
+        toast({ title: "Login Required", description: "Please login to favorite manga.", variant: "destructive", action: <Button onClick={() => router.push('/login?redirect=/manga/' + mangaId)}>Login</Button> });
+        return;
+    }
     toggleFavorite(manga.id, manga.title);
   };
 
@@ -228,7 +237,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
   const currentInvestmentOffer = manga.investmentOffer;
   const sharesRemaining = currentInvestmentOffer ? currentInvestmentOffer.totalSharesInOffer - manga.investors.reduce((sum, inv) => sum + inv.sharesOwned, 0) : 0;
 
-  const canUserInvestGlobally = user ? (user.subscriptions?.length || 0) >= MIN_SUBSCRIPTIONS_FOR_INVESTMENT : false;
+  const canUserInvest = user && !isCreatorViewingOtherManga && (user.investmentOpportunitiesAvailable || 0) > 0;
   const canUserInvestAuthorSpecific = user && currentInvestmentOffer && currentInvestmentOffer.minSubscriptionRequirement
     ? (user.subscriptions?.filter(s => s.type === 'monthly' && s.mangaId === manga.id).length || 0) >= currentInvestmentOffer.minSubscriptionRequirement
     : true; 
@@ -338,7 +347,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
                     </div>
                   )}
                 </div>
-                {((!canRate && user) || isCreatorViewingOtherManga) && (
+                {((!canRate && user && !isCreatorViewingOtherManga) || (user && isCreatorViewingOtherManga)) && (
                   <p className="text-xs text-muted-foreground mt-2 flex items-center" suppressHydrationWarning>
                     <Lock className="h-3 w-3 mr-1" /> {ratingDisabledReason()}
                   </p>
@@ -437,8 +446,8 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
                 </div>
               </div>
               <p className="text-xs text-muted-foreground flex items-center" suppressHydrationWarning>
-                <Info className="mr-1 h-3 w-3"/> Platform Requirement: At least {MIN_SUBSCRIPTIONS_FOR_INVESTMENT} total subscriptions/purchases.
-                {user && ` You have ${user.subscriptions?.length || 0}.`}
+                <Info className="mr-1 h-3 w-3"/> Platform Requirement: 5 combined subscriptions/donations per investment opportunity.
+                {user && ` You have ${user.investmentOpportunitiesAvailable || 0} opportunities.`}
               </p>
                {currentInvestmentOffer.minSubscriptionRequirement && (
                 <p className="text-xs text-muted-foreground flex items-center" suppressHydrationWarning>
@@ -464,8 +473,9 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
               <Button 
                 onClick={handleOpenInvestmentDialog} 
                 className="w-full text-lg py-6" 
-                disabled={sharesRemaining <= 0 || !canUserInvestGlobally || !canUserInvestAuthorSpecific || isCreatorViewingOtherManga} 
+                disabled={sharesRemaining <= 0 || !canUserInvest || !canUserInvestAuthorSpecific || isCreatorViewingOtherManga} 
                 suppressHydrationWarning
+                title={!canUserInvest ? `Requires investment opportunity (earned via 5 subscriptions/donations). You have ${user?.investmentOpportunitiesAvailable || 0}.` : ""}
               >
                 <TrendingUp className="mr-2 h-5 w-5" /> Invest Now
               </Button>
@@ -570,3 +580,4 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
     </div>
   );
 }
+

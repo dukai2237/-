@@ -1,3 +1,4 @@
+
 "use client";
 import type { User, UserSubscription, UserInvestment, SimulatedTransaction, MangaSeries, MangaInvestor, Chapter, MangaPage, AuthorContactDetails, ShareListing, Comment, BankAccountDetails, AuthorInfo as GlobalAuthorInfo } from '@/lib/types';
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
@@ -10,7 +11,7 @@ import {
     removeShareListing as globalRemoveShareListing, getShareListingById, updateListingFollowerCount,
     addCommentToMockManga
 } from '@/lib/mock-data';
-import { MAX_WORKS_PER_CREATOR, MAX_SHARES_PER_OFFER, MIN_SUBSCRIPTIONS_FOR_INVESTMENT } from '@/lib/constants'; 
+import { MAX_WORKS_PER_CREATOR, MAX_SHARES_PER_OFFER } from '@/lib/constants'; 
 
 const PLATFORM_FEE_RATE = 0.10; 
 const ONE_YEAR_IN_MS = 365 * 24 * 60 * 60 * 1000;
@@ -98,7 +99,9 @@ export const MOCK_USER_VALID: User = {
     bankName: "Bank of Test",
     accountNumber: "1234567890",
     routingNumber: "0987654321",
-  }
+  },
+  donationCount: 0, 
+  investmentOpportunitiesAvailable: 2, 
 };
 
 
@@ -137,6 +140,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         followedShareListings: parsedUser.followedShareListings || [],
         bankDetails: parsedUser.bankDetails || (parsedUser.id === MOCK_USER_VALID.id ? MOCK_USER_VALID.bankDetails : undefined),
         password_hash_mock: parsedUser.password_hash_mock || (parsedUser.id === MOCK_USER_VALID.id ? MOCK_USER_VALID.password_hash_mock : undefined),
+        donationCount: parsedUser.donationCount || 0,
+        investmentOpportunitiesAvailable: parsedUser.investmentOpportunitiesAvailable || 0,
       });
     }
     const storedViewingHistory = localStorage.getItem('authViewingHistory');
@@ -198,6 +203,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       subscriptions: userData.subscriptions || (userData.id === MOCK_USER_VALID.id ? MOCK_USER_VALID.subscriptions : []),
       bankDetails: userData.bankDetails || (userData.id === MOCK_USER_VALID.id ? MOCK_USER_VALID.bankDetails : undefined),
       password_hash_mock: userData.password_hash_mock || (userData.id === MOCK_USER_VALID.id ? MOCK_USER_VALID.password_hash_mock : undefined),
+      donationCount: userData.donationCount || (userData.id === MOCK_USER_VALID.id ? MOCK_USER_VALID.donationCount : 0),
+      investmentOpportunitiesAvailable: userData.investmentOpportunitiesAvailable || (userData.id === MOCK_USER_VALID.id ? MOCK_USER_VALID.investmentOpportunitiesAvailable : 0),
     };
 
     if (fullUserData.accountType === 'creator' && !fullUserData.isApproved) {
@@ -246,12 +253,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 
   const signup = useCallback(async (name: string, email: string, password?: string, accountType: 'user' | 'creator' = 'user', verificationCode?: string): Promise<User | null> => {
-    if (!password) { // Basic check if password is provided, real app would have stronger validation
+    if (!password) { 
         toast({ title: "Signup Failed", description: "Password is required.", variant: "destructive" });
         return null;
     }
 
-    // Simulate verification code check
     if (verificationCode !== MOCK_VERIFICATION_CODE) {
       toast({ title: "Signup Failed", description: "Invalid verification code. Please try again.", variant: "destructive" });
       return null;
@@ -266,7 +272,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const newUserId = `user-${Date.now()}-${Math.random().toString(16).slice(4)}`;
-    // In a real app, you'd hash the password here. For mock, we store it (conceptually) or a mock hash.
     const password_hash_mock = `hashed_${password}_${newUserId}`; 
 
     const newUserToAdd: User = {
@@ -285,6 +290,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       favorites: [],
       searchHistory: [],
       followedShareListings: [],
+      donationCount: 0,
+      investmentOpportunitiesAvailable: 0,
     };
 
     mockUserListFromStorage.push(newUserToAdd);
@@ -311,12 +318,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         duration: 10000
       });
       
-      // Auto-approve if it's the MOCK_USER_VALID email for easier testing
+      // Simulate auto-approval for MOCK_USER_VALID's email for testing convenience
       if (email === MOCK_USER_VALID.email) { 
         setTimeout(() => approveCreatorAccount(newUserToAdd.id), 2000); 
       }
     } else {
-      // For regular users, log them in directly after signup.
       setUser(newUserToAdd); 
       toast({ title: "Signup Successful!", description: `Welcome, ${name}! Your account has been created.` });
     }
@@ -381,7 +387,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         subscribedSince: new Date().toISOString(),
         expiresAt: expiresAt
       };
-      return { ...prevUser, walletBalance: newBalance, subscriptions: [...prevUser.subscriptions, newSubscription] };
+
+      const oldTotalCombinedActions = (prevUser.subscriptions.length) + (prevUser.donationCount || 0);
+      const newTotalCombinedActions = (prevUser.subscriptions.length + 1) + (prevUser.donationCount || 0);
+      const opportunitiesGained = Math.floor(newTotalCombinedActions / 5) - Math.floor(oldTotalCombinedActions / 5);
+      let newInvestmentOpportunitiesAvailable = prevUser.investmentOpportunitiesAvailable || 0;
+      if (opportunitiesGained > 0) {
+        newInvestmentOpportunitiesAvailable += opportunitiesGained;
+        toast({ title: "Investment Opportunity Unlocked!", description: `You've gained ${opportunitiesGained} new investment ${opportunitiesGained === 1 ? 'chance' : 'chances'}!` });
+      }
+      
+      return { 
+        ...prevUser, 
+        walletBalance: newBalance, 
+        subscriptions: [...prevUser.subscriptions, newSubscription],
+        investmentOpportunitiesAvailable: newInvestmentOpportunitiesAvailable,
+      };
     });
     
     updateMockAuthorBalance(author.id, author.walletBalance + revenueToAuthor);
@@ -412,7 +433,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     toast({ title: "Purchase Successful!", description: `You've ${accessType === 'monthly' ? 'subscribed to' : 'purchased chapter of'} ${manga.title} for $${price.toFixed(2)}.` });
     return true;
 
-  }, [user, toast, recordTransaction]);
+  }, [user, toast, recordTransaction, setUser]);
 
 
   const donateToManga = useCallback(async (mangaId: string, mangaTitle: string, authorId: string, amount: number): Promise<boolean> => {
@@ -421,7 +442,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return false;
     }
     if (user.accountType === 'creator') {
-      toast({ title: "Action Not Allowed", description: "Creators cannot donate to other creators.", variant: "destructive" });
+      toast({ title: "Action Not Allowed", description: "Creators cannot donate.", variant: "destructive" });
       return false;
     }
     const manga = getMangaById(mangaId);
@@ -449,7 +470,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setUser(prevUser => {
       if (!prevUser) return null;
-      return { ...prevUser, walletBalance: prevUser.walletBalance - amount };
+      const oldTotalCombinedActions = (prevUser.subscriptions.length) + (prevUser.donationCount || 0);
+      const newDonationCount = (prevUser.donationCount || 0) + 1;
+      const newTotalCombinedActions = (prevUser.subscriptions.length) + newDonationCount;
+      const opportunitiesGained = Math.floor(newTotalCombinedActions / 5) - Math.floor(oldTotalCombinedActions / 5);
+      let newInvestmentOpportunitiesAvailable = prevUser.investmentOpportunitiesAvailable || 0;
+
+      if (opportunitiesGained > 0) {
+        newInvestmentOpportunitiesAvailable += opportunitiesGained;
+        toast({ title: "Investment Opportunity Unlocked!", description: `You've gained ${opportunitiesGained} new investment ${opportunitiesGained === 1 ? 'chance' : 'chances'}!` });
+      }
+
+      return { 
+        ...prevUser, 
+        walletBalance: prevUser.walletBalance - amount,
+        donationCount: newDonationCount,
+        investmentOpportunitiesAvailable: newInvestmentOpportunitiesAvailable,
+      };
     });
 
     updateMockAuthorBalance(author.id, author.walletBalance + revenueToAuthor);
@@ -481,16 +518,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return false;
     }
     if (user.accountType === 'creator') {
-        toast({ title: "Action Not Allowed", description: "Creators cannot invest in other creators' works.", variant: "destructive" });
+        toast({ title: "Action Not Allowed", description: "Creators cannot invest.", variant: "destructive" });
         return false;
+    }
+    if ((user.investmentOpportunitiesAvailable || 0) <= 0) {
+      toast({ title: "Investment Locked", description: `You need an available investment opportunity. Earn one by making 5 combined subscriptions or donations. You have ${user.investmentOpportunitiesAvailable || 0} opportunities.`, variant: "destructive", duration: 7000 });
+      return false;
     }
     const manga = getMangaById(mangaId);
     if (!manga || !manga.investmentOffer || !manga.investmentOffer.isActive || !manga.author) {
       toast({ title: "Investment Unavailable", description: "This manga is not currently open for investment or author details are missing.", variant: "destructive" });
-      return false;
-    }
-    if ((user.subscriptions?.length || 0) < MIN_SUBSCRIPTIONS_FOR_INVESTMENT) {
-      toast({ title: "Investment Requirement Not Met", description: `You need to subscribe to or purchase at least ${MIN_SUBSCRIPTIONS_FOR_INVESTMENT} manga/chapters to invest. You currently have ${user.subscriptions?.length || 0}.`, variant: "destructive", duration: 7000 });
       return false;
     }
     
@@ -546,7 +583,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         updatedInvestments.push({ mangaId, mangaTitle, sharesOwned: sharesToBuy, amountInvested: totalCost, investmentDate: new Date().toISOString(), totalDividendsReceived: 0 });
       }
-      return { ...prevUser, walletBalance: newBalance, investments: updatedInvestments };
+      return { 
+        ...prevUser, 
+        walletBalance: newBalance, 
+        investments: updatedInvestments,
+        investmentOpportunitiesAvailable: (prevUser.investmentOpportunitiesAvailable || 0) - 1,
+       };
     });
 
     const newInvestorEntry: MangaInvestor = { userId: user.id, userName: user.name, sharesOwned: sharesToBuy, totalAmountInvested: totalCost, joinedDate: new Date().toISOString() };
@@ -606,7 +648,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toast({ title: "Manga Not Found", variant: "destructive" });
       return false;
     }
-    if (!isSubscribedToManga(mangaId) && !user.investments.some(inv => inv.mangaId === mangaId) && !user.subscriptions.some(sub => sub.mangaId === mangaId && sub.type === 'chapter') ) {
+    // Updated rating condition: subscription OR chapter purchase OR investment
+    const hasAccessToRate = isSubscribedToManga(mangaId) || 
+                            user.investments.some(inv => inv.mangaId === mangaId) || 
+                            user.subscriptions.some(sub => sub.mangaId === mangaId && sub.type === 'chapter');
+
+    if (!hasAccessToRate) {
       toast({ title: "Access Required", description: "You must be subscribed to, have purchased a chapter of, or invested in this manga to rate it.", variant: "destructive" });
       return false;
     }
@@ -856,8 +903,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     if (isCreatorWithdrawal && authorDetailsForWithdrawal) {
         updateMockAuthorBalance(user.id, currentBalance - amountToWithdraw);
-        if (user.id === authorDetailsForWithdrawal.id) {
-             setUser(prev => prev ? { ...prev, walletBalance: prev.walletBalance - amountToWithdraw } : null); 
+        if (user.id === authorDetailsForWithdrawal.id) { // Ensure the logged-in user is the one whose wallet is being updated
+             setUser(prev => prev ? { ...prev, walletBalance: prev.walletBalance - amountToWithdraw } : null); // Update user's own view of their balance if they are the author
         }
     } else {
         setUser(prev => prev ? { ...prev, walletBalance: prev.walletBalance - amountToWithdraw } : null);
@@ -1021,8 +1068,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         toast({ title: "Action Not Allowed", description: "Creators cannot purchase shares from the market.", variant: "destructive" });
         return false;
     }
-    if ((user.subscriptions?.length || 0) < MIN_SUBSCRIPTIONS_FOR_INVESTMENT) {
-      toast({ title: "Purchase Requirement Not Met", description: `You need to subscribe to or purchase at least ${MIN_SUBSCRIPTIONS_FOR_INVESTMENT} manga/chapters to buy shares. You currently have ${user.subscriptions?.length || 0}.`, variant: "destructive", duration: 7000 });
+    if ((user.investmentOpportunitiesAvailable || 0) <= 0) {
+      toast({ title: "Investment Locked", description: `You need an available investment opportunity. Earn one by making 5 combined subscriptions or donations. You have ${user.investmentOpportunitiesAvailable || 0} opportunities.`, variant: "destructive", duration: 7000 });
       return false;
     }
 
@@ -1056,7 +1103,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         updatedInvestments.push({ mangaId: listing.mangaId, mangaTitle: listing.mangaTitle, sharesOwned: sharesToBuy, amountInvested: totalCost, investmentDate: new Date().toISOString() });
       }
-      return { ...prevUser, walletBalance: newBalance, investments: updatedInvestments };
+      return { 
+        ...prevUser, 
+        walletBalance: newBalance, 
+        investments: updatedInvestments,
+        investmentOpportunitiesAvailable: (prevUser.investmentOpportunitiesAvailable || 0) -1,
+      };
     });
     recordTransaction({ type: 'user_payment', amount: -totalCost, userId: user.id, mangaId: listing.mangaId, description: `Purchased ${sharesToBuy} shares of ${listing.mangaTitle} from market. Listing ID: ${listingId}`, relatedData: { listingId, sharesToBuy, pricePerShare: listing.pricePerShare, sellerUserId: listing.sellerUserId } });
 
@@ -1103,7 +1155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     toast({ title: "Purchase Successful!", description: `You bought ${sharesToBuy} shares of ${listing.mangaTitle}.`});
     return true;
-  }, [user, toast, recordTransaction, setUser]);
+  }, [user, toast, recordTransaction]);
 
   const followShareListing = useCallback((listingId: string) => {
     if (!user) return;
@@ -1206,3 +1258,4 @@ export function useAuth() {
   }
   return context;
 }
+

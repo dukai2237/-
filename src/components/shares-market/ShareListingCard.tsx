@@ -10,7 +10,6 @@ import { DollarSign, Users, Package, Eye, Briefcase } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
-import { MIN_SUBSCRIPTIONS_FOR_INVESTMENT } from '@/lib/constants';
 
 interface ShareListingCardProps {
   listing: ShareListing;
@@ -22,7 +21,7 @@ export function ShareListingCard({ listing, currentUserId }: ShareListingCardPro
   const { toast } = useToast();
 
   const isFollowed = user ? isShareListingFollowed(listing.id) : false;
-  const canUserPurchaseShares = user ? (user.subscriptions?.length || 0) >= MIN_SUBSCRIPTIONS_FOR_INVESTMENT : false;
+  const canUserPurchaseShares = user ? (user.investmentOpportunitiesAvailable || 0) > 0 : false;
 
   const handleFollowToggle = () => {
     if (!user) {
@@ -42,7 +41,7 @@ export function ShareListingCard({ listing, currentUserId }: ShareListingCardPro
       return;
     }
     if (!canUserPurchaseShares) {
-        toast({ title: "Purchase Requirement Not Met", description: `You need to subscribe to or purchase at least ${MIN_SUBSCRIPTIONS_FOR_INVESTMENT} manga/chapters to buy shares. You currently have ${user.subscriptions?.length || 0}.`, variant: "destructive", duration: 7000 });
+        toast({ title: "Purchase Locked", description: `You need an available investment opportunity. Earn one via 5 combined subscriptions/donations. You have ${user.investmentOpportunitiesAvailable || 0}.`, variant: "destructive", duration: 8000 });
         return;
     }
     if (user.id === listing.sellerUserId) {
@@ -113,7 +112,7 @@ export function ShareListingCard({ listing, currentUserId }: ShareListingCardPro
           onClick={handlePurchase} 
           className="w-full sm:flex-grow" 
           disabled={currentUserId === listing.sellerUserId || !listing.isActive || !canUserPurchaseShares}
-          title={!canUserPurchaseShares ? `Requires ${MIN_SUBSCRIPTIONS_FOR_INVESTMENT} subscriptions/purchases` : (currentUserId === listing.sellerUserId ? "Cannot buy own shares" : (!listing.isActive ? "Listing not active" : "Buy Shares"))}
+          title={!canUserPurchaseShares ? `Requires investment opportunity (earned via 5 subscriptions/donations). You have ${user?.investmentOpportunitiesAvailable || 0}.` : (currentUserId === listing.sellerUserId ? "Cannot buy own shares" : (!listing.isActive ? "Listing not active" : "Buy Shares"))}
           suppressHydrationWarning
         >
           <DollarSign className="mr-1.5 h-4 w-4" /> 
@@ -134,3 +133,4 @@ export function ShareListingCard({ listing, currentUserId }: ShareListingCardPro
     </Card>
   );
 }
+
