@@ -3,12 +3,12 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
-import type { MangaPage, MangaSeries, Chapter } from '@/lib/types'; // Added Chapter
+import type { MangaPage, MangaSeries } from '@/lib/types';
 import { MangaReaderControls } from './MangaReaderControls';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { XCircle, Lock, ShoppingCart, BookOpen } from "lucide-react"; // Added BookOpen
+import { XCircle, Lock, ShoppingCart, BookOpen } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
@@ -19,82 +19,89 @@ interface MangaReaderViewProps {
   pages: MangaPage[];
   mangaId: string;
   chapterId: string;
-  initialManga: MangaSeries; 
+  initialManga: MangaSeries;
   initialChapterNumber: number;
 }
 
 export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initialChapterNumber }: MangaReaderViewProps) {
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isImageLoading, setIsImageLoading] = useState(true); // For the current page's image
   const [error, setError] = useState<string | null>(null);
-  const { user, purchaseAccess, hasPurchasedChapter, isSubscribedToManga, updateViewingHistory, getViewingHistory } = useAuth(); 
-  
-  const [manga, setManga] = useState<MangaSeries>(initialManga); 
+  const { user, purchaseAccess, hasPurchasedChapter, isSubscribedToManga, updateViewingHistory, getViewingHistory } = useAuth();
+
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { toast } = useToast();
 
-  const [touchStartX, setTouchStartX] = useState<number | null>(null);
-  const [touchEndX, setTouchEndX] = useState<number | null>(null);
-  const MIN_SWIPE_DISTANCE = 50;
-
+  const [manga, setManga] = useState<MangaSeries>(initialManga);
   useEffect(() => {
     setManga(initialManga);
   }, [initialManga]);
 
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [touchEndX, setTouchEndX] = useState<number | null>(null);
+  const MIN_SWIPE_DISTANCE = 50;
+
+  const totalPages = pages.length;
+
+  // Effect 1: Determine and set the initial/current page index
   useEffect(() => {
+    if (pages.length === 0) {
+      setCurrentPageIndex(0);
+      setIsImageLoading(false);
+      setError(null);
+      return;
+    }
+
+    let targetPageIndex = 0;
     const history = getViewingHistory(mangaId);
-    let calculatedInitialPageIdx = 0; 
-    if (history && history.chapterId === chapterId && history.pageIndex < pages.length) {
-      calculatedInitialPageIdx = history.pageIndex;
+
+    if (history && history.chapterId === chapterId && history.pageIndex >= 0 && history.pageIndex < pages.length) {
+      targetPageIndex = history.pageIndex;
     } else {
-      // This part runs on the client after mount, so window.location.hash is fine
       const hash = typeof window !== 'undefined' ? window.location.hash : '';
       if (hash.startsWith("#page=")) {
-        const pageNum = parseInt(hash.substring(6), 10);
-        if (!isNaN(pageNum) && pageNum > 0 && pageNum <= pages.length) {
-          calculatedInitialPageIdx = pageNum - 1;
+        const pageNumFromHash = parseInt(hash.substring(6), 10);
+        if (!isNaN(pageNumFromHash) && pageNumFromHash > 0 && pageNumFromHash <= pages.length) {
+          targetPageIndex = pageNumFromHash - 1;
         }
       }
     }
     
-    // Only call setCurrentPageIndex if the newly calculated index is different from the current one.
-    // This prevents an infinite loop.
-    if (calculatedInitialPageIdx !== currentPageIndex) {
-      setCurrentPageIndex(calculatedInitialPageIdx);
-    }
-    
-    setIsLoading(pages.length > 0);
-  }, [mangaId, chapterId, getViewingHistory, pages, currentPageIndex]); // Added currentPageIndex and pages
+    setCurrentPageIndex(idx => {
+        // Only update if the new target is different to prevent potential re-renders
+        // if other dependencies caused this effect to run but targetPageIndex remains same.
+        if (idx !== targetPageIndex) return targetPageIndex;
+        return idx;
+    });
+    // Image loading state for the *new* targetPageIndex will be handled by Effect 4
+  }, [mangaId, chapterId, pages, getViewingHistory]);
 
-
-  useEffect(() => {
-    if (user && mangaId && chapterId && user.accountType === 'user') { 
-      updateViewingHistory(mangaId, chapterId, currentPageIndex);
-    }
-  }, [currentPageIndex, mangaId, chapterId, user, updateViewingHistory]);
-
-
-  const totalPages = pages.length;
-  const currentPageData = pages[currentPageIndex];
 
   const handleNextPage = useCallback(() => {
-    if (currentPageIndex < totalPages - 1) {
-      setCurrentPageIndex((prev) => prev + 1);
-    }
-  }, [currentPageIndex, totalPages]);
+    setCurrentPageIndex((prev) => {
+      if (prev < totalPages - 1) {
+        return prev + 1;
+      }
+      return prev;
+    });
+  }, [totalPages]);
 
   const handlePrevPage = useCallback(() => {
-     if (currentPageIndex > 0) {
-      setCurrentPageIndex((prev) => prev - 1);
-    }
-  }, [currentPageIndex]);
+    setCurrentPageIndex((prev) => {
+      if (prev > 0) {
+        return prev - 1;
+      }
+      return prev;
+    });
+  }, []);
 
+  // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
-        return; 
+        return;
       }
       if (event.key === 'ArrowRight') {
         handleNextPage();
@@ -105,58 +112,70 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleNextPage, handlePrevPage]);
-  
-  useEffect(() => {
-    // This effect handles loading state based on currentPageData
-    // It should not set isLoading to true repeatedly if data is already there.
-    if (!currentPageData && totalPages > 0) { // If we expect data but don't have it for current page
-        setIsLoading(true); 
-        setError("Page data not found.");
-    } else if (currentPageData) {
-        setIsLoading(false); // Data is available
-        setError(null);
-    } else if (totalPages === 0) { // No pages at all
-        setIsLoading(false);
-        setError(null); // Or set a specific "no pages" error
-    }
-  }, [currentPageData, totalPages]);
 
+  // Effect 2: Update user's viewing history (depends on currentPageIndex)
   useEffect(() => {
-    if (totalPages > 0 && typeof window !== 'undefined') {
+    if (user && mangaId && chapterId && user.accountType === 'user' && totalPages > 0 && currentPageIndex >= 0 && currentPageIndex < totalPages) {
+      updateViewingHistory(mangaId, chapterId, currentPageIndex);
+    }
+  }, [currentPageIndex, mangaId, chapterId, user, updateViewingHistory, totalPages]);
+
+  // Effect 3: Update URL hash (depends on currentPageIndex)
+  useEffect(() => {
+    if (totalPages > 0 && typeof window !== 'undefined' && currentPageIndex >= 0 && currentPageIndex < totalPages) {
       const newUrl = `${pathname}${searchParams.toString() ? '?' + searchParams.toString() : ''}#page=${currentPageIndex + 1}`;
-      // router.replace causes issues with re-renders in some cases, history.replaceState is safer for hash changes.
       window.history.replaceState(null, '', newUrl);
     }
   }, [currentPageIndex, totalPages, pathname, searchParams]);
 
+  // Effect 4: Handle image loading state for the current page
+  useEffect(() => {
+    if (totalPages === 0) {
+      setIsImageLoading(false);
+      setError(null);
+      return;
+    }
+    if (currentPageIndex < 0 || currentPageIndex >= totalPages) {
+      setError("Invalid page index.");
+      setIsImageLoading(false);
+      return;
+    }
+    // When currentPageIndex changes to a valid page, assume its image needs to load.
+    setIsImageLoading(true);
+    setError(null); // Reset error for new page
+  }, [currentPageIndex, totalPages]); // Rerun if currentPageIndex changes or totalPages changes
+
+
+  const currentPageData = (totalPages > 0 && currentPageIndex >= 0 && currentPageIndex < totalPages) ? pages[currentPageIndex] : null;
+
   const onTouchStart = (e: React.TouchEvent) => {
-    setTouchEndX(null); 
+    setTouchEndX(null);
     setTouchStartX(e.targetTouches[0].clientX);
   };
-  
+
   const onTouchMove = (e: React.TouchEvent) => {
     setTouchEndX(e.targetTouches[0].clientX);
   };
-  
+
   const onTouchEnd = () => {
     if (!touchStartX || !touchEndX) return;
     const distance = touchStartX - touchEndX;
     const isLeftSwipe = distance > MIN_SWIPE_DISTANCE;
     const isRightSwipe = distance < -MIN_SWIPE_DISTANCE;
-  
-    if (isLeftSwipe && currentPageIndex < totalPages -1) {
+
+    if (isLeftSwipe && currentPageIndex < totalPages - 1) {
       handleNextPage();
     } else if (isRightSwipe && currentPageIndex > 0) {
       handlePrevPage();
     }
-  
+
     setTouchStartX(null);
     setTouchEndX(null);
   };
 
 
-  if (!manga) { 
-     return (
+  if (!manga) {
+    return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] text-center p-4">
         <XCircle className="w-16 h-16 text-destructive mb-4" />
         <h2 className="text-2xl font-semibold mb-2">Manga Details Not Found</h2>
@@ -169,65 +188,63 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
   const freePreviewChapterCount = manga.freePreviewChapterCount || 0;
 
   const isChapterWithinFreeChapterLimit = initialChapterNumber <= freePreviewChapterCount;
-  
-  // If chapter is free, all its pages are free.
-  // Otherwise, check if current page is within general free page limit for *this specific chapter*.
+
   const isPageWithinThisChaptersFreePreview = currentPageIndex < freePreviewTotalPageCount;
-  
+
   const isContentFree = isChapterWithinFreeChapterLimit || isPageWithinThisChaptersFreePreview;
 
 
   let needsAccess = false;
   let accessButtonText = "";
   let accessIcon = <ShoppingCart className="mr-2 h-5 w-5" />;
-  let accessAction = async () => {};
+  let accessAction = async () => { };
 
-  if (!isContentFree && user?.accountType !== 'creator') { // Creators have full access to all content
+  if (!isContentFree && user?.accountType !== 'creator') {
     if (manga.subscriptionModel === 'monthly' && manga.subscriptionPrice && !isSubscribedToManga(mangaId)) {
-        needsAccess = true;
-        accessButtonText = `Subscribe Monthly for $${manga.subscriptionPrice.toFixed(2)}`;
-        accessAction = async () => {
-            if (!user) {
-                 toast({ title: "Login Required", description: "Please log in to subscribe.", variant: "destructive", action: <Button onClick={() => router.push('/login?redirect=' + pathname + `#page=${currentPageIndex + 1}`)}>Login</Button> });
-                 return;
-            }
-            await purchaseAccess(manga.id, 'monthly', manga.id, manga.subscriptionPrice!);
-        };
+      needsAccess = true;
+      accessButtonText = `Subscribe Monthly for $${manga.subscriptionPrice.toFixed(2)}`;
+      accessAction = async () => {
+        if (!user) {
+          toast({ title: "Login Required", description: "Please log in to subscribe.", variant: "destructive", action: <Button onClick={() => router.push('/login?redirect=' + pathname + `#page=${currentPageIndex + 1}`)}>Login</Button> });
+          return;
+        }
+        await purchaseAccess(manga.id, 'monthly', manga.id, manga.subscriptionPrice!);
+      };
     } else if (manga.subscriptionModel === 'per_chapter' && manga.chapterSubscriptionPrice && !hasPurchasedChapter(mangaId, chapterId)) {
-        needsAccess = true;
-        accessButtonText = `Buy Chapter for $${manga.chapterSubscriptionPrice.toFixed(2)}`;
-        accessIcon = <BookOpen className="mr-2 h-5 w-5" />;
-        accessAction = async () => {
-            if (!user) {
-                 toast({ title: "Login Required", description: "Please log in to purchase this chapter.", variant: "destructive", action: <Button onClick={() => router.push('/login?redirect=' + pathname + `#page=${currentPageIndex + 1}`)}>Login</Button> });
-                 return;
-            }
-            await purchaseAccess(manga.id, 'chapter', chapterId, manga.chapterSubscriptionPrice!);
-        };
+      needsAccess = true;
+      accessButtonText = `Buy Chapter for $${manga.chapterSubscriptionPrice.toFixed(2)}`;
+      accessIcon = <BookOpen className="mr-2 h-5 w-5" />;
+      accessAction = async () => {
+        if (!user) {
+          toast({ title: "Login Required", description: "Please log in to purchase this chapter.", variant: "destructive", action: <Button onClick={() => router.push('/login?redirect=' + pathname + `#page=${currentPageIndex + 1}`)}>Login</Button> });
+          return;
+        }
+        await purchaseAccess(manga.id, 'chapter', chapterId, manga.chapterSubscriptionPrice!);
+      };
     }
   }
 
 
-  if (!totalPages) {
+  if (!totalPages && !isImageLoading) { // If loading is also false and no pages
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] text-center p-4">
         <XCircle className="w-16 h-16 text-destructive mb-4" />
         <h2 className="text-2xl font-semibold mb-2">No Pages Available</h2>
         <p className="text-muted-foreground">This chapter doesn't seem to have any pages.</p>
-         <Link href={`/manga/${mangaId}`} className="mt-4">
+        <Link href={`/manga/${mangaId}`} className="mt-4">
           <Button variant="outline">Back to Manga Details</Button>
         </Link>
       </div>
     );
   }
-  
-  if (error && !isLoading) { // Show error only if not loading and error exists
-         return (
-         <Alert variant="destructive" className="max-w-lg mx-auto my-8">
-          <XCircle className="h-5 w-5" />
-          <AlertTitle>Error Loading Page</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
+
+  if (error && !isImageLoading) {
+    return (
+      <Alert variant="destructive" className="max-w-lg mx-auto my-8">
+        <XCircle className="h-5 w-5" />
+        <AlertTitle>Error Loading Page</AlertTitle>
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
     );
   }
 
@@ -242,10 +259,10 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
         <p className="text-md text-muted-foreground mb-8">
           {manga.subscriptionModel === 'monthly' ? "Subscribe monthly to continue reading this chapter and get access to all chapters." : "Purchase this chapter to continue reading."}
         </p>
-        <Button 
-            size="lg" 
-            className="text-lg py-6 px-8"
-            onClick={accessAction}
+        <Button
+          size="lg"
+          className="text-lg py-6 px-8"
+          onClick={accessAction}
         >
           {accessIcon} {accessButtonText}
         </Button>
@@ -258,44 +275,45 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
 
 
   return (
-    <div className="flex flex-col items-center pb-24"> 
-      <div 
+    <div className="flex flex-col items-center pb-24">
+      <div
         className="w-full max-w-3xl aspect-[800/1200] relative my-4 bg-muted rounded-md overflow-hidden shadow-lg touch-manipulation select-none prevent-selection prevent-right-click"
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
-        style={{ touchAction: 'pan-y' }} 
+        style={{ touchAction: 'pan-y' }}
       >
-        {isLoading && currentPageData && ( 
-            <Skeleton className="absolute inset-0 w-full h-full" />
+        {isImageLoading && currentPageData && (
+          <Skeleton className="absolute inset-0 w-full h-full" />
         )}
         {currentPageData && (
           <>
             <Image
-                key={currentPageData.id + currentPageIndex} 
-                src={currentPageData.imageUrl}
-                alt={currentPageData.altText}
-                layout="fill"
-                objectFit="contain"
-                priority={currentPageIndex < 2} 
-                onLoad={() => {
-                  if (currentPageData) setIsLoading(false); // Set loading false only if this image loaded
-                  setError(null);
-                }}
-                onError={() => {
-                  setError(`Failed to load image for page ${currentPageIndex + 1}.`);
-                  setIsLoading(false);
-                }}
-                className={`transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'} `}
-                data-ai-hint="manga page comic"
+              key={currentPageData.id + '-' + currentPageIndex} 
+              src={currentPageData.imageUrl}
+              alt={currentPageData.altText}
+              layout="fill"
+              objectFit="contain"
+              priority={currentPageIndex < 2}
+              onLoad={() => {
+                setIsImageLoading(false);
+                setError(null);
+              }}
+              onError={() => {
+                setError(`Failed to load image for page ${currentPageIndex + 1}.`);
+                setIsImageLoading(false);
+              }}
+              className={`transition-opacity duration-300 ${isImageLoading ? 'opacity-0' : 'opacity-100'}`}
+              data-ai-hint="manga page comic"
             />
+            {/* This div is to ensure right-click prevention works on the image area if Image component itself doesn't block it effectively */}
             <div className="absolute inset-0 w-full h-full z-10"></div>
           </>
         )}
-        {!currentPageData && !isLoading && totalPages > 0 && ( 
-            <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
-                <p>Page {currentPageIndex + 1} not available or error loading.</p>
-            </div>
+        {!currentPageData && !isImageLoading && totalPages > 0 && (
+          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+            <p>Page {currentPageIndex + 1} not available or error loading.</p>
+          </div>
         )}
       </div>
 
@@ -310,4 +328,3 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
     </div>
   );
 }
-
