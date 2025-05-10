@@ -20,7 +20,8 @@ export const mockAuthors: (AuthorInfo & { contactDetails?: AuthorContactDetails,
       socialLinks: [{ platform: 'Twitter', url: 'https://twitter.com/kenji_manga' }]
     },
     walletBalance: 1500,
-    bankDetails: { accountHolderName: 'Kenji Tanaka', bankName: 'Sumitomo Mitsui Banking Corporation', accountNumber: '123456789', routingNumber: '021000021' }
+    bankDetails: { accountHolderName: 'Kenji Tanaka', bankName: 'Sumitomo Mitsui Banking Corporation', accountNumber: '123456789', routingNumber: '021000021' },
+    isSystemUser: false,
   },
   {
     id: 'author-2',
@@ -31,24 +32,26 @@ export const mockAuthors: (AuthorInfo & { contactDetails?: AuthorContactDetails,
       socialLinks: [{ platform: 'Instagram', url: 'https://instagram.com/yuki_draws' }]
     },
     walletBalance: 800,
-    bankDetails: { accountHolderName: 'Yuki Sato', bankName: 'Mizuho Bank', accountNumber: '987654321', routingNumber: '021000089' }
+    bankDetails: { accountHolderName: 'Yuki Sato', bankName: 'Mizuho Bank', accountNumber: '987654321', routingNumber: '021000089' },
+    isSystemUser: false,
   },
   {
     id: 'author-3',
     name: 'Aiko Suzuki',
     avatarUrl: 'https://picsum.photos/100/100?random=author3',
     walletBalance: 300,
+    isSystemUser: false,
   },
   {
     id: 'user-123', // This is also MOCK_USER_VALID.id from AuthContext
     name: 'Test Creator',
     avatarUrl: 'https://picsum.photos/100/100?random=creator',
-    isSystemUser: true,
+    isSystemUser: true, // This user is a creator but also might be used for system/admin tests
     contactDetails: {
       email: 'test@example.com',
       socialLinks: [{ platform: 'Website', url: 'https://testcreator.com'}]
     },
-    walletBalance: 500, // Initial balance for the test creator
+    walletBalance: 500, 
     bankDetails: { accountHolderName: 'Test Creator', bankName: 'Bank of America', accountNumber: '1122334455', routingNumber: '026009593' }
   },
   {
@@ -57,6 +60,7 @@ export const mockAuthors: (AuthorInfo & { contactDetails?: AuthorContactDetails,
     avatarUrl: 'https://picsum.photos/100/100?random=authorpending',
     contactDetails: { email: 'pending@example.com' },
     walletBalance: 0,
+    isSystemUser: false,
   }
 ];
 
@@ -240,9 +244,29 @@ export const getMangaById = (id: string): MangaSeries | undefined => {
   return modifiableMockMangaSeries.find(manga => manga.id === id);
 };
 
-export const getAuthorById = (id: string): (AuthorInfo & { contactDetails?: AuthorContactDetails, walletBalance: number, bankDetails?: BankAccountDetails }) | undefined => {
+export const getAuthorById = (id: string): (AuthorInfo & { contactDetails?: AuthorContactDetails, walletBalance: number, bankDetails?: BankAccountDetails, isSystemUser?: boolean }) | undefined => {
   return mockAuthors.find(author => author.id === id);
 }
+
+export const getApprovedCreators = (): AuthorInfo[] => {
+  // Assuming 'isApproved' flag would be on the AuthorInfo if fetched from a real DB.
+  // For mock, we'll filter out system users unless they are explicitly creators like 'user-123'
+  // and also assume non-system users marked as 'author-...' are approved creators for display.
+  // In a real system, you'd check an `isApproved` flag.
+  return mockAuthors.filter(author => {
+    const isActualCreator = author.id.startsWith('author-') || (author.id === 'user-123'); // Example: user-123 is our Test Creator
+    // Add a check for an 'isApproved' flag if you add it to AuthorInfo
+    // For now, we assume all non-system 'author-' prefixed users are approved for listing.
+    // And our 'Test Creator' is also considered approved.
+    return isActualCreator && !author.isSystemUser && author.id !== 'author-pending'; // Exclude pending approval for general listing
+  });
+};
+
+
+export const getMangaByAuthorId = (authorId: string): MangaSeries[] => {
+  return modifiableMockMangaSeries.filter(manga => manga.author.id === authorId && manga.isPublished);
+};
+
 
 export const updateMockAuthorBalance = (authorId: string, newBalance: number) => {
   const authorIndex = mockAuthors.findIndex(author => author.id === authorId);
@@ -265,7 +289,6 @@ export const updateMockMangaData = (mangaId: string, updates: Partial<MangaSerie
     let lastChapterUpdateInfo: MangaSeries['lastChapterUpdateInfo'] = existingManga.lastChapterUpdateInfo;
 
     if (updates.chapters) {
-      // let pagesChangedInLastChapter = false; // This variable was unused
       let lastUpdatedEffectiveChapter: Chapter | undefined = undefined;
 
       if (existingManga.chapters.length > 0 && updates.chapters.length > 0) {
@@ -275,14 +298,15 @@ export const updateMockMangaData = (mangaId: string, updates: Partial<MangaSerie
         if (lastUpdatedChapter) {
           const oldPagesCount = lastExistingChapter?.pages.length || 0;
           const newPagesCount = lastUpdatedChapter.pages.length;
-          if (newPagesCount !== oldPagesCount) {
-            //  pagesChangedInLastChapter = false; // This variable was unused
+          // Check if the chapter itself is new, or if page count changed in an existing chapter
+          const isNewChapter = !existingManga.chapters.some(ch => ch.id === lastUpdatedChapter.id);
+          if (isNewChapter || newPagesCount !== oldPagesCount) {
              lastUpdatedEffectiveChapter = lastUpdatedChapter;
              lastChapterUpdateInfo = {
                 chapterId: lastUpdatedEffectiveChapter.id,
                 chapterNumber: lastUpdatedEffectiveChapter.chapterNumber,
                 chapterTitle: lastUpdatedEffectiveChapter.title,
-                pagesAdded: newPagesCount - oldPagesCount, 
+                pagesAdded: newPagesCount - (isNewChapter ? 0 : oldPagesCount), 
                 newTotalPagesInChapter: newPagesCount,
                 date: new Date().toISOString(),
              };
@@ -304,9 +328,8 @@ export const updateMockMangaData = (mangaId: string, updates: Partial<MangaSerie
       updatedChapters = updates.chapters.map((updatedCh, chapterIdx) => {
         const existingChapter = existingManga.chapters.find(c => c.id === updatedCh.id);
         const newPages: MangaPage[] = updatedCh.pages.map((updatedPage, pageIdx) => {
-          // const existingPage = existingChapter?.pages.find(p => p.id === updatedPage.id); // This variable was unused
           return {
-            id: updatedPage.id || `${updatedCh.id}-page-${Date.now()}-${pageIdx}`, // Use updatedPage.id if available
+            id: updatedPage.id || `${updatedCh.id}-page-${Date.now()}-${pageIdx}`, 
             imageUrl: updatedPage.imageUrl,
             altText: updatedPage.altText || `Page ${pageIdx + 1}`,
           };
@@ -323,7 +346,7 @@ export const updateMockMangaData = (mangaId: string, updates: Partial<MangaSerie
     let mergedInvestmentOffer = existingManga.investmentOffer;
     if (updates.investmentOffer) {
         mergedInvestmentOffer = {
-            ...(existingManga.investmentOffer || {} as MangaInvestmentOffer), // Ensure base object if new
+            ...(existingManga.investmentOffer || {} as MangaInvestmentOffer),
             ...updates.investmentOffer,
         };
     }
@@ -349,6 +372,7 @@ export const addMockMangaSeries = (newManga: MangaSeries) => {
         avatarUrl: newManga.author.avatarUrl,
         contactDetails: newManga.authorDetails,
         walletBalance: 0, // Initialize wallet for new author
+        isSystemUser: false, // New authors added this way are not system users
     };
     mockAuthors.push(newAuthorData);
   }
@@ -356,15 +380,14 @@ export const addMockMangaSeries = (newManga: MangaSeries) => {
   const mangaWithDefaults: MangaSeries = {
     ...newManga,
     isPublished: newManga.isPublished !== undefined ? newManga.isPublished : true,
-    subscriptionModel: newManga.subscriptionModel || 'monthly', // Default subscription model
-    comments: newManga.comments || [], // Initialize comments
+    subscriptionModel: newManga.subscriptionModel || 'monthly', 
+    comments: newManga.comments || [], 
   };
   modifiableMockMangaSeries.unshift(mangaWithDefaults);
 };
 
 export const deleteMockMangaData = (mangaId: string) => {
   modifiableMockMangaSeries = modifiableMockMangaSeries.filter(manga => manga.id !== mangaId);
-  // Also remove any share listings for this manga
   mockShareListingsData = mockShareListingsData.filter(listing => listing.mangaId !== mangaId);
 };
 
@@ -399,7 +422,7 @@ export const updateShareListingOnPurchase = (listingId: string, sharesBought: nu
   if (listingIndex !== -1) {
     mockShareListingsData[listingIndex].sharesOffered -= sharesBought;
     if (mockShareListingsData[listingIndex].sharesOffered <= 0) {
-      mockShareListingsData[listingIndex].isActive = false; // Deactivate if all shares are sold
+      mockShareListingsData[listingIndex].isActive = false; 
     }
     return mockShareListingsData[listingIndex];
   }
@@ -420,7 +443,6 @@ export const updateListingFollowerCount = (listingId: string, increment: boolean
   }
 };
 
-// Function to add a comment to a manga series
 export const addCommentToMockManga = (mangaId: string, newComment: Comment): Comment | null => {
   const mangaIndex = modifiableMockMangaSeries.findIndex(m => m.id === mangaId);
   if (mangaIndex !== -1) {

@@ -62,6 +62,7 @@ export interface AuthorInfo {
   contactDetails?: AuthorContactDetails; 
   walletBalance: number;
   bankDetails?: BankAccountDetails;
+  isSystemUser?: boolean; // To differentiate system users from actual creators
 }
 
 export interface MangaPage {

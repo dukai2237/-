@@ -52,15 +52,10 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
   useEffect(() => {
     const currentMangaData = getMangaById(mangaId);
     if (!currentMangaData || !currentMangaData.isPublished) { 
-      // Initial check, if not found or not published, set to undefined to show loading/not found
       setManga(undefined);
-      // Schedule a re-check. This is a workaround for potential mock data update delays.
-      // In a real app, this might not be necessary or would be handled by a proper data fetching library.
       const timer = setTimeout(() => {
         const freshCheck = getMangaById(mangaId);
         if(!freshCheck || !freshCheck.isPublished) {
-          // If still not found/published after a delay, then trigger notFound.
-          // This timeout needs to be cleared on unmount.
           notFound();
         } else {
           setManga(freshCheck);
@@ -75,31 +70,22 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
 
   useEffect(() => {
     if (!mangaId) return;
-    // Interval to refresh manga data, simulating real-time updates (e.g., new comments, rating changes)
     const interval = setInterval(() => {
       const freshMangaData = getMangaById(mangaId);
       if (freshMangaData && freshMangaData.isPublished) { 
         setManga(prevManga => {
           if (JSON.stringify(freshMangaData) !== JSON.stringify(prevManga)) {
-            return freshMangaData; // Update only if data has changed
+            return freshMangaData; 
           }
           return prevManga;
         });
-      } else {
-        // If manga was previously loaded but now is not found or unpublished
-        if (manga && (!freshMangaData || !freshMangaData.isPublished)) {
-           // Handle case where manga becomes unpublished or deleted
-           // For now, we'll let it show the "not found" message if `manga` becomes undefined
-           // Or, you could redirect or show a specific message here.
-        }
       }
-    }, 1000); // Check for updates every 1 second
+    }, 1000); 
     return () => clearInterval(interval);
-  }, [mangaId, manga]); // Rerun if mangaId or the local manga state changes
+  }, [mangaId, manga]); 
 
 
   if (!manga) {
-    // This covers both initial loading and the case where manga is truly not found/unpublished
     return <div className="text-center py-10" suppressHydrationWarning={true}>Loading manga details or manga not found/unpublished...</div>;
   }
 
@@ -108,8 +94,15 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
     return genreDetail ? genreDetail.name : genreId;
   };
 
+  const isCreatorViewingOwnManga = user?.accountType === 'creator' && user?.id === manga.author.id;
+  const isCreatorViewingOtherManga = user?.accountType === 'creator' && user?.id !== manga.author.id;
+
 
   const handleSubscribe = async () => {
+    if (isCreatorViewingOtherManga) {
+        toast({ title: "Action Not Allowed", description: "Creators cannot subscribe to other creators' works.", variant: "destructive" });
+        return;
+    }
     if (!user) {
       toast({ title: "Login Required", description: "Please login to subscribe.", variant: "destructive", action: <Button onClick={() => router.push('/login?redirect=/manga/' + mangaId)}>Login</Button> });
       return;
@@ -122,6 +115,10 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
   };
 
   const handleOpenDonationDialog = () => {
+     if (isCreatorViewingOtherManga) {
+        toast({ title: "Action Not Allowed", description: "Creators cannot donate to other creators' works.", variant: "destructive" });
+        return;
+    }
      if (!user) {
       toast({ title: "Login Required", description: "Please login to donate.", variant: "destructive", action: <Button onClick={() => router.push('/login?redirect=/manga/' + mangaId)}>Login</Button> });
       return;
@@ -131,6 +128,11 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
 
   const handleDonate = async () => {
     if (!user) return;
+     if (isCreatorViewingOtherManga) {
+        toast({ title: "Action Not Allowed", description: "Creators cannot donate to other creators' works.", variant: "destructive" });
+        setIsDonationDialogOpen(false);
+        return;
+    }
     const amount = parseFloat(donationAmount);
     if (isNaN(amount) || amount <= 0) {
       toast({ title: "Invalid Amount", description: "Please enter a valid positive amount to donate.", variant: "destructive" });
@@ -144,6 +146,10 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
   };
 
   const handleOpenInvestmentDialog = () => {
+    if (isCreatorViewingOtherManga) {
+        toast({ title: "Action Not Allowed", description: "Creators cannot invest in other creators' works.", variant: "destructive" });
+        return;
+    }
     if (!user) {
       toast({ title: "Login Required", description: "Please login to invest.", variant: "destructive", action: <Button onClick={() => router.push('/login?redirect=/manga/' + mangaId)}>Login</Button> });
       return;
@@ -152,12 +158,10 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
       toast({ title: "Investment Closed", description: "This manga is not currently open for investment.", variant: "destructive" });
       return;
     }
-    // Global investment requirement check
     if ((user.subscriptions?.length || 0) < MIN_SUBSCRIPTIONS_FOR_INVESTMENT) {
         toast({ title: "Platform Investment Requirement Not Met", description: `You need to subscribe to or purchase at least ${MIN_SUBSCRIPTIONS_FOR_INVESTMENT} manga/chapters to invest. You currently have ${user.subscriptions?.length || 0}.`, variant: "destructive", duration: 7000 });
         return;
     }
-    // Author specific investment requirement check (if any)
     if (manga.investmentOffer.minSubscriptionRequirement && (!user.subscriptions || user.subscriptions.filter(s => s.type === 'monthly' && s.mangaId === manga.id).length < manga.investmentOffer.minSubscriptionRequirement)) {
         toast({ title: "Author's Investment Requirement Not Met", description: `The author requires you to subscribe to *this specific manga* at least ${manga.investmentOffer.minSubscriptionRequirement} times (monthly) to invest. You currently have ${user.subscriptions?.filter(s=>s.type==='monthly' && s.mangaId === manga.id).length || 0} monthly subscriptions for this manga.`, variant: "destructive", duration: 8000 });
         return;
@@ -167,6 +171,11 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
 
   const handleInvest = async () => {
     if (!user || !manga.investmentOffer) return;
+    if (isCreatorViewingOtherManga) {
+        toast({ title: "Action Not Allowed", description: "Creators cannot invest in other creators' works.", variant: "destructive" });
+        setIsInvestmentDialogOpen(false);
+        return;
+    }
     const shares = parseInt(investmentShares);
     if (isNaN(shares) || shares <= 0) {
       toast({ title: "Invalid Shares", description: "Please enter a valid positive number of shares.", variant: "destructive" });
@@ -181,6 +190,10 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
   };
 
   const handleRating = async (score: 1 | 2 | 3) => {
+     if (isCreatorViewingOtherManga) {
+        toast({ title: "Action Not Allowed", description: "Creators cannot rate other creators' works.", variant: "destructive" });
+        return;
+    }
     if (!user) {
       toast({ title: "Login Required", description: "Please login to rate.", variant: "destructive", action: <Button onClick={() => router.push('/login?redirect=/manga/' + mangaId)}>Login</Button> });
       return;
@@ -189,18 +202,22 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
   };
 
   const handleToggleFavorite = () => {
+     if (isCreatorViewingOtherManga) {
+        toast({ title: "Action Not Allowed", description: "Creators cannot favorite other creators' works.", variant: "destructive" });
+        return;
+    }
     toggleFavorite(manga.id, manga.title);
   };
 
   const isUserSubscribed = user ? isSubscribedToManga(manga.id) : false;
   const userRating = user?.ratingsGiven?.[manga.id];
-  // Users can rate if they are subscribed, have purchased any chapter of THIS manga, or have invested in THIS manga.
   const hasChapterPurchaseForThisManga = user?.subscriptions.some(sub => sub.mangaId === manga.id && sub.type === 'chapter');
   const hasInvestmentInThisManga = user?.investments.some(inv => inv.mangaId === manga.id);
 
-  const canRate = user && (isUserSubscribed || hasChapterPurchaseForThisManga || hasInvestmentInThisManga) && !userRating;
+  const canRate = user && !isCreatorViewingOtherManga && (isUserSubscribed || hasChapterPurchaseForThisManga || hasInvestmentInThisManga) && !userRating;
 
   const ratingDisabledReason = () => {
+    if (isCreatorViewingOtherManga) return "Creators cannot rate other creators' works.";
     if (!user) return "Login to rate";
     if (!isUserSubscribed && !hasChapterPurchaseForThisManga && !hasInvestmentInThisManga) return "Subscribe, purchase a chapter, or invest to rate";
     if (userRating) return `You've already rated (${userRating}/3)`;
@@ -235,7 +252,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
           <div className="md:w-2/3 p-6 md:p-0 flex flex-col">
             <div className="flex justify-between items-start">
                 <h1 className="text-3xl lg:text-4xl font-bold mb-2" suppressHydrationWarning>{manga.title}</h1>
-                {user && (
+                {user && !isCreatorViewingOtherManga && (
                     <Button
                         variant="ghost"
                         size="icon"
@@ -305,13 +322,13 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
               <CardContent className="p-3 pt-0">
                 <div className="flex items-center justify-between">
                   <div className="flex gap-2">
-                    <Button variant={userRating === 3 ? "default" : "outline"} size="sm" onClick={() => handleRating(3)} title="Good (3 points)" disabled={!canRate && userRating !==3}>
+                    <Button variant={userRating === 3 ? "default" : "outline"} size="sm" onClick={() => handleRating(3)} title="Good (3 points)" disabled={!canRate && userRating !==3 || isCreatorViewingOtherManga}>
                       <ThumbsUp className={`h-4 w-4 mr-1 ${userRating === 3 ? "" : "text-green-500"}`} /> <span suppressHydrationWarning>Good (3)</span>
                     </Button>
-                    <Button variant={userRating === 2 ? "default" : "outline"} size="sm" onClick={() => handleRating(2)} title="Okay (2 points)" disabled={!canRate && userRating !==2}>
+                    <Button variant={userRating === 2 ? "default" : "outline"} size="sm" onClick={() => handleRating(2)} title="Okay (2 points)" disabled={!canRate && userRating !==2 || isCreatorViewingOtherManga}>
                       <Meh className={`h-4 w-4 mr-1 ${userRating === 2 ? "" : "text-yellow-500"}`} /> <span suppressHydrationWarning>Okay (2)</span>
                     </Button>
-                    <Button variant={userRating === 1 ? "default" : "outline"} size="sm" onClick={() => handleRating(1)} title="Bad (1 point)" disabled={!canRate && userRating !==1}>
+                    <Button variant={userRating === 1 ? "default" : "outline"} size="sm" onClick={() => handleRating(1)} title="Bad (1 point)" disabled={!canRate && userRating !==1 || isCreatorViewingOtherManga}>
                       <ThumbsDown className={`h-4 w-4 mr-1 ${userRating === 1 ? "" : "text-red-500"}`} /> <span suppressHydrationWarning>Bad (1)</span>
                     </Button>
                   </div>
@@ -321,7 +338,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
                     </div>
                   )}
                 </div>
-                {(!canRate && user) && (
+                {((!canRate && user) || isCreatorViewingOtherManga) && (
                   <p className="text-xs text-muted-foreground mt-2 flex items-center" suppressHydrationWarning>
                     <Lock className="h-3 w-3 mr-1" /> {ratingDisabledReason()}
                   </p>
@@ -352,7 +369,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
                 <Button
                   onClick={handleSubscribe}
                   className="w-full text-lg py-6"
-                  disabled={isUserSubscribed}
+                  disabled={isUserSubscribed || isCreatorViewingOtherManga}
                   suppressHydrationWarning
                 >
                   {isUserSubscribed ? (
@@ -366,12 +383,12 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
                   )}
                 </Button>
               )}
-               {manga.chapterSubscriptionPrice && manga.subscriptionModel === 'per_chapter' && (
+               {manga.chapterSubscriptionPrice && manga.subscriptionModel === 'per_chapter' && !isCreatorViewingOtherManga && (
                  <p className="text-sm text-center text-muted-foreground" suppressHydrationWarning>
                     Chapters can be purchased individually from the chapter list.
                  </p>
                )}
-              <Button onClick={handleOpenDonationDialog} variant="outline" className="w-full text-lg py-6" suppressHydrationWarning>
+              <Button onClick={handleOpenDonationDialog} variant="outline" className="w-full text-lg py-6" suppressHydrationWarning disabled={isCreatorViewingOtherManga}>
                 <Gift className="mr-2 h-5 w-5" /> <span suppressHydrationWarning>Donate to Author</span>
               </Button>
             </div>
@@ -447,7 +464,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
               <Button 
                 onClick={handleOpenInvestmentDialog} 
                 className="w-full text-lg py-6" 
-                disabled={sharesRemaining <= 0 || !canUserInvestGlobally || !canUserInvestAuthorSpecific} 
+                disabled={sharesRemaining <= 0 || !canUserInvestGlobally || !canUserInvestAuthorSpecific || isCreatorViewingOtherManga} 
                 suppressHydrationWarning
               >
                 <TrendingUp className="mr-2 h-5 w-5" /> Invest Now
@@ -473,7 +490,14 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
       </div>
 
       <Separator className="my-8" />
-      <CommentSection mangaId={manga.id} />
+      { (!user || user.accountType !== 'creator' || (user.accountType === 'creator' && user.id === manga.author.id) ) && (
+        <CommentSection mangaId={manga.id} />
+      )}
+       {user && user.accountType === 'creator' && user.id !== manga.author.id && (
+        <div className="text-center text-muted-foreground py-4">
+            Creators cannot comment on other creators' works.
+        </div>
+      )}
 
 
       <Dialog open={isDonationDialogOpen} onOpenChange={setIsDonationDialogOpen}>

@@ -8,10 +8,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { getMangaById } from '@/lib/mock-data'; // To check manga author
 
 interface CommentFormProps {
   mangaId: string;
-  onCommentAdded: () => void; // Callback to refresh comments list
+  onCommentAdded: () => void; 
 }
 
 export function CommentForm({ mangaId, onCommentAdded }: CommentFormProps) {
@@ -26,6 +27,13 @@ export function CommentForm({ mangaId, onCommentAdded }: CommentFormProps) {
       toast({ title: "Login Required", description: "Please log in to post a comment.", variant: "destructive" });
       return;
     }
+    // Additional check for creator restriction, though AuthContext should be primary guard
+    const currentManga = getMangaById(mangaId);
+    if (user.accountType === 'creator' && currentManga && currentManga.author.id !== user.id) {
+        toast({ title: "Action Not Allowed", description: "Creators cannot comment on other creators' works.", variant: "destructive" });
+        return;
+    }
+
     if (!commentText.trim()) {
       toast({ title: "Empty Comment", description: "Comment cannot be empty.", variant: "destructive" });
       return;
@@ -37,9 +45,8 @@ export function CommentForm({ mangaId, onCommentAdded }: CommentFormProps) {
 
     if (newComment) {
       setCommentText('');
-      onCommentAdded(); // Trigger refresh
+      onCommentAdded(); 
     }
-    // Toast for success/failure is handled within addCommentToManga in AuthContext
   };
 
   if (!user) {
@@ -49,6 +56,17 @@ export function CommentForm({ mangaId, onCommentAdded }: CommentFormProps) {
       </div>
     );
   }
+  
+  // UI check for creator restriction
+  const currentManga = getMangaById(mangaId);
+  if (user.accountType === 'creator' && currentManga && currentManga.author.id !== user.id) {
+    return (
+      <div className="p-4 border-t text-center text-muted-foreground">
+        <p>Creators cannot comment on other creators' works.</p>
+      </div>
+    );
+  }
+
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 p-4 border-t">
