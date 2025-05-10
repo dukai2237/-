@@ -1,4 +1,4 @@
-
+// src/contexts/AuthContext.tsx
 "use client";
 import type { User, UserSubscription, UserInvestment, SimulatedTransaction, MangaSeries, MangaInvestor, Chapter, MangaPage, AuthorContactDetails, ShareListing, Comment, BankAccountDetails, AuthorInfo as GlobalAuthorInfo } from '@/lib/types';
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
@@ -208,24 +208,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     if (fullUserData.accountType === 'creator' && !fullUserData.isApproved) {
-      toast({
+      setTimeout(() => toast({
         title: "Account Pending Approval",
         description: "Your creator account is awaiting admin approval. You cannot log in until it's approved.",
         variant: "destructive",
         duration: 7000
-      });
+      }), 0);
       return;
     }
 
     setUser(fullUserData);
-    toast({ title: "Login Successful", description: `Welcome back, ${fullUserData.name}!` });
+    setTimeout(() => toast({ title: "Login Successful", description: `Welcome back, ${fullUserData.name}!` }), 0);
   }, [setUser, toast]);
 
   const approveCreatorAccount = useCallback((creatorId: string) => {
     let userWasUpdated = false;
     if (user && user.id === creatorId && user.accountType === 'creator' && !user.isApproved) {
       setUser(prev => prev ? ({ ...prev, isApproved: true }) : null);
-      toast({ title: "Creator Approved", description: `Creator ${user.name} (${user.email}) has been approved.` });
+      setTimeout(() => toast({ title: "Creator Approved", description: `Creator ${user.name} (${user.email}) has been approved.` }), 0);
       recordTransaction({ type: 'creator_approved', amount: 0, userId: creatorId, description: `Creator ${user.name} account approved.` });
       userWasUpdated = true;
     } else { 
@@ -239,7 +239,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (user && user.id === creatorId) { 
              setUser(prev => prev ? ({ ...prev, isApproved: true }) : null);
           }
-          toast({ title: "Creator Approved", description: `Creator account ${mockUserListFromStorage[userIndex].name} has been approved.` });
+          setTimeout(() => toast({ title: "Creator Approved", description: `Creator account ${mockUserListFromStorage[userIndex].name} has been approved.` }), 0);
           recordTransaction({ type: 'creator_approved', amount: 0, userId: creatorId, description: `Creator account ${mockUserListFromStorage[userIndex].name} approved.`});
           userWasUpdated = true;
         }
@@ -247,19 +247,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     if (!userWasUpdated) {
         console.warn(`approveCreatorAccount: Creator ID ${creatorId} not found, already approved, or not a creator.`);
-        toast({title: "Approval Action", description: `Attempted to approve creator ${creatorId}. No change or user not found.`, variant: "default"})
+        setTimeout(() => toast({title: "Approval Action", description: `Attempted to approve creator ${creatorId}. No change or user not found.`, variant: "default"}), 0);
     }
   }, [user, setUser, toast, recordTransaction]);
 
 
   const signup = useCallback(async (name: string, email: string, password?: string, accountType: 'user' | 'creator' = 'user', verificationCode?: string): Promise<User | null> => {
     if (!password) { 
-        toast({ title: "Signup Failed", description: "Password is required.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Signup Failed", description: "Password is required.", variant: "destructive" }), 0);
         return null;
     }
 
     if (verificationCode !== MOCK_VERIFICATION_CODE) {
-      toast({ title: "Signup Failed", description: "Invalid verification code. Please try again.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Signup Failed", description: "Invalid verification code. Please try again.", variant: "destructive" }), 0);
       return null;
     }
 
@@ -267,8 +267,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let mockUserListFromStorage: User[] = storedUsersString ? JSON.parse(storedUsersString) : [];
     
     if (mockUserListFromStorage.some(u => u.email === email)) {
-        toast({ title: "Signup Failed", description: "This email is already registered.", variant: "destructive" });
-        return null;
+      setTimeout(() => toast({ title: "Signup Failed", description: "This email is already registered.", variant: "destructive" }), 0);
+      return null;
     }
 
     const newUserId = `user-${Date.now()}-${Math.random().toString(16).slice(4)}`;
@@ -312,26 +312,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         userId: newUserToAdd.id,
         description: `Creator ${name} account registered, awaiting approval.`,
       });
-      toast({
+      setTimeout(() => toast({
         title: "Creator Account Registered",
         description: `Welcome, ${name}! Your creator account is registered and awaiting admin approval. You will be able to log in and publish once approved.`,
         duration: 10000
-      });
+      }), 0);
       
-      // Simulate auto-approval for MOCK_USER_VALID's email for testing convenience
       if (email === MOCK_USER_VALID.email) { 
         setTimeout(() => approveCreatorAccount(newUserToAdd.id), 2000); 
       }
     } else {
       setUser(newUserToAdd); 
-      toast({ title: "Signup Successful!", description: `Welcome, ${name}! Your account has been created.` });
+      setTimeout(() => toast({ title: "Signup Successful!", description: `Welcome, ${name}! Your account has been created.` }), 0);
     }
     return newUserToAdd;
   }, [toast, recordTransaction, setUser, approveCreatorAccount]);
 
   const logout = useCallback(() => {
     setUser(null);
-    toast({ title: "Logged Out", description: "You have been successfully logged out." });
+    setTimeout(() => toast({ title: "Logged Out", description: "You have been successfully logged out." }), 0);
   }, [setUser, toast]);
 
   const isSubscribedToManga = useCallback((mangaId: string) => {
@@ -346,27 +345,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const purchaseAccess = useCallback(async (mangaId: string, accessType: 'monthly' | 'chapter', itemId: string, price: number): Promise<boolean> => {
     if (!user) {
-      toast({ title: "Login Required", description: "Please log in to purchase access.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Login Required", description: "Please log in to purchase access.", variant: "destructive" }), 0);
       return false;
     }
      if (user.accountType === 'creator') {
-      toast({ title: "Action Not Allowed", description: "Creators cannot subscribe to or purchase manga.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Action Not Allowed", description: "Creators cannot subscribe to or purchase manga.", variant: "destructive" }), 0);
       return false;
     }
     const manga = getMangaById(mangaId);
     if (!manga || !manga.author) {
-      toast({ title: "Error", description: "Manga or author details not found.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Error", description: "Manga or author details not found.", variant: "destructive" }), 0);
       return false;
     }
     
     if (user.walletBalance < price) {
-      toast({ title: "Insufficient Balance", description: `Purchase costs $${price.toFixed(2)}. Your balance is $${user.walletBalance.toFixed(2)}.`, variant: "destructive" });
+      setTimeout(() => toast({ title: "Insufficient Balance", description: `Purchase costs $${price.toFixed(2)}. Your balance is $${user.walletBalance.toFixed(2)}.`, variant: "destructive" }), 0);
       return false;
     }
     
     const author = fetchAuthorDetails(manga.author.id); 
     if (!author) {
-      toast({ title: "Author Not Found", description: "Author details not found.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Author Not Found", description: "Author details not found.", variant: "destructive" }), 0);
       return false;
     }
     
@@ -374,6 +373,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const revenueToAuthor = price - platformCut;
     const now = new Date();
     const expiresAt = accessType === 'monthly' ? new Date(now.setMonth(now.getMonth() + 1)).toISOString() : undefined;
+    
+    let opportunitiesGainedThisTime = 0;
+    if (user) {
+        const oldTotalCombinedActions = (user.subscriptions.length) + (user.donationCount || 0);
+        const newTotalCombinedActions = (user.subscriptions.length + 1) + (user.donationCount || 0);
+        opportunitiesGainedThisTime = Math.floor(newTotalCombinedActions / 5) - Math.floor(oldTotalCombinedActions / 5);
+    }
 
     setUser(prevUser => {
       if (!prevUser) return null;
@@ -387,14 +393,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         subscribedSince: new Date().toISOString(),
         expiresAt: expiresAt
       };
-
-      const oldTotalCombinedActions = (prevUser.subscriptions.length) + (prevUser.donationCount || 0);
-      const newTotalCombinedActions = (prevUser.subscriptions.length + 1) + (prevUser.donationCount || 0);
-      const opportunitiesGained = Math.floor(newTotalCombinedActions / 5) - Math.floor(oldTotalCombinedActions / 5);
+      
       let newInvestmentOpportunitiesAvailable = prevUser.investmentOpportunitiesAvailable || 0;
-      if (opportunitiesGained > 0) {
-        newInvestmentOpportunitiesAvailable += opportunitiesGained;
-        toast({ title: "Investment Opportunity Unlocked!", description: `You've gained ${opportunitiesGained} new investment ${opportunitiesGained === 1 ? 'chance' : 'chances'}!` });
+      if (opportunitiesGainedThisTime > 0) {
+        newInvestmentOpportunitiesAvailable += opportunitiesGainedThisTime;
       }
       
       return { 
@@ -430,7 +432,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       relatedData: { originalAmount: price }
     });
      
-    toast({ title: "Purchase Successful!", description: `You've ${accessType === 'monthly' ? 'subscribed to' : 'purchased chapter of'} ${manga.title} for $${price.toFixed(2)}.` });
+    setTimeout(() => {
+      toast({ title: "Purchase Successful!", description: `You've ${accessType === 'monthly' ? 'subscribed to' : 'purchased chapter of'} ${manga.title} for $${price.toFixed(2)}.` });
+      if (opportunitiesGainedThisTime > 0) {
+        toast({ title: "Investment Opportunity Unlocked!", description: `You've gained ${opportunitiesGainedThisTime} new investment ${opportunitiesGainedThisTime === 1 ? 'chance' : 'chances'}!` });
+      }
+    }, 0);
     return true;
 
   }, [user, toast, recordTransaction, setUser]);
@@ -438,47 +445,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const donateToManga = useCallback(async (mangaId: string, mangaTitle: string, authorId: string, amount: number): Promise<boolean> => {
     if (!user) {
-      toast({ title: "Login Required", description: "Please log in to donate.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Login Required", description: "Please log in to donate.", variant: "destructive" }), 0);
       return false;
     }
     if (user.accountType === 'creator') {
-      toast({ title: "Action Not Allowed", description: "Creators cannot donate.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Action Not Allowed", description: "Creators cannot donate.", variant: "destructive" }), 0);
       return false;
     }
     const manga = getMangaById(mangaId);
      if (!manga || manga.author.id !== authorId) {
-      toast({ title: "Error", description: "Manga or author details mismatch.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Error", description: "Manga or author details mismatch.", variant: "destructive" }), 0);
       return false;
     }
     if (amount <= 0) {
-       toast({ title: "Invalid Amount", description: "Donation amount must be positive.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Invalid Amount", description: "Donation amount must be positive.", variant: "destructive" }), 0);
       return false;
     }
     if (user.walletBalance < amount) {
-      toast({ title: "Insufficient Balance", description: `Donation requires $${amount.toFixed(2)}. Your balance is $${user.walletBalance.toFixed(2)}.`, variant: "destructive" });
+      setTimeout(() => toast({ title: "Insufficient Balance", description: `Donation requires $${amount.toFixed(2)}. Your balance is $${user.walletBalance.toFixed(2)}.`, variant: "destructive" }), 0);
       return false;
     }
     
     const author = fetchAuthorDetails(authorId);
     if (!author) {
-      toast({ title: "Author Not Found", description: "Author details not found.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Author Not Found", description: "Author details not found.", variant: "destructive" }), 0);
       return false;
     }
 
     const platformCut = amount * PLATFORM_FEE_RATE;
     const revenueToAuthor = amount - platformCut;
 
+    let opportunitiesGainedThisTime = 0;
+    if (user) {
+        const oldTotalCombinedActions = (user.subscriptions.length) + (user.donationCount || 0);
+        const newDonationCountForCalc = (user.donationCount || 0) + 1;
+        const newTotalCombinedActionsForCalc = (user.subscriptions.length) + newDonationCountForCalc;
+        opportunitiesGainedThisTime = Math.floor(newTotalCombinedActionsForCalc / 5) - Math.floor(oldTotalCombinedActions / 5);
+    }
+
     setUser(prevUser => {
       if (!prevUser) return null;
-      const oldTotalCombinedActions = (prevUser.subscriptions.length) + (prevUser.donationCount || 0);
       const newDonationCount = (prevUser.donationCount || 0) + 1;
-      const newTotalCombinedActions = (prevUser.subscriptions.length) + newDonationCount;
-      const opportunitiesGained = Math.floor(newTotalCombinedActions / 5) - Math.floor(oldTotalCombinedActions / 5);
       let newInvestmentOpportunitiesAvailable = prevUser.investmentOpportunitiesAvailable || 0;
 
-      if (opportunitiesGained > 0) {
-        newInvestmentOpportunitiesAvailable += opportunitiesGained;
-        toast({ title: "Investment Opportunity Unlocked!", description: `You've gained ${opportunitiesGained} new investment ${opportunitiesGained === 1 ? 'chance' : 'chances'}!` });
+      if (opportunitiesGainedThisTime > 0) {
+        newInvestmentOpportunitiesAvailable += opportunitiesGainedThisTime;
       }
 
       return { 
@@ -508,48 +519,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       relatedData: { originalAmount: amount }
     });
 
-    toast({ title: "Donation Successful!", description: `You've donated $${amount.toFixed(2)} to ${mangaTitle}.` });
+    setTimeout(() => {
+        toast({ title: "Donation Successful!", description: `You've donated $${amount.toFixed(2)} to ${mangaTitle}.` });
+        if (opportunitiesGainedThisTime > 0) {
+            toast({ title: "Investment Opportunity Unlocked!", description: `You've gained ${opportunitiesGainedThisTime} new investment ${opportunitiesGainedThisTime === 1 ? 'chance' : 'chances'}!` });
+        }
+    }, 0);
     return true;
   }, [user, setUser, toast, recordTransaction]);
 
   const investInManga = useCallback(async (mangaId: string, mangaTitle: string, sharesToBuy: number, pricePerShare: number, totalCost: number): Promise<boolean> => {
     if (!user) {
-      toast({ title: "Login Required", description: "Please log in to invest.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Login Required", description: "Please log in to invest.", variant: "destructive" }), 0);
       return false;
     }
     if (user.accountType === 'creator') {
-        toast({ title: "Action Not Allowed", description: "Creators cannot invest.", variant: "destructive" });
-        return false;
+      setTimeout(() => toast({ title: "Action Not Allowed", description: "Creators cannot invest.", variant: "destructive" }), 0);
+      return false;
     }
     if ((user.investmentOpportunitiesAvailable || 0) <= 0) {
-      toast({ title: "Investment Locked", description: `You need an available investment opportunity. Earn one by making 5 combined subscriptions or donations. You have ${user.investmentOpportunitiesAvailable || 0} opportunities.`, variant: "destructive", duration: 7000 });
+      setTimeout(() => toast({ title: "Investment Locked", description: `You need an available investment opportunity. Earn one by making 5 combined subscriptions or donations. You have ${user.investmentOpportunitiesAvailable || 0} opportunities.`, variant: "destructive", duration: 7000 }), 0);
       return false;
     }
     const manga = getMangaById(mangaId);
     if (!manga || !manga.investmentOffer || !manga.investmentOffer.isActive || !manga.author) {
-      toast({ title: "Investment Unavailable", description: "This manga is not currently open for investment or author details are missing.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Investment Unavailable", description: "This manga is not currently open for investment or author details are missing.", variant: "destructive" }), 0);
       return false;
     }
     
     const author = fetchAuthorDetails(manga.author.id);
     if (!author) {
-        toast({ title: "Author Not Found", description: "Could not retrieve author details for investment.", variant: "destructive"});
-        return false;
+      setTimeout(() => toast({ title: "Author Not Found", description: "Could not retrieve author details for investment.", variant: "destructive"}), 0);
+      return false;
     }
 
      if (manga.investmentOffer.totalSharesInOffer > MAX_SHARES_PER_OFFER) {
-      toast({ title: "Invalid Investment Offer", description: `Manga shares offered (${manga.investmentOffer.totalSharesInOffer}) exceed the maximum limit of ${MAX_SHARES_PER_OFFER}.`, variant: "destructive" });
+      setTimeout(() => toast({ title: "Invalid Investment Offer", description: `Manga shares offered (${manga.investmentOffer.totalSharesInOffer}) exceed the maximum limit of ${MAX_SHARES_PER_OFFER}.`, variant: "destructive" }), 0);
       return false;
     }
     
     if (manga.investmentOffer.minSubscriptionRequirement && (!user.subscriptions || user.subscriptions.filter(s=>s.type === 'monthly' && s.mangaId === mangaId).length < manga.investmentOffer.minSubscriptionRequirement)) {
       const authorSpecificSubCount = user.subscriptions.filter(s => s.type === 'monthly' && s.mangaId === mangaId).length;
-      toast({ title: "Author's Investment Requirement Not Met", description: `The author requires you to have at least ${manga.investmentOffer.minSubscriptionRequirement} monthly subscriptions to *this specific manga* to invest. You currently have ${authorSpecificSubCount}.`, variant: "destructive", duration: 8000 });
+      setTimeout(() => toast({ title: "Author's Investment Requirement Not Met", description: `The author requires you to have at least ${manga.investmentOffer.minSubscriptionRequirement} monthly subscriptions to *this specific manga* to invest. You currently have ${authorSpecificSubCount}.`, variant: "destructive", duration: 8000 }), 0);
       return false;
     }
 
     if (user.walletBalance < totalCost) {
-      toast({ title: "Insufficient Balance", description: `Investment requires $${totalCost.toFixed(2)}. Your balance is $${user.walletBalance.toFixed(2)}.`, variant: "destructive" });
+      setTimeout(() => toast({ title: "Insufficient Balance", description: `Investment requires $${totalCost.toFixed(2)}. Your balance is $${user.walletBalance.toFixed(2)}.`, variant: "destructive" }), 0);
       return false;
     }
 
@@ -557,13 +573,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const totalSharesOwnedAfter = (existingInvestment?.sharesOwned || 0) + sharesToBuy;
 
     if (manga.investmentOffer.maxSharesPerUser && totalSharesOwnedAfter > manga.investmentOffer.maxSharesPerUser) {
-       toast({ title: "Share Limit Exceeded", description: `You can own a maximum of ${manga.investmentOffer.maxSharesPerUser} shares for this manga.`, variant: "destructive" });
+      setTimeout(() => toast({ title: "Share Limit Exceeded", description: `You can own a maximum of ${manga.investmentOffer.maxSharesPerUser} shares for this manga.`, variant: "destructive" }), 0);
       return false;
     }
 
     const totalSharesSoldByAuthor = manga.investors.reduce((sum, inv) => sum + inv.sharesOwned, 0);
     if (totalSharesSoldByAuthor + sharesToBuy > manga.investmentOffer.totalSharesInOffer) {
-      toast({ title: "Not Enough Shares", description: `Only ${manga.investmentOffer.totalSharesInOffer - totalSharesSoldByAuthor} shares are available from the author.`, variant: "destructive"});
+      setTimeout(() => toast({ title: "Not Enough Shares", description: `Only ${manga.investmentOffer.totalSharesInOffer - totalSharesSoldByAuthor} shares are available from the author.`, variant: "destructive"}), 0);
       return false;
     }
     
@@ -630,35 +646,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         relatedData: { originalAmount: totalCost }
     });
     
-    toast({ title: "Investment Successful!", description: `You've invested $${totalCost.toFixed(2)} for ${sharesToBuy} shares in ${mangaTitle}.` });
+    setTimeout(() => toast({ title: "Investment Successful!", description: `You've invested $${totalCost.toFixed(2)} for ${sharesToBuy} shares in ${mangaTitle}.` }), 0);
     return true;
   }, [user, setUser, toast, recordTransaction]);
 
   const rateManga = useCallback(async (mangaId: string, score: 1 | 2 | 3): Promise<boolean> => {
     if (!user) {
-      toast({ title: "Login Required", description: "Please log in to rate.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Login Required", description: "Please log in to rate.", variant: "destructive" }), 0);
       return false;
     }
     if (user.accountType === 'creator') {
-      toast({ title: "Action Not Allowed", description: "Creators cannot rate manga.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Action Not Allowed", description: "Creators cannot rate manga.", variant: "destructive" }), 0);
       return false;
     }
      const manga = getMangaById(mangaId);
     if (!manga) {
-      toast({ title: "Manga Not Found", variant: "destructive" });
+      setTimeout(() => toast({ title: "Manga Not Found", variant: "destructive" }), 0);
       return false;
     }
-    // Updated rating condition: subscription OR chapter purchase OR investment
+    
     const hasAccessToRate = isSubscribedToManga(mangaId) || 
                             user.investments.some(inv => inv.mangaId === mangaId) || 
                             user.subscriptions.some(sub => sub.mangaId === mangaId && sub.type === 'chapter');
 
     if (!hasAccessToRate) {
-      toast({ title: "Access Required", description: "You must be subscribed to, have purchased a chapter of, or invested in this manga to rate it.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Access Required", description: "You must be subscribed to, have purchased a chapter of, or invested in this manga to rate it.", variant: "destructive" }), 0);
       return false;
     }
     if (user.ratingsGiven && user.ratingsGiven[mangaId]) {
-      toast({ title: "Already Rated", description: "You have already rated this manga.", variant: "default" });
+      setTimeout(() => toast({ title: "Already Rated", description: "You have already rated this manga.", variant: "default" }), 0);
       return false;
     }
 
@@ -683,7 +699,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       relatedData: { score }
     });
 
-    toast({ title: "Rating Submitted!", description: `You rated ${manga.title}. New average: ${newAverageRating.toFixed(1)}.` });
+    setTimeout(() => toast({ title: "Rating Submitted!", description: `You rated ${manga.title}. New average: ${newAverageRating.toFixed(1)}.` }), 0);
     return true;
   }, [user, setUser, toast, recordTransaction, isSubscribedToManga]);
 
@@ -692,28 +708,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   & { chaptersInput?: ChapterInputForAdd[], authorDetails?: AuthorContactDetails }
   ): Promise<MangaSeries | null> => {
     if (!user || user.accountType !== 'creator') {
-      toast({ title: "Permission Denied", description: "Only creators can add new manga series.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Permission Denied", description: "Only creators can add new manga series.", variant: "destructive" }), 0);
       return null;
     }
     if (!user.isApproved) {
-      toast({ title: "Account Not Approved", description: "Your creator account must be approved by an admin to publish manga.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Account Not Approved", description: "Your creator account must be approved by an admin to publish manga.", variant: "destructive" }), 0);
       return null;
     }
     if (user.authoredMangaIds.length >= MAX_WORKS_PER_CREATOR) {
-      toast({ title: "Limit Reached", description: `You can create a maximum of ${MAX_WORKS_PER_CREATOR} manga series.`, variant: "destructive" });
+      setTimeout(() => toast({ title: "Limit Reached", description: `You can create a maximum of ${MAX_WORKS_PER_CREATOR} manga series.`, variant: "destructive" }), 0);
       return null;
     }
      if (newMangaData.investmentOffer && newMangaData.investmentOffer.totalSharesInOffer > MAX_SHARES_PER_OFFER) {
-        toast({ title: "Invalid Investment Offer", description: `The total shares offered cannot exceed ${MAX_SHARES_PER_OFFER}.`, variant: "destructive" });
-        return null;
+      setTimeout(() => toast({ title: "Invalid Investment Offer", description: `The total shares offered cannot exceed ${MAX_SHARES_PER_OFFER}.`, variant: "destructive" }), 0);
+      return null;
     }
 
 
     const newMangaId = `manga-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const authorInfo = fetchAuthorDetails(user.id);
     if(!authorInfo) {
-        toast({title: "Author Error", description: "Could not retrieve author details.", variant: "destructive"});
-        return null;
+      setTimeout(() => toast({title: "Author Error", description: "Could not retrieve author details.", variant: "destructive"}), 0);
+      return null;
     }
     const authorInfoForManga: GlobalAuthorInfo = { id: authorInfo.id, name: authorInfo.name, avatarUrl: authorInfo.avatarUrl, walletBalance: authorInfo.walletBalance, bankDetails: authorInfo.bankDetails };
 
@@ -749,22 +765,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       description: `Creator ${user.name} added new manga: ${newMangaToAdd.title}`
     });
 
-    toast({ title: "Manga Created!", description: `${newMangaToAdd.title} has been successfully added.` });
+    setTimeout(() => toast({ title: "Manga Created!", description: `${newMangaToAdd.title} has been successfully added.` }), 0);
     return newMangaToAdd;
   }, [user, setUser, toast, recordTransaction]);
 
   const deleteMangaSeries = useCallback(async (mangaId: string): Promise<boolean> => {
     if (!user || user.accountType !== 'creator') {
-      toast({ title: "Permission Denied", description: "Only creators can delete manga series.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Permission Denied", description: "Only creators can delete manga series.", variant: "destructive" }), 0);
       return false;
     }
      if (!user.isApproved) {
-      toast({ title: "Account Not Approved", description: "Your creator account must be approved to manage manga.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Account Not Approved", description: "Your creator account must be approved to manage manga.", variant: "destructive" }), 0);
       return false;
     }
     const mangaToDelete = getMangaById(mangaId);
     if (!mangaToDelete || mangaToDelete.author.id !== user.id) {
-      toast({ title: "Permission Denied", description: "You can only delete your own manga series.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Permission Denied", description: "You can only delete your own manga series.", variant: "destructive" }), 0);
       return false;
     }
 
@@ -793,11 +809,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         mangaToDelete.lastSubscriptionDate ? new Date(mangaToDelete.lastSubscriptionDate).getTime() : 0 
       );
       if ((Date.now() - lastActivityDate) < ONE_YEAR_IN_MS) {
-        toast({
+        setTimeout(() => toast({
           title: "Deletion Restricted",
           description: "This manga cannot be deleted yet due to active investments or subscriptions/purchases within the last year.",
           variant: "destructive", duration: 7000,
-        });
+        }), 0);
         return false;
       }
     }
@@ -812,7 +828,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       type: 'manga_deletion', amount: 0, userId: user.id, authorId: user.id, mangaId: mangaId,
       description: `Creator ${user.name} deleted manga: ${mangaToDelete.title}`
     });
-    toast({ title: "Manga Deleted", description: `${mangaToDelete.title} has been removed.` });
+    setTimeout(() => toast({ title: "Manga Deleted", description: `${mangaToDelete.title} has been removed.` }), 0);
     return true;
   }, [user, setUser, toast, recordTransaction]);
 
@@ -828,7 +844,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const addFunds = useCallback((amount: number) => {
     if (!user) return;
     if (amount <= 0) {
-      toast({ title: "Invalid Amount", description: "Deposit amount must be positive.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Invalid Amount", description: "Deposit amount must be positive.", variant: "destructive" }), 0);
       return;
     }
     setUser(prev => prev ? ({ ...prev, walletBalance: prev.walletBalance + amount }) : null);
@@ -836,16 +852,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       type: 'wallet_deposit', amount: amount, userId: user.id,
       description: `Wallet deposit $${amount.toFixed(2)}`
     });
-    toast({ title: "Funds Added", description: `$${amount.toFixed(2)} added to your wallet.` });
+    setTimeout(() => toast({ title: "Funds Added", description: `$${amount.toFixed(2)} added to your wallet.` }), 0);
   }, [user, setUser, toast, recordTransaction]);
 
   const withdrawFunds = useCallback(async (amountToWithdraw: number): Promise<boolean> => {
     if (!user) {
-      toast({ title: "Login Required", description: "Please log in to withdraw funds.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Login Required", description: "Please log in to withdraw funds.", variant: "destructive" }), 0);
       return false;
     }
     if (amountToWithdraw <= 0) {
-      toast({ title: "Invalid Amount", description: "Withdrawal amount must be positive.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Invalid Amount", description: "Withdrawal amount must be positive.", variant: "destructive" }), 0);
       return false;
     }
     
@@ -857,8 +873,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (user.accountType === 'creator') {
         authorDetailsForWithdrawal = fetchAuthorDetails(user.id);
         if (!authorDetailsForWithdrawal) {
-            toast({ title: "Author Error", description: "Could not retrieve author details for withdrawal.", variant: "destructive"});
-            return false;
+          setTimeout(() => toast({ title: "Author Error", description: "Could not retrieve author details for withdrawal.", variant: "destructive"}), 0);
+          return false;
         }
         currentBalance = authorDetailsForWithdrawal.walletBalance;
         isCreatorWithdrawal = true;
@@ -868,7 +884,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 
     if (currentBalance < amountToWithdraw) {
-      toast({ title: "Insufficient Balance", description: `Cannot withdraw $${amountToWithdraw.toFixed(2)}. Current balance: $${currentBalance.toFixed(2)}.`, variant: "destructive" });
+      setTimeout(() => toast({ title: "Insufficient Balance", description: `Cannot withdraw $${amountToWithdraw.toFixed(2)}. Current balance: $${currentBalance.toFixed(2)}.`, variant: "destructive" }), 0);
       return false;
     }
 
@@ -889,11 +905,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const potentialDividendPool = totalEarningsForManga * (manga.investmentOffer.sharesOfferedTotalPercent / 100);
             
             if (potentialDividendPool > 0) { 
-               toast({
+              setTimeout(() => toast({
                 title: "Withdrawal Blocked for Creator",
                 description: `Dividends for manga "${manga.title}" are due or pending calculation. Please process investor payouts before withdrawing general earnings.`,
                 variant: "destructive", duration: 8000,
-              });
+              }), 0);
               return false;
             }
           }
@@ -903,8 +919,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     if (isCreatorWithdrawal && authorDetailsForWithdrawal) {
         updateMockAuthorBalance(user.id, currentBalance - amountToWithdraw);
-        if (user.id === authorDetailsForWithdrawal.id) { // Ensure the logged-in user is the one whose wallet is being updated
-             setUser(prev => prev ? { ...prev, walletBalance: prev.walletBalance - amountToWithdraw } : null); // Update user's own view of their balance if they are the author
+        if (user.id === authorDetailsForWithdrawal.id) { 
+             setUser(prev => prev ? { ...prev, walletBalance: prev.walletBalance - amountToWithdraw } : null); 
         }
     } else {
         setUser(prev => prev ? { ...prev, walletBalance: prev.walletBalance - amountToWithdraw } : null);
@@ -914,7 +930,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       type: 'wallet_withdrawal', amount: -amountToWithdraw, userId: user.id,
       description: `${user.accountType === 'creator' ? 'Creator ' : ''}User ${user.name} withdrew $${amountToWithdraw.toFixed(2)}`
     });
-    toast({ title: "Withdrawal Processed", description: `$${amountToWithdraw.toFixed(2)} has been withdrawn. (Simulated)`});
+    setTimeout(() => toast({ title: "Withdrawal Processed", description: `$${amountToWithdraw.toFixed(2)} has been withdrawn. (Simulated)`}), 0);
     return true;
   }, [user, setUser, toast, recordTransaction]);
   
@@ -925,11 +941,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const toggleFavorite = useCallback((mangaId: string, mangaTitle: string) => {
     if (!user) {
-      toast({ title: "Login Required", description: "Please log in to favorite manga.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Login Required", description: "Please log in to favorite manga.", variant: "destructive" }), 0);
       return;
     }
      if (user.accountType === 'creator') {
-      toast({ title: "Action Not Allowed", description: "Creators cannot favorite manga.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Action Not Allowed", description: "Creators cannot favorite manga.", variant: "destructive" }), 0);
       return;
     }
     
@@ -937,10 +953,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!prevUser) return null;
       const currentFavorites = prevUser.favorites || [];
       if (currentFavorites.includes(mangaId)) {
-        toast({ title: "Removed from Favorites", description: `${mangaTitle} removed from your favorites.` });
+        setTimeout(() => toast({ title: "Removed from Favorites", description: `${mangaTitle} removed from your favorites.` }), 0);
         return { ...prevUser, favorites: currentFavorites.filter(id => id !== mangaId) };
       } else {
-        toast({ title: "Added to Favorites!", description: `${mangaTitle} added to your favorites.` });
+        setTimeout(() => toast({ title: "Added to Favorites!", description: `${mangaTitle} added to your favorites.` }), 0);
         return { ...prevUser, favorites: [...currentFavorites, mangaId] };
       }
     });
@@ -966,35 +982,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const listSharesForSale = useCallback(async (mangaId: string, shares: number, pricePerShare: number, description: string): Promise<ShareListing | null> => {
     if (!user) {
-      toast({ title: "Login Required", description: "Please log in to list shares.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Login Required", description: "Please log in to list shares.", variant: "destructive" }), 0);
       return null;
     }
      if (user.accountType === 'creator') { 
-        toast({ title: "Action Not Allowed", description: "Creators cannot list shares on the secondary market.", variant: "destructive" });
-        return null;
+      setTimeout(() => toast({ title: "Action Not Allowed", description: "Creators cannot list shares on the secondary market.", variant: "destructive" }), 0);
+      return null;
     }
     const investment = user.investments.find(inv => inv.mangaId === mangaId);
     if (!investment) {
-      toast({ title: "No Investment Found", description: "You do not own shares in this manga.", variant: "destructive" });
+      setTimeout(() => toast({ title: "No Investment Found", description: "You do not own shares in this manga.", variant: "destructive" }), 0);
       return null;
     }
     if (investment.isListedForSale && investment.listingId) {
-        toast({ title: "Already Listed", description: `You already have ${investment.sharesListed} shares of this manga listed. Please delist first to create a new listing.`, variant: "destructive", duration: 6000});
-        return null;
+      setTimeout(() => toast({ title: "Already Listed", description: `You already have ${investment.sharesListed} shares of this manga listed. Please delist first to create a new listing.`, variant: "destructive", duration: 6000}), 0);
+      return null;
     }
     if (shares <= 0) {
-        toast({ title: "Invalid Shares", description: "Number of shares to list must be positive.", variant: "destructive"});
-        return null;
+      setTimeout(() => toast({ title: "Invalid Shares", description: "Number of shares to list must be positive.", variant: "destructive"}), 0);
+      return null;
     }
     if (shares > investment.sharesOwned - (investment.sharesListed || 0)) {
-      toast({ title: "Insufficient Unlisted Shares", description: `You only have ${investment.sharesOwned - (investment.sharesListed || 0)} unlisted shares.`, variant: "destructive" });
+      setTimeout(() => toast({ title: "Insufficient Unlisted Shares", description: `You only have ${investment.sharesOwned - (investment.sharesListed || 0)} unlisted shares.`, variant: "destructive" }), 0);
       return null;
     }
 
 
     const mangaDetails = getMangaById(mangaId);
     if (!mangaDetails) {
-      toast({ title: "Manga Not Found", variant: "destructive" });
+      setTimeout(() => toast({ title: "Manga Not Found", variant: "destructive" }), 0);
       return null;
     }
 
@@ -1022,23 +1038,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
     });
     recordTransaction({ type: 'list_shares_for_sale', amount: 0, userId: user.id, mangaId, description: `Listed ${shares} shares of ${mangaDetails.title} for $${pricePerShare.toFixed(2)}/share. Listing ID: ${newListing.id}`, relatedData: { listingId: newListing.id, shares, pricePerShare } });
-    toast({ title: "Shares Listed!", description: `${shares} shares of ${mangaDetails.title} are now on the market.` });
+    setTimeout(() => toast({ title: "Shares Listed!", description: `${shares} shares of ${mangaDetails.title} are now on the market.` }), 0);
     return newListing;
   }, [user, toast, recordTransaction, setUser]);
 
   const delistSharesFromSale = useCallback(async (mangaId: string, listingId: string): Promise<boolean> => {
      if (!user) {
-      toast({ title: "Login Required", variant: "destructive" });
+      setTimeout(() => toast({ title: "Login Required", variant: "destructive" }), 0);
       return false;
     }
     if (user.accountType === 'creator') {
-        toast({ title: "Action Not Allowed", description: "Creators cannot manage secondary market listings.", variant: "destructive" });
-        return false;
+      setTimeout(() => toast({ title: "Action Not Allowed", description: "Creators cannot manage secondary market listings.", variant: "destructive" }), 0);
+      return false;
     }
     const investment = user.investments.find(inv => inv.mangaId === mangaId && inv.listingId === listingId);
     if (!investment || !investment.isListedForSale) {
-        toast({ title: "Listing Not Found", description: "No active listing by you for these shares.", variant: "destructive" });
-        return false;
+      setTimeout(() => toast({ title: "Listing Not Found", description: "No active listing by you for these shares.", variant: "destructive" }), 0);
+      return false;
     }
     
     globalRemoveShareListing(listingId); 
@@ -1055,36 +1071,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
     });
     recordTransaction({ type: 'delist_shares_from_sale', amount: 0, userId: user.id, mangaId, description: `Delisted shares of ${investment.mangaTitle}. Listing ID: ${listingId}`, relatedData: { listingId } });
-    toast({ title: "Shares Delisted", description: `Your shares of ${investment.mangaTitle} have been removed from the market.` });
+    setTimeout(() => toast({ title: "Shares Delisted", description: `Your shares of ${investment.mangaTitle} have been removed from the market.` }), 0);
     return true;
   }, [user, toast, recordTransaction, setUser]);
 
   const purchaseSharesFromListing = useCallback(async (listingId: string, sharesToBuy: number): Promise<boolean> => {
     if (!user) {
-      toast({ title: "Login Required", description: "Please login to purchase shares.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Login Required", description: "Please login to purchase shares.", variant: "destructive" }), 0);
       return false;
     }
      if (user.accountType === 'creator') {
-        toast({ title: "Action Not Allowed", description: "Creators cannot purchase shares from the market.", variant: "destructive" });
-        return false;
+      setTimeout(() => toast({ title: "Action Not Allowed", description: "Creators cannot purchase shares from the market.", variant: "destructive" }), 0);
+      return false;
     }
     if ((user.investmentOpportunitiesAvailable || 0) <= 0) {
-      toast({ title: "Investment Locked", description: `You need an available investment opportunity. Earn one by making 5 combined subscriptions or donations. You have ${user.investmentOpportunitiesAvailable || 0} opportunities.`, variant: "destructive", duration: 7000 });
+      setTimeout(() => toast({ title: "Investment Locked", description: `You need an available investment opportunity. Earn one by making 5 combined subscriptions or donations. You have ${user.investmentOpportunitiesAvailable || 0} opportunities.`, variant: "destructive", duration: 7000 }), 0);
       return false;
     }
 
     const listing = getShareListingById(listingId);
     if (!listing || !listing.isActive || listing.sharesOffered < sharesToBuy) {
-      toast({ title: "Listing Unavailable", description: "This listing is no longer available or doesn't have enough shares.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Listing Unavailable", description: "This listing is no longer available or doesn't have enough shares.", variant: "destructive" }), 0);
       return false;
     }
     if (user.id === listing.sellerUserId) {
-      toast({ title: "Cannot Buy Own Shares", variant: "default" });
+      setTimeout(() => toast({ title: "Cannot Buy Own Shares", variant: "default" }), 0);
       return false;
     }
     const totalCost = sharesToBuy * listing.pricePerShare;
     if (user.walletBalance < totalCost) {
-      toast({ title: "Insufficient Balance", description: `Purchase requires $${totalCost.toFixed(2)}. Your balance: $${user.walletBalance.toFixed(2)}.`, variant: "destructive" });
+      setTimeout(() => toast({ title: "Insufficient Balance", description: `Purchase requires $${totalCost.toFixed(2)}. Your balance: $${user.walletBalance.toFixed(2)}.`, variant: "destructive" }), 0);
       return false;
     }
 
@@ -1153,30 +1169,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     }
 
-    toast({ title: "Purchase Successful!", description: `You bought ${sharesToBuy} shares of ${listing.mangaTitle}.`});
+    setTimeout(() => toast({ title: "Purchase Successful!", description: `You bought ${sharesToBuy} shares of ${listing.mangaTitle}.`}), 0);
     return true;
-  }, [user, toast, recordTransaction]);
+  }, [user, toast, recordTransaction, setUser]);
 
   const followShareListing = useCallback((listingId: string) => {
     if (!user) return;
      if (user.accountType === 'creator') {
-        toast({ title: "Action Not Allowed", description: "Creators cannot follow share listings.", variant: "destructive" });
-        return;
+      setTimeout(() => toast({ title: "Action Not Allowed", description: "Creators cannot follow share listings.", variant: "destructive" }), 0);
+      return;
     }
     setUser(prev => prev ? ({ ...prev, followedShareListings: [...(prev.followedShareListings || []), listingId] }) : null);
     updateListingFollowerCount(listingId, true);
-    toast({title: "Followed Listing", description: "You will now receive updates for this listing."});
+    setTimeout(() => toast({title: "Followed Listing", description: "You will now receive updates for this listing."}), 0);
   }, [user, setUser, toast]); 
 
   const unfollowShareListing = useCallback((listingId: string) => {
     if (!user) return;
      if (user.accountType === 'creator') {
-        toast({ title: "Action Not Allowed", description: "Creators cannot unfollow share listings.", variant: "destructive" });
-        return;
+      setTimeout(() => toast({ title: "Action Not Allowed", description: "Creators cannot unfollow share listings.", variant: "destructive" }), 0);
+      return;
     }
     setUser(prev => prev ? ({ ...prev, followedShareListings: (prev.followedShareListings || []).filter(id => id !== listingId) }) : null);
     updateListingFollowerCount(listingId, false);
-    toast({title: "Unfollowed Listing", description: "You will no longer receive updates."});
+    setTimeout(() => toast({title: "Unfollowed Listing", description: "You will no longer receive updates."}), 0);
   }, [user, setUser, toast]); 
 
   const isShareListingFollowed = useCallback((listingId: string) => {
@@ -1186,20 +1202,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const addCommentToManga = useCallback(async (mangaId: string, text: string): Promise<Comment | null> => {
     if (!user) {
-      toast({ title: "Login Required", description: "Please log in to add a comment.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Login Required", description: "Please log in to add a comment.", variant: "destructive" }), 0);
       return null;
     }
      const currentManga = getMangaById(mangaId);
     if (user.accountType === 'creator' && currentManga && currentManga.author.id !== user.id) {
-        toast({ title: "Action Not Allowed", description: "Creators cannot comment on other creators' works.", variant: "destructive" });
-        return null;
+      setTimeout(() => toast({ title: "Action Not Allowed", description: "Creators cannot comment on other creators' works.", variant: "destructive" }), 0);
+      return null;
     }
     if (!currentManga) {
-      toast({ title: "Manga Not Found", variant: "destructive" });
+      setTimeout(() => toast({ title: "Manga Not Found", variant: "destructive" }), 0);
       return null;
     }
     if (!text.trim()) {
-      toast({ title: "Empty Comment", description: "Comment cannot be empty.", variant: "destructive" });
+      setTimeout(() => toast({ title: "Empty Comment", description: "Comment cannot be empty.", variant: "destructive" }), 0);
       return null;
     }
 
@@ -1224,10 +1240,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             description: `User ${user.name} commented on ${currentManga.title}`,
             relatedData: { commentText: text.trim() }
         });
-        toast({ title: "Comment Added!", description: "Your comment has been posted." });
+        setTimeout(() => toast({ title: "Comment Added!", description: "Your comment has been posted." }), 0);
         return addedComment;
     } else {
-        toast({ title: "Error", description: "Failed to add comment.", variant: "destructive" });
+        setTimeout(() => toast({ title: "Error", description: "Failed to add comment.", variant: "destructive" }), 0);
         return null;
     }
   }, [user, toast, recordTransaction]);
@@ -1258,4 +1274,3 @@ export function useAuth() {
   }
   return context;
 }
-
