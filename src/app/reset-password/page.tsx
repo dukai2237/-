@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -25,7 +26,7 @@ export default function ResetPasswordPage() {
     const urlToken = searchParams.get('token');
     if (urlToken) {
         setToken(urlToken); 
-        toast({ title: "Token Detected (Simulated)", description: "Password reset token from URL (simulated). You can use this or enter a code." });
+        toast({ title: "Token Detected (Simulated)", description: "Password reset token from URL (simulated). You can use this or enter a code sent to your email." });
     }
   }, [searchParams, toast]);
 
@@ -35,7 +36,7 @@ export default function ResetPasswordPage() {
     setIsSubmitting(true);
 
     if (!verificationCode && !token) {
-      toast({ title: "Missing Code/Token", description: "Please enter the verification code or ensure a token is present.", variant: "destructive" });
+      toast({ title: "Missing Code/Token", description: "Please enter the verification code sent to your email or ensure a token is present in the URL.", variant: "destructive" });
       setIsSubmitting(false);
       return;
     }
@@ -54,7 +55,7 @@ export default function ResetPasswordPage() {
     // Simulate password reset
     const codeOrTokenUsed = token || verificationCode;
     if (verificationCode !== "654321" && token !== "mockResetToken123") { 
-        toast({ title: "Invalid Code/Token", description: "The verification code or token is incorrect.", variant: "destructive" });
+        toast({ title: "Invalid Code/Token", description: "The verification code or token is incorrect. Please check your email or the link.", variant: "destructive" });
         setIsSubmitting(false);
         return;
     }
@@ -75,7 +76,7 @@ export default function ResetPasswordPage() {
         <CardHeader>
           <CardTitle className="text-2xl flex items-center"><KeyRound className="mr-2"/> Reset Your Password</CardTitle>
           <CardDescription>
-            Enter the verification code sent to your email (e.g., '654321' for demo) or use the token from the reset link, then set a new password.
+            Enter the verification code sent to your email (for demo, try '654321') or use the token from the reset link URL, then set a new password.
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
@@ -86,14 +87,14 @@ export default function ResetPasswordPage() {
                 </div>
             )}
             <div className="space-y-2">
-              <Label htmlFor="verification-code-reset">Verification Code (if no URL token)</Label>
+              <Label htmlFor="verification-code-reset">Verification Code (from Email)</Label>
               <Input 
                 id="verification-code-reset" 
                 type="text" 
                 placeholder="Enter code from email" 
                 value={verificationCode} 
                 onChange={(e) => setVerificationCode(e.target.value)} 
-                disabled={isSubmitting}
+                disabled={isSubmitting || !!token} // Disable if token is present in URL
               />
             </div>
              <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-md">
@@ -102,7 +103,7 @@ export default function ResetPasswordPage() {
                     <div>
                         <h4 className="text-sm font-semibold text-yellow-700 dark:text-yellow-300">Email Access Required</h4>
                         <p className="text-xs text-yellow-600 dark:text-yellow-400">
-                            Ensure you have access to your registered email to receive the verification code. 
+                            Ensure you have access to your registered email to receive the verification code/link. 
                             If you cannot access your email, you may not be able to reset your password.
                         </p>
                     </div>
@@ -148,3 +149,4 @@ export default function ResetPasswordPage() {
     </div>
   );
 }
+

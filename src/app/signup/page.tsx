@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,7 @@ import { useState, type FormEvent, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { MailCheck, AlertTriangle } from "lucide-react";
+import type { User } from "@/lib/types";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -55,7 +57,7 @@ export default function SignupPage() {
     console.log(`Simulating: Sending verification code to ${email}. For demo, use code: 123456`);
     toast({
       title: "Verification Code Sent (Simulated)",
-      description: `A verification code has been "sent" to ${email}. Please check your console or use '123456' for this demo.`,
+      description: `A verification code has been "sent" to ${email}. Please check your email. For this demo, you can use the code '123456'.`,
       duration: 7000,
     });
     setIsVerificationCodeSent(true);
@@ -77,7 +79,7 @@ export default function SignupPage() {
       return;
     }
     if (!isVerificationCodeSent || !verificationCode) {
-      toast({ title: "Verification Required", description: "Please send and enter the verification code.", variant: "destructive" });
+      toast({ title: "Verification Required", description: "Please send and enter the verification code from your email.", variant: "destructive" });
       setIsSubmitting(false);
       return;
     }
@@ -166,7 +168,7 @@ export default function SignupPage() {
                     <Input
                         id="verificationCode"
                         type="text"
-                        placeholder="Enter 6-digit code"
+                        placeholder="Enter 6-digit code from email"
                         value={verificationCode}
                         onChange={(e) => setVerificationCode(e.target.value)}
                         required
@@ -197,3 +199,4 @@ export default function SignupPage() {
     </div>
   );
 }
+

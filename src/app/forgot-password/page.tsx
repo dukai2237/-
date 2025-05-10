@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -28,7 +29,7 @@ export default function ForgotPasswordPage() {
     console.log(`Simulating: Sending password reset link to ${email}.`);
     toast({
       title: "Password Reset Email Sent (Simulated)",
-      description: `If an account exists for ${email}, a (simulated) password reset link/code has been sent. Check console for details or use '654321' or token 'mockResetToken123' on the reset page.`,
+      description: `If an account exists for ${email}, a password reset link/code has been (simulated as) sent to your email. For demo purposes, on the reset page, use code '654321' or token 'mockResetToken123'.`,
       duration: 10000, // Increased duration for visibility
     });
     
@@ -44,7 +45,7 @@ export default function ForgotPasswordPage() {
         <CardHeader>
           <CardTitle className="text-2xl">Forgot Password</CardTitle>
           <CardDescription>
-            Enter your email address and we'll (simulate) send you a link/code to reset your password.
+            Enter your email address and we'll (simulate) send you a link/code to your email to reset your password.
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
@@ -76,3 +77,4 @@ export default function ForgotPasswordPage() {
     </div>
   );
 }
+
