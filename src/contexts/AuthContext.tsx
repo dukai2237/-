@@ -1,4 +1,3 @@
-// src/contexts/AuthContext.tsx
 "use client";
 import type { User, UserSubscription, UserInvestment, SimulatedTransaction, MangaSeries, MangaInvestor, Chapter, MangaPage, AuthorContactDetails, ShareListing, Comment, BankAccountDetails, AuthorInfo as GlobalAuthorInfo } from '@/lib/types';
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
@@ -11,14 +10,11 @@ import {
     removeShareListing as globalRemoveShareListing, getShareListingById, updateListingFollowerCount,
     addCommentToMockManga
 } from '@/lib/mock-data';
-import { MAX_WORKS_PER_CREATOR, MAX_SHARES_PER_OFFER } from '@/lib/constants'; 
+import { MAX_WORKS_PER_CREATOR, MAX_SHARES_PER_OFFER, USER_PROFILE_UPDATE_COOLDOWN_DAYS, CREATOR_PROFILE_UPDATE_COOLDOWN_DAYS } from '@/lib/constants'; 
 
 const PLATFORM_FEE_RATE = 0.10; 
 const ONE_YEAR_IN_MS = 365 * 24 * 60 * 60 * 1000;
 const MOCK_VERIFICATION_CODE = "123456"; 
-
-const USER_PROFILE_UPDATE_COOLDOWN_DAYS = 30;
-const CREATOR_PROFILE_UPDATE_COOLDOWN_DAYS = 90;
 
 
 interface ChapterInputForAdd {
@@ -107,7 +103,7 @@ export const MOCK_USER_VALID: User = {
   },
   donationCount: 0, 
   investmentOpportunitiesAvailable: 2, 
-  lastProfileUpdate: new Date(Date.now() - (CREATOR_PROFILE_UPDATE_COOLDOWN_DAYS + 5) * 24 * 60 * 60 * 1000).toISOString(), // Ensure MOCK_USER can update profile
+  lastProfileUpdate: new Date(Date.now() - (CREATOR_PROFILE_UPDATE_COOLDOWN_DAYS + 5) * 24 * 60 * 60 * 1000).toISOString(),
 };
 
 
@@ -318,6 +314,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             contactDetails: { email: newUserToAdd.email },
             walletBalance: 0,
             isSystemUser: false,
+            // These creator-specific fields might be better managed in a separate author profile document in a real DB
+            // For mockAuthors, we can add them if they become relevant to AuthorInfo structure
+            // donationCount: 0,
+            // investmentOpportunitiesAvailable: 0,
+            lastProfileUpdate: newUserToAdd.lastProfileUpdate,
         };
         mockAuthors.push(newAuthorEntry);
     }
@@ -708,7 +709,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           : inv
         );
       } else {
-        updatedInvestments.push({ mangaId, mangaTitle, sharesOwned: sharesToBuy, amountInvested: totalCost, investmentDate: new Date().toISOString() });
+        updatedInvestments.push({ mangaId, mangaTitle, sharesOwned: sharesToBuy, amountInvested: totalCost, investmentDate: new Date().toISOString(), totalDividendsReceived: 0 });
       }
       return { 
         ...prevUser, 
@@ -842,7 +843,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTimeout(() => toast({title: "Author Error", description: "Could not retrieve author details.", variant: "destructive"}), 0);
       return null;
     }
-    const authorInfoForManga: GlobalAuthorInfo = { id: authorInfo.id, name: authorInfo.name, avatarUrl: authorInfo.avatarUrl, walletBalance: authorInfo.walletBalance, bankDetails: authorInfo.bankDetails, lastProfileUpdate: authorInfo.lastProfileUpdate };
+    const authorInfoForManga: GlobalAuthorInfo = { 
+        id: authorInfo.id, 
+        name: authorInfo.name, 
+        avatarUrl: authorInfo.avatarUrl, 
+        walletBalance: authorInfo.walletBalance, 
+        bankDetails: authorInfo.bankDetails, 
+        lastProfileUpdate: authorInfo.lastProfileUpdate,
+        contactDetails: authorInfo.contactDetails, // Ensure contactDetails are carried over
+        isSystemUser: authorInfo.isSystemUser,
+    };
 
 
     const mangaAuthorDetails: AuthorContactDetails | undefined = newMangaData.authorDetails || { email: user.email };
@@ -945,8 +955,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 
   const updateViewingHistory = useCallback((mangaId: string, chapterId: string, pageIndex: number) => {
-    setViewingHistory(prev => new Map(prev).set(mangaId, { chapterId, pageIndex, date: new Date() }));
+    setViewingHistory(prevMap => {
+      const currentEntry = prevMap.get(mangaId);
+      // Only create a new map if the actual data for this mangaId is changing
+      if (currentEntry && currentEntry.chapterId === chapterId && currentEntry.pageIndex === pageIndex) {
+        return prevMap; // Return the same map instance
+      }
+      const newMap = new Map(prevMap);
+      newMap.set(mangaId, { chapterId, pageIndex, date: new Date() });
+      return newMap;
+    });
   }, []);
+
 
   const getViewingHistory = useCallback((mangaId: string) => {
     return viewingHistory.get(mangaId);
@@ -1030,8 +1050,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     if (isCreatorWithdrawal && authorDetailsForWithdrawal) {
         updateMockAuthorBalance(user.id, currentBalance - amountToWithdraw);
+        // If current user is the author whose balance is updated, refresh their local state if different from global user
         if (user.id === authorDetailsForWithdrawal.id) { 
-             setUser(prev => prev ? { ...prev, walletBalance: prev.walletBalance - amountToWithdraw } : null); 
+          const updatedAuthor = fetchAuthorDetails(user.id); // Re-fetch to get the most current state
+          if (updatedAuthor) {
+            // This might be redundant if setUser is already handling a global user state correctly for creators.
+            // However, it ensures that if authorDetails was a separate copy, it gets updated.
+            // Ideally, author's wallet is part of the `user` object for creators.
+          }
         }
     } else {
         setUser(prev => prev ? { ...prev, walletBalance: prev.walletBalance - amountToWithdraw } : null);
@@ -1224,11 +1250,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (existingInvestment) {
         updatedInvestments = updatedInvestments.map(inv => 
           inv.mangaId === listing.mangaId 
-          ? { ...inv, sharesOwned: inv.sharesOwned + sharesToBuy, amountInvested: inv.amountInvested + totalCost } 
+          ? { ...inv, sharesOwned: inv.sharesOwned + sharesToBuy, amountInvested: inv.amountInvested + totalCost, totalDividendsReceived: inv.totalDividendsReceived || 0 } 
           : inv
         );
       } else {
-        updatedInvestments.push({ mangaId: listing.mangaId, mangaTitle: listing.mangaTitle, sharesOwned: sharesToBuy, amountInvested: totalCost, investmentDate: new Date().toISOString() });
+        updatedInvestments.push({ mangaId: listing.mangaId, mangaTitle: listing.mangaTitle, sharesOwned: sharesToBuy, amountInvested: totalCost, investmentDate: new Date().toISOString(), totalDividendsReceived: 0 });
       }
       return { 
         ...prevUser, 
@@ -1387,3 +1413,4 @@ export function useAuth() {
   }
   return context;
 }
+

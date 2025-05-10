@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -48,7 +47,10 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
   // Effect 1: Determine and set the initial/current page index
   useEffect(() => {
     if (pages.length === 0) {
-      setCurrentPageIndex(0);
+      // If pages are empty, reset to 0 only if it's not already 0
+      if (currentPageIndex !== 0) {
+        setCurrentPageIndex(0);
+      }
       setIsImageLoading(false);
       setError(null);
       return;
@@ -69,14 +71,13 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
       }
     }
     
-    setCurrentPageIndex(idx => {
-        // Only update if the new target is different to prevent potential re-renders
-        // if other dependencies caused this effect to run but targetPageIndex remains same.
-        if (idx !== targetPageIndex) return targetPageIndex;
-        return idx;
-    });
+    // Only call setCurrentPageIndex if the calculated target is different from the current state.
+    // This is crucial to prevent loops.
+    if (targetPageIndex !== currentPageIndex) {
+      setCurrentPageIndex(targetPageIndex);
+    }
     // Image loading state for the *new* targetPageIndex will be handled by Effect 4
-  }, [mangaId, chapterId, pages, getViewingHistory]);
+  }, [mangaId, chapterId, pages, getViewingHistory, currentPageIndex]); // Added currentPageIndex to dependencies.
 
 
   const handleNextPage = useCallback(() => {
@@ -328,3 +329,4 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
     </div>
   );
 }
+
