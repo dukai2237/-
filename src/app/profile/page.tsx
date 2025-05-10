@@ -1,27 +1,44 @@
+// src/app/profile/page.tsx
 "use client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from "@/components/ui/table";
-import { DollarSign, BookOpenCheck, BarChart3, Briefcase, LogOut, Landmark, Receipt, Edit3, BookUp, PlusCircle, CheckCircle, Clock, AlertCircle, Heart, Search, Store, Tag, MinusCircle } from "lucide-react";
+import { DollarSign, BookOpenCheck, BarChart3, Briefcase, LogOut, Landmark, Receipt, Edit3, BookUp, PlusCircle, CheckCircle, Clock, AlertCircle, Heart, Search, Store, Tag, MinusCircle, Edit, UserCog } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { getMangaById, getShareListingById } from "@/lib/mock-data"; 
-import type { UserInvestment, ShareListing } from "@/lib/types";
+import { getMangaById, getShareListingById, mockAuthors, updateMockAuthorBalance } from "@/lib/mock-data"; 
+import type { UserInvestment, ShareListing, AuthorInfo as GlobalAuthorInfo } from '@/lib/types';
 import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import Image from 'next/image';
+
+const USER_PROFILE_UPDATE_COOLDOWN_DAYS = 30;
+const CREATOR_PROFILE_UPDATE_COOLDOWN_DAYS = 90;
+
 
 export default function ProfilePage() {
   const { 
     user, logout, viewingHistory, transactions, addFunds, withdrawFunds, 
-    approveCreatorAccount, favorites, listSharesForSale, delistSharesFromSale
+    approveCreatorAccount, favorites, listSharesForSale, delistSharesFromSale,
+    updateUserProfile 
   } = useAuth(); 
   const router = useRouter();
   const { toast } = useToast();
@@ -29,6 +46,7 @@ export default function ProfilePage() {
   const [isAddFundsDialogOpen, setIsAddFundsDialogOpen] = useState(false);
   const [isWithdrawFundsDialogOpen, setIsWithdrawFundsDialogOpen] = useState(false);
   const [isListSharesDialogOpen, setIsListSharesDialogOpen] = useState(false);
+  const [isEditProfileDialogOpen, setIsEditProfileDialogOpen] = useState(false);
   
   const [fundsToAdd, setFundsToAdd] = useState("");
   const [fundsToWithdraw, setFundsToWithdraw] = useState("");
@@ -38,22 +56,35 @@ export default function ProfilePage() {
   const [pricePerShareToList, setPricePerShareToList] = useState("");
   const [listingDescription, setListingDescription] = useState("");
 
+  const [newName, setNewName] = useState(user?.name || "");
+  const [newAvatarFile, setNewAvatarFile] = useState<File | null>(null);
+  const [newAvatarPreview, setNewAvatarPreview] = useState<string | null>(user?.avatarUrl || null);
+  const avatarFileRef = useRef<HTMLInputElement>(null);
+
 
   const [isMockAdmin, setIsMockAdmin] = useState(false); 
+  const [authorDetails, setAuthorDetails] = useState<GlobalAuthorInfo | null | undefined>(null);
+
   useEffect(() => {
-    if (user && user.email === 'admin@example.com') { 
-        setIsMockAdmin(true);
+    if (user) {
+        setNewName(user.name);
+        setNewAvatarPreview(user.avatarUrl);
+        if (user.email === 'admin@example.com') { 
+            setIsMockAdmin(true);
+        } else {
+            setIsMockAdmin(false);
+        }
+        if (user.accountType === 'creator') {
+             const author = mockAuthors.find(author => author.id === user.id);
+             setAuthorDetails(author);
+        } else {
+             setAuthorDetails(null);
+        }
     } else {
-        setIsMockAdmin(false);
-    }
-  }, [user]);
-
-
-  useEffect(() => {
-    if (!user) {
       router.push("/login?redirect=/profile");
     }
   }, [user, router]);
+
 
   if (!user) {
     return (
@@ -87,18 +118,71 @@ export default function ProfilePage() {
     setIsAddFundsDialogOpen(false);
   };
   
-  const handleWithdraw = async () => {
-    const amount = parseFloat(fundsToWithdraw);
-    if (isNaN(amount) || amount <= 0) {
-        toast({ title: "Invalid Amount", description: "Please enter a valid positive amount.", variant: "destructive" });
+  const handleAuthorWithdraw = async () => {
+    if (!user || user.accountType !== 'creator' || !authorDetails) {
+        toast({title: "Error", description: "Only creators can withdraw author funds.", variant: "destructive"});
         return;
     }
-    const success = await withdrawFunds(amount);
-    if (success) {
-      setFundsToWithdraw("");
-      setIsWithdrawFundsDialogOpen(false);
+    const amount = parseFloat(fundsToWithdraw);
+    if (isNaN(amount) || amount <= 0) {
+        toast({ title: "Invalid Amount", description: "Withdrawal amount must be positive.", variant: "destructive" });
+        return;
     }
+    if (authorDetails.walletBalance < amount) {
+        toast({
+            title: "Insufficient Author Balance",
+            description: `Cannot withdraw $${amount.toFixed(2)}. Creator wallet balance: $${authorDetails.walletBalance.toFixed(2)}.`,
+            variant: "destructive"
+        });
+        return;
+    }
+    
+    // Simulate dividend check logic if needed (copied from AuthContext, adapt if necessary)
+    for (const mangaId of user.authoredMangaIds) {
+        const manga = getMangaById(mangaId);
+        if (manga?.investmentOffer?.isActive && manga.investmentOffer.dividendPayoutCycle && manga.investors.length > 0) {
+            const cycleMonths = manga.investmentOffer.dividendPayoutCycle;
+            const lastPayoutDateForManga = manga.investmentOffer.lastDividendPayoutDate
+                                        ? new Date(manga.investmentOffer.lastDividendPayoutDate)
+                                        : (manga.lastInvestmentDate ? new Date(manga.lastInvestmentDate) : new Date(manga.publishedDate));
+            
+            const nextPayoutDueDate = new Date(lastPayoutDateForManga);
+            nextPayoutDueDate.setMonth(nextPayoutDueDate.getMonth() + cycleMonths);
+
+            if (new Date() >= nextPayoutDueDate) {
+                const totalEarningsForManga = (manga.totalRevenueFromSubscriptions + manga.totalRevenueFromDonations + manga.totalRevenueFromMerchandise);
+                const potentialDividendPool = totalEarningsForManga * (manga.investmentOffer.sharesOfferedTotalPercent / 100);
+                
+                if (potentialDividendPool > 0) { 
+                    toast({
+                        title: "Withdrawal Blocked",
+                        description: `Dividends for manga "${manga.title}" are due. Process payouts before withdrawing.`,
+                        variant: "destructive", duration: 8000,
+                    });
+                    return;
+                }
+            }
+        }
+    }
+
+    updateMockAuthorBalance(authorDetails.id, authorDetails.walletBalance - amount);
+    // Refresh authorDetails locally (or rely on AuthContext to update user which might trigger re-fetch)
+    setAuthorDetails(prev => prev ? {...prev, walletBalance: prev.walletBalance - amount} : null);
+
+    transactions.unshift({ // Manually add to local transaction display if not handled by a global context call
+        id: `tx-withdraw-${Date.now()}`,
+        type: 'wallet_withdrawal',
+        amount: -amount,
+        userId: user.id,
+        description: `Creator ${user.name} withdrew $${amount.toFixed(2)} from author wallet.`,
+        timestamp: new Date().toISOString(),
+    });
+
+    setFundsToWithdraw("");
+    setIsWithdrawFundsDialogOpen(false);
+    toast({title: "Withdrawal Processed", description: `$${amount.toFixed(2)} has been withdrawn from author wallet.`});
   };
+
 
   const handleOpenListSharesDialog = (investment: UserInvestment) => {
     setSelectedInvestmentToList(investment);
@@ -147,6 +231,43 @@ export default function ProfilePage() {
     await delistSharesFromSale(investment.mangaId, investment.listingId);
   }
 
+  const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setNewAvatarFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewAvatarPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleUpdateProfile = async () => {
+    if (!user) return;
+    const success = await updateUserProfile(newName, newAvatarPreview);
+    if (success) {
+        setIsEditProfileDialogOpen(false);
+        // setNewAvatarFile(null); // Optionally reset file input state
+    }
+  };
+
+  const getNextProfileUpdateTime = (): string => {
+    if (!user || !user.lastProfileUpdate) return "Now";
+    const cooldownDays = user.accountType === 'creator' ? CREATOR_PROFILE_UPDATE_COOLDOWN_DAYS : USER_PROFILE_UPDATE_COOLDOWN_DAYS;
+    const lastUpdate = new Date(user.lastProfileUpdate);
+    const nextUpdate = new Date(lastUpdate.setDate(lastUpdate.getDate() + cooldownDays));
+    return new Date() > nextUpdate ? "Now" : nextUpdate.toLocaleDateString();
+  };
+
+  const canUpdateProfile = (): boolean => {
+    if (!user || !user.lastProfileUpdate) return true;
+    const cooldownDays = user.accountType === 'creator' ? CREATOR_PROFILE_UPDATE_COOLDOWN_DAYS : USER_PROFILE_UPDATE_COOLDOWN_DAYS;
+    const lastUpdate = new Date(user.lastProfileUpdate).getTime();
+    const now = Date.now();
+    return (now - lastUpdate) / (1000 * 60 * 60 * 24) >= cooldownDays;
+  };
+
 
   const isCreator = user.accountType === 'creator';
   const favoritedMangaList = user.favorites?.map(id => getMangaById(id)).filter(Boolean) || [];
@@ -155,7 +276,7 @@ export default function ProfilePage() {
   return (
     <div className="space-y-8">
       <Card className="w-full max-w-2xl mx-auto shadow-lg">
-        <CardHeader className="text-center">
+        <CardHeader className="text-center relative">
           <Avatar className="w-24 h-24 mx-auto mb-4 ring-2 ring-primary ring-offset-2">
             <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="user avatar" />
             <AvatarFallback className="text-3xl" suppressHydrationWarning>{user.name?.[0]?.toUpperCase()}</AvatarFallback>
@@ -175,13 +296,37 @@ export default function ProfilePage() {
             )
           )}
           {!isCreator && <Badge variant="outline" className="mx-auto mt-2 text-sm px-3 py-1">Regular User</Badge>}
-
+           <Button 
+            variant="ghost" 
+            size="icon" 
+            className="absolute top-2 right-2" 
+            onClick={() => {
+                setNewName(user.name);
+                setNewAvatarPreview(user.avatarUrl);
+                setNewAvatarFile(null);
+                setIsEditProfileDialogOpen(true);
+            }}
+            title="Edit Profile"
+            disabled={!canUpdateProfile()}
+            suppressHydrationWarning
+            >
+            <UserCog className="h-5 w-5" />
+          </Button>
+          <p className="text-xs text-muted-foreground mt-1" suppressHydrationWarning>
+            Next profile update: {getNextProfileUpdateTime()}
+          </p>
         </CardHeader>
         <CardContent className="text-center space-y-2">
             <div className="flex items-center justify-center text-2xl font-semibold text-primary">
                 <DollarSign className="h-7 w-7 mr-2"/> 
                 Wallet Balance: ${user.walletBalance.toFixed(2)}
             </div>
+          {authorDetails && (
+            <div className="flex items-center justify-center text-xl font-semibold text-green-600">
+                <Landmark className="h-6 w-6 mr-2"/> 
+                Creator Earnings: ${authorDetails.walletBalance.toFixed(2)}
+            </div>
+           )}
           <p className="text-muted-foreground" suppressHydrationWarning>Manage your profile, subscriptions, and investments.</p>
         </CardContent>
         <CardFooter className="flex flex-wrap justify-center gap-4">
@@ -193,9 +338,11 @@ export default function ProfilePage() {
             <Button onClick={() => setIsAddFundsDialogOpen(true)} variant="secondary" className="w-full sm:w-auto">
               <PlusCircle className="mr-2 h-4 w-4" /> Add Funds (Simulated)
             </Button>
-            <Button onClick={() => setIsWithdrawFundsDialogOpen(true)} variant="outline" className="w-full sm:w-auto" disabled={user.walletBalance <= 0}>
-              <Landmark className="mr-2 h-4 w-4" /> Withdraw Funds
-            </Button>
+            {isCreator && authorDetails && (
+              <Button onClick={() => setIsWithdrawFundsDialogOpen(true)} variant="outline" className="w-full sm:w-auto" disabled={authorDetails.walletBalance <= 0}>
+                <Landmark className="mr-2 h-4 w-4" /> Withdraw Creator Earnings
+              </Button>
+            )}
             <Button onClick={logout} variant="destructive" className="w-full sm:w-auto">
                 <LogOut className="mr-2 h-4 w-4" /> Logout
             </Button>
@@ -358,9 +505,9 @@ export default function ProfilePage() {
                       <TableCell className="text-xs tabular-nums">{new Date(tx.timestamp).toLocaleDateString()}</TableCell>
                       <TableCell><Badge variant="outline" className="capitalize text-xs whitespace-nowrap">{tx.type.replace(/_/g, ' ')}</Badge></TableCell>
                       <TableCell className="text-sm">{tx.description}</TableCell>
-                      <TableCell className={`text-right font-medium ${tx.amount < 0 || tx.type === 'platform_earning' ? 'text-red-600' : 'text-green-600'}`}>
-                        {tx.amount < 0 ? '-' : (tx.amount > 0 && !['rating_update', 'manga_creation', 'manga_deletion', 'creator_approval_pending', 'creator_approved', 'platform_earning', 'list_shares_for_sale', 'delist_shares_from_sale'].includes(tx.type) ? '+' : '')}
-                        ${tx.type === 'rating_update' || tx.type === 'manga_creation' || tx.type === 'manga_deletion' || tx.type === 'creator_approval_pending' || tx.type === 'creator_approved' || tx.type === 'list_shares_for_sale' || tx.type === 'delist_shares_from_sale' ? Math.abs(tx.amount).toFixed(0) : Math.abs(tx.amount).toFixed(2)}
+                      <TableCell className={`text-right font-medium ${tx.amount < 0 || ['platform_earning', 'user_payment'].includes(tx.type) ? 'text-red-600' : 'text-green-600'}`}>
+                        {tx.amount < 0 || tx.type === 'user_payment' ? '-' : (tx.amount > 0 && !['rating_update', 'manga_creation', 'manga_deletion', 'creator_approval_pending', 'creator_approved', 'platform_earning', 'list_shares_for_sale', 'delist_shares_from_sale', 'profile_update'].includes(tx.type) ? '+' : '')}
+                        ${Math.abs(tx.amount).toFixed(['rating_update', 'manga_creation', 'manga_deletion', 'creator_approval_pending', 'creator_approved', 'list_shares_for_sale', 'delist_shares_from_sale', 'profile_update'].includes(tx.type) ? 0 : 2)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -451,34 +598,44 @@ export default function ProfilePage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isWithdrawFundsDialogOpen} onOpenChange={setIsWithdrawFundsDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Withdraw Funds (Simulated)</DialogTitle>
-            <DialogDescription>
-              Enter the amount you wish to withdraw from your wallet. This is a simulation.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="withdrawAmount" className="text-right">Amount ($)</Label>
-              <Input
-                id="withdrawAmount"
-                type="number"
-                value={fundsToWithdraw}
-                onChange={(e) => setFundsToWithdraw(e.target.value)}
-                className="col-span-3"
-                placeholder="e.g.: 20.00"
-                max={user.walletBalance}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-            <Button onClick={handleWithdraw}>Confirm Withdrawal</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {isCreator && authorDetails && (
+        <Dialog open={isWithdrawFundsDialogOpen} onOpenChange={setIsWithdrawFundsDialogOpen}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Withdraw Creator Earnings (Simulated)</DialogTitle>
+                    <DialogDescription>
+                        Enter the amount you wish to withdraw from your creator earnings wallet. Current balance: ${authorDetails.walletBalance.toFixed(2)}. This is a simulation.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="withdrawAmountCreator" className="text-right">Amount ($)</Label>
+                        <Input
+                            id="withdrawAmountCreator"
+                            type="number"
+                            value={fundsToWithdraw}
+                            onChange={(e) => setFundsToWithdraw(e.target.value)}
+                            className="col-span-3"
+                            placeholder="e.g.: 20.00"
+                            max={authorDetails.walletBalance}
+                        />
+                    </div>
+                     {authorDetails.bankDetails && (
+                        <div className="col-span-4 text-sm text-muted-foreground">
+                            <p>Withdrawal will be sent to:</p>
+                            <p>Bank: {authorDetails.bankDetails.bankName}</p>
+                            <p>Account: ****{authorDetails.bankDetails.accountNumber.slice(-4)}</p>
+                        </div>
+                    )}
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                    <Button onClick={handleAuthorWithdraw} disabled={parseFloat(fundsToWithdraw) > authorDetails.walletBalance || parseFloat(fundsToWithdraw) <= 0}>Confirm Withdrawal</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+      )}
+
 
       <Dialog open={isListSharesDialogOpen} onOpenChange={setIsListSharesDialogOpen}>
         <DialogContent className="sm:max-w-md">
@@ -536,7 +693,50 @@ export default function ProfilePage() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={isEditProfileDialogOpen} onOpenChange={setIsEditProfileDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+                <DialogTitle>Edit Profile</DialogTitle>
+                <DialogDescription>
+                    Update your name and avatar. 
+                    {user.accountType === 'user' && ` You can update again in ${USER_PROFILE_UPDATE_COOLDOWN_DAYS} days.`}
+                    {user.accountType === 'creator' && ` You can update again in ${CREATOR_PROFILE_UPDATE_COOLDOWN_DAYS} days.`}
+                </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+                <div className="space-y-2">
+                    <Label htmlFor="newName">Name</Label>
+                    <Input 
+                        id="newName" 
+                        value={newName} 
+                        onChange={(e) => setNewName(e.target.value)} 
+                        placeholder="Your new name"
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="newAvatar">Avatar (Local Upload)</Label>
+                    <Input 
+                        id="newAvatar" 
+                        type="file" 
+                        accept="image/*" 
+                        ref={avatarFileRef}
+                        onChange={handleAvatarChange}
+                        className="text-sm"
+                    />
+                    {newAvatarPreview && (
+                        <div className="mt-2 relative w-24 h-24 rounded-full overflow-hidden border">
+                            <Image src={newAvatarPreview} alt="New avatar preview" layout="fill" objectFit="cover" data-ai-hint="avatar preview"/>
+                        </div>
+                    )}
+                </div>
+            </div>
+            <DialogFooter>
+                <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                <Button onClick={handleUpdateProfile} disabled={!canUpdateProfile() || (!newName.trim() && !newAvatarFile)}>Update Profile</Button>
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
-

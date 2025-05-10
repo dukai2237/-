@@ -17,6 +17,7 @@ export interface User {
   bankDetails?: BankAccountDetails;
   donationCount?: number; // Number of donations made
   investmentOpportunitiesAvailable?: number; // Number of investment chances unlocked
+  lastProfileUpdate?: string; // ISO date string of the last profile (name/avatar) update
 }
 
 export interface BankAccountDetails {
@@ -66,6 +67,7 @@ export interface AuthorInfo {
   walletBalance: number;
   bankDetails?: BankAccountDetails;
   isSystemUser?: boolean; // To differentiate system users from actual creators
+  lastProfileUpdate?: string; // ISO date string for creator-specific profile updates
 }
 
 export interface MangaPage {
@@ -86,7 +88,7 @@ export interface MangaInvestmentOffer {
   totalSharesInOffer: number; 
   pricePerShare: number; 
   maxSharesPerUser?: number;
-  minSubscriptionRequirement?: number; // This was the old creator-specific subscription requirement, might deprecate or adjust if MIN_SUBSCRIPTIONS_FOR_INVESTMENT from constants.ts is the main global one.
+  minSubscriptionRequirement?: number; 
   description: string;
   isActive: boolean;
   dividendPayoutCycle?: 1 | 3 | 6 | 12; 
@@ -182,7 +184,8 @@ export interface SimulatedTransaction {
     | 'list_shares_for_sale' 
     | 'delist_shares_from_sale'
     | 'user_payment' // Generic payment made by a user
-    | 'comment_added'; // For comment transaction
+    | 'comment_added'
+    | 'profile_update'; // For profile update transaction
   amount: number; 
   userId?: string; 
   authorId?: string; 

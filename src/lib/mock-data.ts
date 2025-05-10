@@ -1,4 +1,4 @@
-
+// src/lib/mock-data.ts
 import type { MangaSeries, MangaPage, AuthorInfo, MangaInvestmentOffer, AuthorContactDetails, Chapter, ShareListing, UserInvestment, Comment, BankAccountDetails } from './types';
 import { MANGA_GENRES_DETAILS, MAX_SHARES_PER_OFFER } from './constants';
 
@@ -10,7 +10,7 @@ const generatePages = (chapterId: string, count: number): MangaPage[] => {
   }));
 };
 
-export const mockAuthors: (AuthorInfo & { contactDetails?: AuthorContactDetails, isSystemUser?: boolean, walletBalance: number, bankDetails?: BankAccountDetails, donationCount?: number, investmentOpportunitiesAvailable?: number })[] = [
+export let mockAuthors: (AuthorInfo & { contactDetails?: AuthorContactDetails, isSystemUser?: boolean, walletBalance: number, bankDetails?: BankAccountDetails, donationCount?: number, investmentOpportunitiesAvailable?: number, lastProfileUpdate?: string })[] = [
   {
     id: 'author-1',
     name: 'Kenji Tanaka',
@@ -24,6 +24,7 @@ export const mockAuthors: (AuthorInfo & { contactDetails?: AuthorContactDetails,
     isSystemUser: false,
     donationCount: 0,
     investmentOpportunitiesAvailable: 0,
+    lastProfileUpdate: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000).toISOString(), // More than 90 days ago
   },
   {
     id: 'author-2',
@@ -38,6 +39,7 @@ export const mockAuthors: (AuthorInfo & { contactDetails?: AuthorContactDetails,
     isSystemUser: false,
     donationCount: 0,
     investmentOpportunitiesAvailable: 0,
+    lastProfileUpdate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), // Less than 90 days ago
   },
   {
     id: 'author-3',
@@ -52,15 +54,16 @@ export const mockAuthors: (AuthorInfo & { contactDetails?: AuthorContactDetails,
     id: 'user-123', // This is also MOCK_USER_VALID.id from AuthContext
     name: 'Test Creator',
     avatarUrl: 'https://picsum.photos/100/100?random=creator',
-    isSystemUser: true, // This user is a creator but also might be used for system/admin tests
+    isSystemUser: true, 
     contactDetails: {
       email: 'test@example.com',
       socialLinks: [{ platform: 'Website', url: 'https://testcreator.com'}]
     },
     walletBalance: 500, 
     bankDetails: { accountHolderName: 'Test Creator', bankName: 'Bank of America', accountNumber: '1122334455', routingNumber: '026009593' },
-    donationCount: 0, // Initialize for MOCK_USER_VALID
-    investmentOpportunitiesAvailable: 2, // MOCK_USER_VALID has 10 subscriptions, so 10/5 = 2 opportunities
+    donationCount: 0, 
+    investmentOpportunitiesAvailable: 2, 
+    lastProfileUpdate: new Date(Date.now() - (90 + 5) * 24 * 60 * 60 * 1000).toISOString(), // More than 90 days ago
   },
   {
     id: 'author-pending',
@@ -152,7 +155,7 @@ export const mockMangaSeriesData: MangaSeries[] = [
     chapterSubscriptionPrice: 1.99,
     freePreviewPageCount: 3,
     freePreviewChapterCount: 1, // First chapter is free
-    totalRevenueFromSubscriptions: 2100, // This would now include per-chapter sales
+    totalRevenueFromSubscriptions: 2100, 
     totalRevenueFromDonations: 150,
     totalRevenueFromMerchandise: 0,
     investmentOffer: investmentOffer2,
@@ -179,7 +182,7 @@ export const mockMangaSeriesData: MangaSeries[] = [
       { id: 'manga-3-chapter-3', title: 'Secrets of the Spire', chapterNumber: 3, pages: generatePages('m3c3', 14) },
       { id: 'manga-3-chapter-4', title: 'Council of Shadows', chapterNumber: 4, pages: generatePages('m3c4', 10) },
     ],
-    subscriptionModel: 'none', // No direct subscription, relies on donations/future investment
+    subscriptionModel: 'none', 
     freePreviewPageCount: 1,
     freePreviewChapterCount: 0,
     totalRevenueFromSubscriptions: 0, 
@@ -225,7 +228,6 @@ export const mockMangaSeriesData: MangaSeries[] = [
 
 export let modifiableMockMangaSeries = [...mockMangaSeriesData];
 
-// Mock data for share listings
 export let mockShareListingsData: ShareListing[] = [
   {
     id: 'listing-1',
@@ -236,7 +238,7 @@ export let mockShareListingsData: ShareListing[] = [
     sellerUserId: 'investor-alpha',
     sellerName: 'Alpha Investor',
     sharesOffered: 3,
-    pricePerShare: 60, // Higher than original purchase, reflecting potential value increase
+    pricePerShare: 60, 
     description: "Selling a small portion of my 'The Wandering Blade' shares. Great series with huge potential!",
     listedDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
     isActive: true,
@@ -245,7 +247,6 @@ export let mockShareListingsData: ShareListing[] = [
 ];
 
 
-// Function to get all manga series that are published (for public display)
 export const getPublishedMangaSeries = (): MangaSeries[] => {
   return modifiableMockMangaSeries.filter(manga => manga.isPublished);
 };
@@ -254,21 +255,14 @@ export const getMangaById = (id: string): MangaSeries | undefined => {
   return modifiableMockMangaSeries.find(manga => manga.id === id);
 };
 
-export const getAuthorById = (id: string): (AuthorInfo & { contactDetails?: AuthorContactDetails, walletBalance: number, bankDetails?: BankAccountDetails, isSystemUser?: boolean, donationCount?:number, investmentOpportunitiesAvailable?:number }) | undefined => {
+export const getAuthorById = (id: string): (AuthorInfo & { contactDetails?: AuthorContactDetails, walletBalance: number, bankDetails?: BankAccountDetails, isSystemUser?: boolean, donationCount?:number, investmentOpportunitiesAvailable?:number, lastProfileUpdate?: string }) | undefined => {
   return mockAuthors.find(author => author.id === id);
 }
 
 export const getApprovedCreators = (): AuthorInfo[] => {
-  // Assuming 'isApproved' flag would be on the AuthorInfo if fetched from a real DB.
-  // For mock, we'll filter out system users unless they are explicitly creators like 'user-123'
-  // and also assume non-system users marked as 'author-...' are approved creators for display.
-  // In a real system, you'd check an `isApproved` flag.
   return mockAuthors.filter(author => {
-    const isActualCreator = author.id.startsWith('author-') || (author.id === 'user-123'); // Example: user-123 is our Test Creator
-    // Add a check for an 'isApproved' flag if you add it to AuthorInfo
-    // For now, we assume all non-system 'author-' prefixed users are approved for listing.
-    // And our 'Test Creator' is also considered approved.
-    return isActualCreator && !author.isSystemUser && author.id !== 'author-pending'; // Exclude pending approval for general listing
+    const isActualCreator = author.id.startsWith('author-') || (author.id === 'user-123'); 
+    return isActualCreator && !author.isSystemUser && author.id !== 'author-pending'; 
   });
 };
 
@@ -281,7 +275,7 @@ export const getMangaByAuthorId = (authorId: string): MangaSeries[] => {
 export const updateMockAuthorBalance = (authorId: string, newBalance: number) => {
   const authorIndex = mockAuthors.findIndex(author => author.id === authorId);
   if (authorIndex !== -1) {
-    mockAuthors[authorIndex].walletBalance = newBalance;
+    mockAuthors[authorIndex].walletBalance = parseFloat(newBalance.toFixed(2));
   }
 };
 
@@ -308,7 +302,6 @@ export const updateMockMangaData = (mangaId: string, updates: Partial<MangaSerie
         if (lastUpdatedChapter) {
           const oldPagesCount = lastExistingChapter?.pages.length || 0;
           const newPagesCount = lastUpdatedChapter.pages.length;
-          // Check if the chapter itself is new, or if page count changed in an existing chapter
           const isNewChapter = !existingManga.chapters.some(ch => ch.id === lastUpdatedChapter.id);
           if (isNewChapter || newPagesCount !== oldPagesCount) {
              lastUpdatedEffectiveChapter = lastUpdatedChapter;
@@ -376,15 +369,15 @@ export const updateMockMangaData = (mangaId: string, updates: Partial<MangaSerie
 export const addMockMangaSeries = (newManga: MangaSeries) => {
   const authorExists = mockAuthors.some(a => a.id === newManga.author.id);
   if (!authorExists && !mockAuthors.find(a => a.isSystemUser && a.id === newManga.author.id)) {
-    const newAuthorData = {
+    const newAuthorData: AuthorInfo = {
         id: newManga.author.id,
         name: newManga.author.name,
         avatarUrl: newManga.author.avatarUrl,
         contactDetails: newManga.authorDetails,
         walletBalance: 0, // Initialize wallet for new author
-        isSystemUser: false, // New authors added this way are not system users
-        donationCount: 0,
-        investmentOpportunitiesAvailable: 0,
+        isSystemUser: false, 
+        // donationCount: 0, // These are User specific, not AuthorInfo specific
+        // investmentOpportunitiesAvailable: 0,
     };
     mockAuthors.push(newAuthorData);
   }
@@ -404,7 +397,6 @@ export const deleteMockMangaData = (mangaId: string) => {
 };
 
 
-// Functions for Share Listings
 export const getActiveShareListings = (): ShareListing[] => {
   return mockShareListingsData.filter(listing => listing.isActive && listing.sharesOffered > 0);
 };
@@ -468,4 +460,3 @@ export const addCommentToMockManga = (mangaId: string, newComment: Comment): Com
   }
   return null;
 };
-

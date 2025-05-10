@@ -15,7 +15,11 @@ import { MAX_WORKS_PER_CREATOR, MAX_SHARES_PER_OFFER } from '@/lib/constants';
 
 const PLATFORM_FEE_RATE = 0.10; 
 const ONE_YEAR_IN_MS = 365 * 24 * 60 * 60 * 1000;
-const MOCK_VERIFICATION_CODE = "123456"; // Simulated verification code
+const MOCK_VERIFICATION_CODE = "123456"; 
+
+const USER_PROFILE_UPDATE_COOLDOWN_DAYS = 30;
+const CREATOR_PROFILE_UPDATE_COOLDOWN_DAYS = 90;
+
 
 interface ChapterInputForAdd {
   title: string;
@@ -27,6 +31,7 @@ interface AuthContextType {
   login: (userData: User) => void;
   signup: (name: string, email: string, password?: string, accountType?: 'user' | 'creator', verificationCode?: string) => Promise<User | null>;
   logout: () => void;
+  updateUserProfile: (newName: string, newAvatarDataUrl: string | null) => Promise<boolean>;
   
   isSubscribedToManga: (mangaId: string) => boolean; 
   hasPurchasedChapter: (mangaId: string, chapterId: string) => boolean; 
@@ -71,7 +76,7 @@ export const MOCK_USER_VALID: User = {
   id: 'user-123',
   email: 'test@example.com',
   name: 'Test Creator',
-  password_hash_mock: 'hashed_password_123', // Mock password hash
+  password_hash_mock: 'hashed_password_123', 
   avatarUrl: 'https://picsum.photos/100/100?random=creator',
   walletBalance: 1000,
   subscriptions: [ 
@@ -102,6 +107,7 @@ export const MOCK_USER_VALID: User = {
   },
   donationCount: 0, 
   investmentOpportunitiesAvailable: 2, 
+  lastProfileUpdate: new Date(Date.now() - (CREATOR_PROFILE_UPDATE_COOLDOWN_DAYS + 5) * 24 * 60 * 60 * 1000).toISOString(), // Ensure MOCK_USER can update profile
 };
 
 
@@ -142,6 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password_hash_mock: parsedUser.password_hash_mock || (parsedUser.id === MOCK_USER_VALID.id ? MOCK_USER_VALID.password_hash_mock : undefined),
         donationCount: parsedUser.donationCount || 0,
         investmentOpportunitiesAvailable: parsedUser.investmentOpportunitiesAvailable || 0,
+        lastProfileUpdate: parsedUser.lastProfileUpdate || (parsedUser.id === MOCK_USER_VALID.id ? MOCK_USER_VALID.lastProfileUpdate : undefined),
       });
     }
     const storedViewingHistory = localStorage.getItem('authViewingHistory');
@@ -205,6 +212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password_hash_mock: userData.password_hash_mock || (userData.id === MOCK_USER_VALID.id ? MOCK_USER_VALID.password_hash_mock : undefined),
       donationCount: userData.donationCount || (userData.id === MOCK_USER_VALID.id ? MOCK_USER_VALID.donationCount : 0),
       investmentOpportunitiesAvailable: userData.investmentOpportunitiesAvailable || (userData.id === MOCK_USER_VALID.id ? MOCK_USER_VALID.investmentOpportunitiesAvailable : 0),
+      lastProfileUpdate: userData.lastProfileUpdate || (userData.id === MOCK_USER_VALID.id ? MOCK_USER_VALID.lastProfileUpdate : undefined),
     };
 
     if (fullUserData.accountType === 'creator' && !fullUserData.isApproved) {
@@ -219,7 +227,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setUser(fullUserData);
     setTimeout(() => toast({ title: "Login Successful", description: `Welcome back, ${fullUserData.name}!` }), 0);
-  }, [setUser, toast]);
+  }, [toast]);
 
   const approveCreatorAccount = useCallback((creatorId: string) => {
     let userWasUpdated = false;
@@ -249,7 +257,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.warn(`approveCreatorAccount: Creator ID ${creatorId} not found, already approved, or not a creator.`);
         setTimeout(() => toast({title: "Approval Action", description: `Attempted to approve creator ${creatorId}. No change or user not found.`, variant: "default"}), 0);
     }
-  }, [user, setUser, toast, recordTransaction]);
+  }, [user, toast, recordTransaction]);
 
 
   const signup = useCallback(async (name: string, email: string, password?: string, accountType: 'user' | 'creator' = 'user', verificationCode?: string): Promise<User | null> => {
@@ -266,10 +274,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const storedUsersString = localStorage.getItem('mockUserList');
     let mockUserListFromStorage: User[] = storedUsersString ? JSON.parse(storedUsersString) : [];
     
-    if (mockUserListFromStorage.some(u => u.email === email)) {
+    const existingUser = mockUserListFromStorage.find(u => u.email === email);
+    const existingAuthor = mockAuthors.find(a => a.contactDetails?.email === email);
+
+    if (existingUser || existingAuthor) {
       setTimeout(() => toast({ title: "Signup Failed", description: "This email is already registered.", variant: "destructive" }), 0);
       return null;
     }
+
 
     const newUserId = `user-${Date.now()}-${Math.random().toString(16).slice(4)}`;
     const password_hash_mock = `hashed_${password}_${newUserId}`; 
@@ -292,10 +304,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       followedShareListings: [],
       donationCount: 0,
       investmentOpportunitiesAvailable: 0,
+      lastProfileUpdate: new Date().toISOString(),
     };
 
     mockUserListFromStorage.push(newUserToAdd);
     localStorage.setItem('mockUserList', JSON.stringify(mockUserListFromStorage));
+    
+    if (accountType === 'creator') {
+        const newAuthorEntry: GlobalAuthorInfo = {
+            id: newUserToAdd.id,
+            name: newUserToAdd.name,
+            avatarUrl: newUserToAdd.avatarUrl,
+            contactDetails: { email: newUserToAdd.email },
+            walletBalance: 0,
+            isSystemUser: false,
+        };
+        mockAuthors.push(newAuthorEntry);
+    }
+
 
     recordTransaction({
       type: 'account_creation',
@@ -318,7 +344,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         duration: 10000
       }), 0);
       
-      if (email === MOCK_USER_VALID.email) { 
+      if (email === MOCK_USER_VALID.email) { // Auto-approve MOCK_USER_VALID if they re-register as creator
         setTimeout(() => approveCreatorAccount(newUserToAdd.id), 2000); 
       }
     } else {
@@ -326,12 +352,98 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTimeout(() => toast({ title: "Signup Successful!", description: `Welcome, ${name}! Your account has been created.` }), 0);
     }
     return newUserToAdd;
-  }, [toast, recordTransaction, setUser, approveCreatorAccount]);
+  }, [toast, recordTransaction, approveCreatorAccount]);
 
   const logout = useCallback(() => {
     setUser(null);
     setTimeout(() => toast({ title: "Logged Out", description: "You have been successfully logged out." }), 0);
-  }, [setUser, toast]);
+  }, [toast]);
+
+  const updateUserProfile = useCallback(async (newName: string, newAvatarDataUrl: string | null): Promise<boolean> => {
+    if (!user) {
+        toast({ title: "Not Logged In", description: "You must be logged in to update your profile.", variant: "destructive" });
+        return false;
+    }
+
+    const cooldownDays = user.accountType === 'creator' ? CREATOR_PROFILE_UPDATE_COOLDOWN_DAYS : USER_PROFILE_UPDATE_COOLDOWN_DAYS;
+    if (user.lastProfileUpdate) {
+        const lastUpdate = new Date(user.lastProfileUpdate).getTime();
+        const now = Date.now();
+        const daysSinceLastUpdate = (now - lastUpdate) / (1000 * 60 * 60 * 24);
+        if (daysSinceLastUpdate < cooldownDays) {
+            toast({
+                title: "Update Too Soon",
+                description: `You can update your profile again in ${Math.ceil(cooldownDays - daysSinceLastUpdate)} days.`,
+                variant: "destructive"
+            });
+            return false;
+        }
+    }
+
+    // Name uniqueness check
+    if (newName && newName !== user.name) {
+        const storedUsersString = localStorage.getItem('mockUserList');
+        const mockUserListFromStorage: User[] = storedUsersString ? JSON.parse(storedUsersString) : [];
+        
+        let nameExists = false;
+        if (user.accountType === 'creator') {
+            nameExists = mockAuthors.some(author => author.id !== user.id && author.name === newName);
+        } else { // 'user'
+            nameExists = mockUserListFromStorage.some(u => u.id !== user.id && u.name === newName) || 
+                         mockAuthors.some(author => author.name === newName); // Also check against creator names
+        }
+
+        if (nameExists) {
+            toast({ title: "Name Taken", description: "This name is already in use. Please choose another.", variant: "destructive" });
+            return false;
+        }
+    }
+
+    const updatedUserData: Partial<User> = {};
+    if (newName && newName !== user.name) updatedUserData.name = newName;
+    if (newAvatarDataUrl) updatedUserData.avatarUrl = newAvatarDataUrl;
+    
+    if (Object.keys(updatedUserData).length === 0) {
+        toast({title: "No Changes", description: "No changes were made to your profile."});
+        return true; // No actual update needed
+    }
+
+    updatedUserData.lastProfileUpdate = new Date().toISOString();
+
+    setUser(prevUser => prevUser ? { ...prevUser, ...updatedUserData } : null);
+
+    // Update mockAuthors if current user is a creator
+    if (user.accountType === 'creator') {
+        const authorIndex = mockAuthors.findIndex(a => a.id === user.id);
+        if (authorIndex !== -1) {
+            if(updatedUserData.name) mockAuthors[authorIndex].name = updatedUserData.name;
+            if(updatedUserData.avatarUrl) mockAuthors[authorIndex].avatarUrl = updatedUserData.avatarUrl;
+            if(updatedUserData.lastProfileUpdate) mockAuthors[authorIndex].lastProfileUpdate = updatedUserData.lastProfileUpdate;
+        }
+    } else { // Update mockUserList in localStorage for regular users
+        const storedUsersString = localStorage.getItem('mockUserList');
+        if (storedUsersString) {
+            let mockUserListFromStorage: User[] = JSON.parse(storedUsersString);
+            const userIndex = mockUserListFromStorage.findIndex(u => u.id === user.id);
+            if (userIndex !== -1) {
+                 mockUserListFromStorage[userIndex] = { ...mockUserListFromStorage[userIndex], ...updatedUserData };
+                 localStorage.setItem('mockUserList', JSON.stringify(mockUserListFromStorage));
+            }
+        }
+    }
+    
+    recordTransaction({
+        type: 'profile_update',
+        amount: 0,
+        userId: user.id,
+        description: `User ${user.name} updated their profile.`,
+        relatedData: { newName: updatedUserData.name, newAvatar: !!updatedUserData.avatarUrl }
+    });
+
+    toast({ title: "Profile Updated", description: "Your profile has been successfully updated." });
+    return true;
+  }, [user, toast, recordTransaction]);
+
 
   const isSubscribedToManga = useCallback((mangaId: string) => {
     if (!user || user.accountType === 'creator') return false;
@@ -414,7 +526,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       lastSubscriptionDate: new Date().toISOString() 
     });
 
-    const transactionType = accessType === 'monthly' ? 'subscription_payment' : 'chapter_purchase';
     recordTransaction({
       type: 'author_earning', amount: revenueToAuthor, 
       userId: user.id, mangaId, authorId: manga.author.id, 
@@ -440,7 +551,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, 0);
     return true;
 
-  }, [user, toast, recordTransaction, setUser]);
+  }, [user, toast, recordTransaction]);
 
 
   const donateToManga = useCallback(async (mangaId: string, mangaTitle: string, authorId: string, amount: number): Promise<boolean> => {
@@ -526,7 +637,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     }, 0);
     return true;
-  }, [user, setUser, toast, recordTransaction]);
+  }, [user, toast, recordTransaction]);
 
   const investInManga = useCallback(async (mangaId: string, mangaTitle: string, sharesToBuy: number, pricePerShare: number, totalCost: number): Promise<boolean> => {
     if (!user) {
@@ -597,7 +708,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           : inv
         );
       } else {
-        updatedInvestments.push({ mangaId, mangaTitle, sharesOwned: sharesToBuy, amountInvested: totalCost, investmentDate: new Date().toISOString(), totalDividendsReceived: 0 });
+        updatedInvestments.push({ mangaId, mangaTitle, sharesOwned: sharesToBuy, amountInvested: totalCost, investmentDate: new Date().toISOString() });
       }
       return { 
         ...prevUser, 
@@ -648,7 +759,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     setTimeout(() => toast({ title: "Investment Successful!", description: `You've invested $${totalCost.toFixed(2)} for ${sharesToBuy} shares in ${mangaTitle}.` }), 0);
     return true;
-  }, [user, setUser, toast, recordTransaction]);
+  }, [user, toast, recordTransaction]);
 
   const rateManga = useCallback(async (mangaId: string, score: 1 | 2 | 3): Promise<boolean> => {
     if (!user) {
@@ -701,7 +812,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setTimeout(() => toast({ title: "Rating Submitted!", description: `You rated ${manga.title}. New average: ${newAverageRating.toFixed(1)}.` }), 0);
     return true;
-  }, [user, setUser, toast, recordTransaction, isSubscribedToManga]);
+  }, [user, toast, recordTransaction, isSubscribedToManga]);
 
   const addMangaSeries = useCallback(async (
     newMangaData: Omit<MangaSeries, 'id' | 'author' | 'publishedDate' | 'averageRating' | 'ratingCount' | 'viewCount' | 'totalRevenueFromSubscriptions' | 'totalRevenueFromDonations' | 'totalRevenueFromMerchandise' | 'investors' | 'chapters' | 'authorDetails' | 'lastUpdatedDate' | 'lastInvestmentDate' | 'lastSubscriptionDate' | 'comments'>
@@ -731,7 +842,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTimeout(() => toast({title: "Author Error", description: "Could not retrieve author details.", variant: "destructive"}), 0);
       return null;
     }
-    const authorInfoForManga: GlobalAuthorInfo = { id: authorInfo.id, name: authorInfo.name, avatarUrl: authorInfo.avatarUrl, walletBalance: authorInfo.walletBalance, bankDetails: authorInfo.bankDetails };
+    const authorInfoForManga: GlobalAuthorInfo = { id: authorInfo.id, name: authorInfo.name, avatarUrl: authorInfo.avatarUrl, walletBalance: authorInfo.walletBalance, bankDetails: authorInfo.bankDetails, lastProfileUpdate: authorInfo.lastProfileUpdate };
 
 
     const mangaAuthorDetails: AuthorContactDetails | undefined = newMangaData.authorDetails || { email: user.email };
@@ -767,7 +878,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setTimeout(() => toast({ title: "Manga Created!", description: `${newMangaToAdd.title} has been successfully added.` }), 0);
     return newMangaToAdd;
-  }, [user, setUser, toast, recordTransaction]);
+  }, [user, toast, recordTransaction]);
 
   const deleteMangaSeries = useCallback(async (mangaId: string): Promise<boolean> => {
     if (!user || user.accountType !== 'creator') {
@@ -830,12 +941,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     setTimeout(() => toast({ title: "Manga Deleted", description: `${mangaToDelete.title} has been removed.` }), 0);
     return true;
-  }, [user, setUser, toast, recordTransaction]);
+  }, [user, toast, recordTransaction]);
 
 
   const updateViewingHistory = useCallback((mangaId: string, chapterId: string, pageIndex: number) => {
     setViewingHistory(prev => new Map(prev).set(mangaId, { chapterId, pageIndex, date: new Date() }));
-  }, [setViewingHistory]);
+  }, []);
 
   const getViewingHistory = useCallback((mangaId: string) => {
     return viewingHistory.get(mangaId);
@@ -853,7 +964,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       description: `Wallet deposit $${amount.toFixed(2)}`
     });
     setTimeout(() => toast({ title: "Funds Added", description: `$${amount.toFixed(2)} added to your wallet.` }), 0);
-  }, [user, setUser, toast, recordTransaction]);
+  }, [user, toast, recordTransaction]);
 
   const withdrawFunds = useCallback(async (amountToWithdraw: number): Promise<boolean> => {
     if (!user) {
@@ -932,7 +1043,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     setTimeout(() => toast({ title: "Withdrawal Processed", description: `$${amountToWithdraw.toFixed(2)} has been withdrawn. (Simulated)`}), 0);
     return true;
-  }, [user, setUser, toast, recordTransaction]);
+  }, [user, toast, recordTransaction]);
   
   const isFavorited = useCallback((mangaId: string) => {
     if (!user || user.accountType === 'creator') return false;
@@ -960,7 +1071,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { ...prevUser, favorites: [...currentFavorites, mangaId] };
       }
     });
-  }, [user, setUser, toast]);
+  }, [user, toast]);
 
   const updateUserSearchHistory = useCallback((searchTerm: string) => {
     setUser(prevUser => {
@@ -978,7 +1089,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       return { ...prevUser, searchHistory: updatedHistory };
     });
-  }, [setUser]);
+  }, []);
 
   const listSharesForSale = useCallback(async (mangaId: string, shares: number, pricePerShare: number, description: string): Promise<ShareListing | null> => {
     if (!user) {
@@ -1040,7 +1151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     recordTransaction({ type: 'list_shares_for_sale', amount: 0, userId: user.id, mangaId, description: `Listed ${shares} shares of ${mangaDetails.title} for $${pricePerShare.toFixed(2)}/share. Listing ID: ${newListing.id}`, relatedData: { listingId: newListing.id, shares, pricePerShare } });
     setTimeout(() => toast({ title: "Shares Listed!", description: `${shares} shares of ${mangaDetails.title} are now on the market.` }), 0);
     return newListing;
-  }, [user, toast, recordTransaction, setUser]);
+  }, [user, toast, recordTransaction]);
 
   const delistSharesFromSale = useCallback(async (mangaId: string, listingId: string): Promise<boolean> => {
      if (!user) {
@@ -1073,7 +1184,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     recordTransaction({ type: 'delist_shares_from_sale', amount: 0, userId: user.id, mangaId, description: `Delisted shares of ${investment.mangaTitle}. Listing ID: ${listingId}`, relatedData: { listingId } });
     setTimeout(() => toast({ title: "Shares Delisted", description: `Your shares of ${investment.mangaTitle} have been removed from the market.` }), 0);
     return true;
-  }, [user, toast, recordTransaction, setUser]);
+  }, [user, toast, recordTransaction]);
 
   const purchaseSharesFromListing = useCallback(async (listingId: string, sharesToBuy: number): Promise<boolean> => {
     if (!user) {
@@ -1171,7 +1282,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setTimeout(() => toast({ title: "Purchase Successful!", description: `You bought ${sharesToBuy} shares of ${listing.mangaTitle}.`}), 0);
     return true;
-  }, [user, toast, recordTransaction, setUser]);
+  }, [user, toast, recordTransaction]);
 
   const followShareListing = useCallback((listingId: string) => {
     if (!user) return;
@@ -1182,7 +1293,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(prev => prev ? ({ ...prev, followedShareListings: [...(prev.followedShareListings || []), listingId] }) : null);
     updateListingFollowerCount(listingId, true);
     setTimeout(() => toast({title: "Followed Listing", description: "You will now receive updates for this listing."}), 0);
-  }, [user, setUser, toast]); 
+  }, [user, toast]); 
 
   const unfollowShareListing = useCallback((listingId: string) => {
     if (!user) return;
@@ -1193,7 +1304,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(prev => prev ? ({ ...prev, followedShareListings: (prev.followedShareListings || []).filter(id => id !== listingId) }) : null);
     updateListingFollowerCount(listingId, false);
     setTimeout(() => toast({title: "Unfollowed Listing", description: "You will no longer receive updates."}), 0);
-  }, [user, setUser, toast]); 
+  }, [user, toast]); 
 
   const isShareListingFollowed = useCallback((listingId: string) => {
     if (!user || user.accountType === 'creator') return false;
@@ -1251,7 +1362,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-        user, login, signup, logout,
+        user, login, signup, logout, updateUserProfile,
         isSubscribedToManga, hasPurchasedChapter, purchaseAccess, 
         donateToManga, investInManga, rateManga,
         addMangaSeries, deleteMangaSeries,
