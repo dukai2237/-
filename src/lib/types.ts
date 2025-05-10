@@ -2,6 +2,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  password_hash_mock?: string; // For mock password storage/check
   avatarUrl: string;
   walletBalance: number;
   subscriptions: UserSubscription[];

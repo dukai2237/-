@@ -1,4 +1,3 @@
-
 "use client";
 import type { User, UserSubscription, UserInvestment, SimulatedTransaction, MangaSeries, MangaInvestor, Chapter, MangaPage, AuthorContactDetails, ShareListing, Comment, BankAccountDetails, AuthorInfo as GlobalAuthorInfo } from '@/lib/types';
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
@@ -15,7 +14,7 @@ import { MAX_WORKS_PER_CREATOR, MAX_SHARES_PER_OFFER, MIN_SUBSCRIPTIONS_FOR_INVE
 
 const PLATFORM_FEE_RATE = 0.10; 
 const ONE_YEAR_IN_MS = 365 * 24 * 60 * 60 * 1000;
-
+const MOCK_VERIFICATION_CODE = "123456"; // Simulated verification code
 
 interface ChapterInputForAdd {
   title: string;
@@ -25,7 +24,7 @@ interface ChapterInputForAdd {
 interface AuthContextType {
   user: User | null;
   login: (userData: User) => void;
-  signup: (name: string, email: string, accountType: 'user' | 'creator') => User | null;
+  signup: (name: string, email: string, password?: string, accountType?: 'user' | 'creator', verificationCode?: string) => Promise<User | null>;
   logout: () => void;
   
   isSubscribedToManga: (mangaId: string) => boolean; 
@@ -71,6 +70,7 @@ export const MOCK_USER_VALID: User = {
   id: 'user-123',
   email: 'test@example.com',
   name: 'Test Creator',
+  password_hash_mock: 'hashed_password_123', // Mock password hash
   avatarUrl: 'https://picsum.photos/100/100?random=creator',
   walletBalance: 1000,
   subscriptions: [ 
@@ -136,6 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         searchHistory: parsedUser.searchHistory || [],
         followedShareListings: parsedUser.followedShareListings || [],
         bankDetails: parsedUser.bankDetails || (parsedUser.id === MOCK_USER_VALID.id ? MOCK_USER_VALID.bankDetails : undefined),
+        password_hash_mock: parsedUser.password_hash_mock || (parsedUser.id === MOCK_USER_VALID.id ? MOCK_USER_VALID.password_hash_mock : undefined),
       });
     }
     const storedViewingHistory = localStorage.getItem('authViewingHistory');
@@ -196,6 +197,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       followedShareListings: userData.followedShareListings || [],
       subscriptions: userData.subscriptions || (userData.id === MOCK_USER_VALID.id ? MOCK_USER_VALID.subscriptions : []),
       bankDetails: userData.bankDetails || (userData.id === MOCK_USER_VALID.id ? MOCK_USER_VALID.bankDetails : undefined),
+      password_hash_mock: userData.password_hash_mock || (userData.id === MOCK_USER_VALID.id ? MOCK_USER_VALID.password_hash_mock : undefined),
     };
 
     if (fullUserData.accountType === 'creator' && !fullUserData.isApproved) {
@@ -243,7 +245,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user, setUser, toast, recordTransaction]);
 
 
-  const signup = useCallback((name: string, email: string, accountType: 'user' | 'creator'): User | null => {
+  const signup = useCallback(async (name: string, email: string, password?: string, accountType: 'user' | 'creator' = 'user', verificationCode?: string): Promise<User | null> => {
+    if (!password) { // Basic check if password is provided, real app would have stronger validation
+        toast({ title: "Signup Failed", description: "Password is required.", variant: "destructive" });
+        return null;
+    }
+
+    // Simulate verification code check
+    if (verificationCode !== MOCK_VERIFICATION_CODE) {
+      toast({ title: "Signup Failed", description: "Invalid verification code. Please try again.", variant: "destructive" });
+      return null;
+    }
+
     const storedUsersString = localStorage.getItem('mockUserList');
     let mockUserListFromStorage: User[] = storedUsersString ? JSON.parse(storedUsersString) : [];
     
@@ -253,10 +266,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const newUserId = `user-${Date.now()}-${Math.random().toString(16).slice(4)}`;
+    // In a real app, you'd hash the password here. For mock, we store it (conceptually) or a mock hash.
+    const password_hash_mock = `hashed_${password}_${newUserId}`; 
+
     const newUserToAdd: User = {
       id: newUserId,
       email,
       name,
+      password_hash_mock,
       avatarUrl: `https://picsum.photos/100/100?random=${newUserId}`,
       walletBalance: accountType === 'creator' ? 0 : 50, 
       subscriptions: [],
@@ -294,7 +311,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         duration: 10000
       });
       
-      // If signing up with the mock creator email, auto-approve for demo purposes.
+      // Auto-approve if it's the MOCK_USER_VALID email for easier testing
       if (email === MOCK_USER_VALID.email) { 
         setTimeout(() => approveCreatorAccount(newUserToAdd.id), 2000); 
       }
@@ -312,12 +329,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [setUser, toast]);
 
   const isSubscribedToManga = useCallback((mangaId: string) => {
-    if (!user || user.accountType === 'creator') return false; // Creators cannot subscribe
+    if (!user || user.accountType === 'creator') return false;
     return user.subscriptions.some(sub => sub.mangaId === mangaId && sub.type === 'monthly' && (!sub.expiresAt || new Date(sub.expiresAt) > new Date())) || false;
   }, [user]);
 
   const hasPurchasedChapter = useCallback((mangaId: string, chapterId: string) => {
-    if (!user || user.accountType === 'creator') return false; // Creators cannot purchase chapters
+    if (!user || user.accountType === 'creator') return false;
     return user.subscriptions.some(sub => sub.mangaId === mangaId && sub.type === 'chapter' && sub.chapterId === chapterId) || false;
   }, [user]);
 
@@ -376,7 +393,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const transactionType = accessType === 'monthly' ? 'subscription_payment' : 'chapter_purchase';
     recordTransaction({
-      type: transactionType, amount: revenueToAuthor, 
+      type: 'author_earning', amount: revenueToAuthor, 
       userId: user.id, mangaId, authorId: manga.author.id, 
       description: `${accessType === 'monthly' ? 'Subscription to' : 'Chapter purchase of'} ${manga.title} for author ${manga.author.name}`,
       relatedData: { chapterId: accessType === 'chapter' ? itemId : undefined, buyerUserId: user.id }
@@ -391,15 +408,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       description: `Platform fee from ${manga.title} ${accessType} purchase`,
       relatedData: { originalAmount: price }
     });
-     recordTransaction({ 
-      type: 'author_earning',
-      amount: revenueToAuthor,
-      authorId: manga.author.id,
-      mangaId,
-      description: `Earnings from ${accessType === 'monthly' ? 'subscription to' : 'chapter of'} ${manga.title}`,
-      relatedData: { chapterId: accessType === 'chapter' ? itemId : undefined, buyerUserId: user.id }
-    });
-    
+     
     toast({ title: "Purchase Successful!", description: `You've ${accessType === 'monthly' ? 'subscribed to' : 'purchased chapter of'} ${manga.title} for $${price.toFixed(2)}.` });
     return true;
 
@@ -448,7 +457,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     updateMockMangaData(mangaId, { totalRevenueFromDonations: (manga.totalRevenueFromDonations || 0) + revenueToAuthor });
     
     recordTransaction({
-      type: 'donation_payment', amount: revenueToAuthor, userId: user.id, mangaId, authorId,
+      type: 'author_earning', amount: revenueToAuthor, userId: user.id, mangaId, authorId,
       description: `Donation to ${mangaTitle} for author ${author.name}`,
       relatedData: { buyerUserId: user.id }
     });
@@ -460,11 +469,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       type: 'platform_earning', amount: platformCut, mangaId, authorId,
       description: `Platform fee from ${mangaTitle} donation`,
       relatedData: { originalAmount: amount }
-    });
-    recordTransaction({
-      type: 'author_earning', amount: revenueToAuthor, authorId, mangaId,
-      description: `Earnings from donation to ${mangaTitle}`,
-      relatedData: { buyerUserId: user.id }
     });
 
     toast({ title: "Donation Successful!", description: `You've donated $${amount.toFixed(2)} to ${mangaTitle}.` });
@@ -569,7 +573,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     recordTransaction({
-        type: 'investment_payment', amount: capitalToAuthor, userId: user.id, mangaId, authorId: manga.author.id, 
+        type: 'author_earning', amount: capitalToAuthor, userId: user.id, mangaId, authorId: manga.author.id, 
         description: `Investment of ${sharesToBuy} shares in ${mangaTitle} for author ${author.name}`,
         relatedData: { shares: sharesToBuy, pricePerShare, buyerUserId: user.id }
     });
@@ -582,11 +586,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         type: 'platform_earning', amount: platformCut, mangaId, authorId: manga.author.id,
         description: `Platform fee from ${mangaTitle} investment`,
         relatedData: { originalAmount: totalCost }
-    });
-     recordTransaction({
-      type: 'author_earning', amount: capitalToAuthor, authorId: manga.author.id, mangaId,
-      description: `Capital raised from investment in ${mangaTitle}`,
-      relatedData: { shares: sharesToBuy, pricePerShare, buyerUserId: user.id }
     });
     
     toast({ title: "Investment Successful!", description: `You've invested $${totalCost.toFixed(2)} for ${sharesToBuy} shares in ${mangaTitle}.` });
@@ -817,9 +816,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         currentBalance = authorDetailsForWithdrawal.walletBalance;
         isCreatorWithdrawal = true;
     } else {
-        // Regular user withdrawal (from their own direct investments/earnings, not as an author)
-        // This logic path might need refinement depending on how non-author earnings are handled.
-        // For now, assuming user.walletBalance is the source.
         currentBalance = user.walletBalance;
     }
 
@@ -830,7 +826,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     if (isCreatorWithdrawal) {
-      // Check for pending investor payouts for this creator
       for (const mangaId of user.authoredMangaIds) {
         const manga = getMangaById(mangaId);
         if (manga?.investmentOffer?.isActive && manga.investmentOffer.dividendPayoutCycle && manga.investors.length > 0) {
@@ -843,8 +838,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           nextPayoutDueDate.setMonth(nextPayoutDueDate.getMonth() + cycleMonths);
 
           if (new Date() >= nextPayoutDueDate) {
-            // Simplified check: assumes if payout is due, it hasn't been processed.
-            // A real system would track processed payouts.
             const totalEarningsForManga = (manga.totalRevenueFromSubscriptions + manga.totalRevenueFromDonations + manga.totalRevenueFromMerchandise);
             const potentialDividendPool = totalEarningsForManga * (manga.investmentOffer.sharesOfferedTotalPercent / 100);
             
@@ -863,13 +856,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     if (isCreatorWithdrawal && authorDetailsForWithdrawal) {
         updateMockAuthorBalance(user.id, currentBalance - amountToWithdraw);
-        // If the logged-in user IS the creator, update their User object too if it's separate
-        // This check is a bit redundant if authorDetailsForWithdrawal is the source of truth for creator balance
         if (user.id === authorDetailsForWithdrawal.id) {
-             setUser(prev => prev ? { ...prev, walletBalance: prev.walletBalance - amountToWithdraw } : null); // Example if User also stores a balance display
+             setUser(prev => prev ? { ...prev, walletBalance: prev.walletBalance - amountToWithdraw } : null); 
         }
     } else {
-        // Regular user withdrawal
         setUser(prev => prev ? { ...prev, walletBalance: prev.walletBalance - amountToWithdraw } : null);
     }
 
@@ -882,7 +872,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user, setUser, toast, recordTransaction]);
   
   const isFavorited = useCallback((mangaId: string) => {
-    if (!user || user.accountType === 'creator') return false; // Creators cannot favorite
+    if (!user || user.accountType === 'creator') return false;
     return user.favorites?.includes(mangaId) || false;
   }, [user]);
 
@@ -1076,32 +1066,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const sellerDetails = fetchAuthorDetails(listing.sellerUserId); 
     if (sellerDetails) {
-      // IMPORTANT: This updates the original author's balance, assuming sellerUserId is an AuthorInfo ID
-      // If sellers can be regular users, this logic needs adjustment.
       updateMockAuthorBalance(sellerDetails.id, sellerDetails.walletBalance + proceedsToSeller);
     }
 
     recordTransaction({ type: 'shares_sale_secondary', amount: proceedsToSeller, userId: listing.sellerUserId, mangaId: listing.mangaId, description: `Sold ${sharesToBuy} shares of ${listing.mangaTitle} on market. Listing ID: ${listingId}`, relatedData: { listingId, sharesSold: sharesToBuy, pricePerShare: listing.pricePerShare, buyerUserId: user.id } });
     recordTransaction({ type: 'platform_earning', amount: platformCut, mangaId: listing.mangaId, description: `Platform fee from secondary market sale of ${listing.mangaTitle} shares. Listing ID: ${listingId}`, relatedData: { originalAmount: totalCost, listingId }});
     if(sellerDetails) { 
-      // This assumes the seller is an author receiving earnings. If sellers can be non-authors, this transaction needs adjustment.
       recordTransaction({ type: 'author_earning', amount: proceedsToSeller, authorId: sellerDetails.id, mangaId: listing.mangaId, description: `Earnings from selling ${sharesToBuy} shares of ${listing.mangaTitle} on market. Listing ID: ${listingId}`, relatedData: { listingId, sharesSold: sharesToBuy, pricePerShare: listing.pricePerShare, buyerUserId: user.id } });
     }
 
     updateShareListingOnPurchase(listingId, sharesToBuy);
     
-    // Update seller's User object in localStorage (if they are a mock user)
     const mockUserListString = localStorage.getItem('mockUserList');
     if (mockUserListString) {
         let mockUserListFromStorage: User[] = JSON.parse(mockUserListString);
         const sellerIndex = mockUserListFromStorage.findIndex(u => u.id === listing.sellerUserId);
         if (sellerIndex !== -1) {
             const seller = mockUserListFromStorage[sellerIndex];
-            // Reduce shares from seller's investment record
             const investmentIndex = seller.investments.findIndex(inv => inv.mangaId === listing.mangaId);
             if (investmentIndex !== -1) {
                 seller.investments[investmentIndex].sharesOwned -= sharesToBuy;
-                // If this listing was from the seller, update their listing status in their investments array
                 if (seller.investments[investmentIndex].listingId === listingId && 
                     ( (seller.investments[investmentIndex].sharesListed || 0) - sharesToBuy <=0) ) {
                      seller.investments[investmentIndex].isListedForSale = false;
@@ -1153,12 +1137,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toast({ title: "Login Required", description: "Please log in to add a comment.", variant: "destructive" });
       return null;
     }
-    if (user.accountType === 'creator') {
-      toast({ title: "Action Not Allowed", description: "Creators cannot comment on manga.", variant: "destructive" });
-      return null;
+     const currentManga = getMangaById(mangaId);
+    if (user.accountType === 'creator' && currentManga && currentManga.author.id !== user.id) {
+        toast({ title: "Action Not Allowed", description: "Creators cannot comment on other creators' works.", variant: "destructive" });
+        return null;
     }
-    const manga = getMangaById(mangaId);
-    if (!manga) {
+    if (!currentManga) {
       toast({ title: "Manga Not Found", variant: "destructive" });
       return null;
     }
@@ -1185,7 +1169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             amount: 0,
             userId: user.id,
             mangaId,
-            description: `User ${user.name} commented on ${manga.title}`,
+            description: `User ${user.name} commented on ${currentManga.title}`,
             relatedData: { commentText: text.trim() }
         });
         toast({ title: "Comment Added!", description: "Your comment has been posted." });
@@ -1222,4 +1206,3 @@ export function useAuth() {
   }
   return context;
 }
-
