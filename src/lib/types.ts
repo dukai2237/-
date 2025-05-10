@@ -13,6 +13,14 @@ export interface User {
   favorites?: string[]; // mangaIds
   searchHistory?: string[];
   followedShareListings?: string[]; // IDs of share listings the user is following
+  bankDetails?: BankAccountDetails; 
+}
+
+export interface BankAccountDetails {
+    accountHolderName: string;
+    bankName: string;
+    accountNumber: string;
+    routingNumber: string;
 }
 
 export interface UserSubscription {
@@ -52,6 +60,8 @@ export interface AuthorInfo {
   name: string;
   avatarUrl: string;
   contactDetails?: AuthorContactDetails; 
+  walletBalance: number;
+  bankDetails?: BankAccountDetails;
 }
 
 export interface MangaPage {
@@ -88,6 +98,17 @@ export interface MangaInvestor {
   joinedDate: string; 
   lastDividendReceivedDate?: string; 
   totalDividendsReceived?: number;
+}
+
+export interface Comment {
+  id: string;
+  mangaId: string;
+  userId: string;
+  userName: string;
+  userAvatarUrl: string;
+  text: string;
+  timestamp: string;
+  replies?: Comment[]; // Optional: for nested comments
 }
 
 export interface MangaSeries {
@@ -130,6 +151,7 @@ export interface MangaSeries {
     newTotalPagesInChapter: number; 
     date: string; 
   };
+  comments?: Comment[];
 }
 
 export interface SimulatedTransaction {
@@ -155,7 +177,8 @@ export interface SimulatedTransaction {
     | 'shares_sale_secondary'
     | 'list_shares_for_sale' 
     | 'delist_shares_from_sale'
-    | 'user_payment'; // Generic payment made by a user
+    | 'user_payment' // Generic payment made by a user
+    | 'comment_added'; // For comment transaction
   amount: number; 
   userId?: string; 
   authorId?: string; 
@@ -195,4 +218,3 @@ export interface UserShareTradeRequest {
     buyerUserId: string;
     sharesToBuy: number;
 }
-

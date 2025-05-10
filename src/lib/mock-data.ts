@@ -1,5 +1,5 @@
 
-import type { MangaSeries, MangaPage, AuthorInfo, MangaInvestmentOffer, AuthorContactDetails, Chapter, ShareListing, UserInvestment } from './types';
+import type { MangaSeries, MangaPage, AuthorInfo, MangaInvestmentOffer, AuthorContactDetails, Chapter, ShareListing, UserInvestment, Comment, BankAccountDetails } from './types';
 import { MANGA_GENRES_DETAILS, MAX_SHARES_PER_OFFER } from './constants';
 
 const generatePages = (chapterId: string, count: number): MangaPage[] => {
@@ -10,7 +10,7 @@ const generatePages = (chapterId: string, count: number): MangaPage[] => {
   }));
 };
 
-const mockAuthors: (AuthorInfo & { contactDetails?: AuthorContactDetails, isSystemUser?: boolean })[] = [
+export const mockAuthors: (AuthorInfo & { contactDetails?: AuthorContactDetails, isSystemUser?: boolean, walletBalance: number, bankDetails?: BankAccountDetails })[] = [
   {
     id: 'author-1',
     name: 'Kenji Tanaka',
@@ -18,7 +18,9 @@ const mockAuthors: (AuthorInfo & { contactDetails?: AuthorContactDetails, isSyst
     contactDetails: {
       email: 'kenji.tanaka@example.com',
       socialLinks: [{ platform: 'Twitter', url: 'https://twitter.com/kenji_manga' }]
-    }
+    },
+    walletBalance: 1500,
+    bankDetails: { accountHolderName: 'Kenji Tanaka', bankName: 'Sumitomo Mitsui Banking Corporation', accountNumber: '123456789', routingNumber: '021000021' }
   },
   {
     id: 'author-2',
@@ -27,28 +29,34 @@ const mockAuthors: (AuthorInfo & { contactDetails?: AuthorContactDetails, isSyst
     contactDetails: {
       email: 'yuki.sato.art@example.com',
       socialLinks: [{ platform: 'Instagram', url: 'https://instagram.com/yuki_draws' }]
-    }
+    },
+    walletBalance: 800,
+    bankDetails: { accountHolderName: 'Yuki Sato', bankName: 'Mizuho Bank', accountNumber: '987654321', routingNumber: '021000089' }
   },
   {
     id: 'author-3',
     name: 'Aiko Suzuki',
     avatarUrl: 'https://picsum.photos/100/100?random=author3',
+    walletBalance: 300,
   },
   {
-    id: 'user-123',
+    id: 'user-123', // This is also MOCK_USER_VALID.id from AuthContext
     name: 'Test Creator',
     avatarUrl: 'https://picsum.photos/100/100?random=creator',
     isSystemUser: true,
     contactDetails: {
       email: 'test@example.com',
       socialLinks: [{ platform: 'Website', url: 'https://testcreator.com'}]
-    }
+    },
+    walletBalance: 500, // Initial balance for the test creator
+    bankDetails: { accountHolderName: 'Test Creator', bankName: 'Bank of America', accountNumber: '1122334455', routingNumber: '026009593' }
   },
   {
     id: 'author-pending',
     name: 'Pending Approval Sensei',
     avatarUrl: 'https://picsum.photos/100/100?random=authorpending',
-    contactDetails: { email: 'pending@example.com' }
+    contactDetails: { email: 'pending@example.com' },
+    walletBalance: 0,
   }
 ];
 
@@ -109,6 +117,10 @@ export const mockMangaSeriesData: MangaSeries[] = [
     ratingCount: 150,
     viewCount: 12000,
     isPublished: true,
+    comments: [
+      { id: 'comment-1-1', mangaId: 'manga-1', userId: 'user-generic', userName: 'Generic User', userAvatarUrl: 'https://picsum.photos/50/50?random=generic', text: 'Great first chapter!', timestamp: new Date(Date.now() - 1000*60*60*24*2).toISOString()},
+      { id: 'comment-1-2', mangaId: 'manga-1', userId: 'user-another', userName: 'Another Reader', userAvatarUrl: 'https://picsum.photos/50/50?random=another', text: 'Looking forward to more!', timestamp: new Date(Date.now() - 1000*60*60*20).toISOString()},
+    ],
   },
   {
     id: 'manga-2',
@@ -137,6 +149,7 @@ export const mockMangaSeriesData: MangaSeries[] = [
     ratingCount: 95,
     viewCount: 8500,
     isPublished: true,
+    comments: [],
   },
   {
     id: 'manga-3',
@@ -165,6 +178,7 @@ export const mockMangaSeriesData: MangaSeries[] = [
     ratingCount: 200,
     viewCount: 15000,
     isPublished: true,
+    comments: [],
   },
   {
     id: 'manga-4',
@@ -191,6 +205,7 @@ export const mockMangaSeriesData: MangaSeries[] = [
     ratingCount: 0,
     viewCount: 100,
     isPublished: true,
+    comments: [],
   },
 ];
 
@@ -225,9 +240,17 @@ export const getMangaById = (id: string): MangaSeries | undefined => {
   return modifiableMockMangaSeries.find(manga => manga.id === id);
 };
 
-export const getAuthorById = (id: string): (AuthorInfo & { contactDetails?: AuthorContactDetails }) | undefined => {
+export const getAuthorById = (id: string): (AuthorInfo & { contactDetails?: AuthorContactDetails, walletBalance: number, bankDetails?: BankAccountDetails }) | undefined => {
   return mockAuthors.find(author => author.id === id);
 }
+
+export const updateMockAuthorBalance = (authorId: string, newBalance: number) => {
+  const authorIndex = mockAuthors.findIndex(author => author.id === authorId);
+  if (authorIndex !== -1) {
+    mockAuthors[authorIndex].walletBalance = newBalance;
+  }
+};
+
 
 export const getChapterById = (mangaId: string, chapterId: string) => {
   const manga = getMangaById(mangaId);
@@ -242,7 +265,7 @@ export const updateMockMangaData = (mangaId: string, updates: Partial<MangaSerie
     let lastChapterUpdateInfo: MangaSeries['lastChapterUpdateInfo'] = existingManga.lastChapterUpdateInfo;
 
     if (updates.chapters) {
-      let pagesChangedInLastChapter = false;
+      // let pagesChangedInLastChapter = false; // This variable was unused
       let lastUpdatedEffectiveChapter: Chapter | undefined = undefined;
 
       if (existingManga.chapters.length > 0 && updates.chapters.length > 0) {
@@ -253,7 +276,7 @@ export const updateMockMangaData = (mangaId: string, updates: Partial<MangaSerie
           const oldPagesCount = lastExistingChapter?.pages.length || 0;
           const newPagesCount = lastUpdatedChapter.pages.length;
           if (newPagesCount !== oldPagesCount) {
-             pagesChangedInLastChapter = true;
+            //  pagesChangedInLastChapter = false; // This variable was unused
              lastUpdatedEffectiveChapter = lastUpdatedChapter;
              lastChapterUpdateInfo = {
                 chapterId: lastUpdatedEffectiveChapter.id,
@@ -281,9 +304,9 @@ export const updateMockMangaData = (mangaId: string, updates: Partial<MangaSerie
       updatedChapters = updates.chapters.map((updatedCh, chapterIdx) => {
         const existingChapter = existingManga.chapters.find(c => c.id === updatedCh.id);
         const newPages: MangaPage[] = updatedCh.pages.map((updatedPage, pageIdx) => {
-          const existingPage = existingChapter?.pages.find(p => p.id === updatedPage.id);
+          // const existingPage = existingChapter?.pages.find(p => p.id === updatedPage.id); // This variable was unused
           return {
-            id: existingPage?.id || updatedPage.id || `${updatedCh.id}-page-${Date.now()}-${pageIdx}`,
+            id: updatedPage.id || `${updatedCh.id}-page-${Date.now()}-${pageIdx}`, // Use updatedPage.id if available
             imageUrl: updatedPage.imageUrl,
             altText: updatedPage.altText || `Page ${pageIdx + 1}`,
           };
@@ -300,7 +323,7 @@ export const updateMockMangaData = (mangaId: string, updates: Partial<MangaSerie
     let mergedInvestmentOffer = existingManga.investmentOffer;
     if (updates.investmentOffer) {
         mergedInvestmentOffer = {
-            ...(existingManga.investmentOffer || {}),
+            ...(existingManga.investmentOffer || {} as MangaInvestmentOffer), // Ensure base object if new
             ...updates.investmentOffer,
         };
     }
@@ -324,7 +347,8 @@ export const addMockMangaSeries = (newManga: MangaSeries) => {
         id: newManga.author.id,
         name: newManga.author.name,
         avatarUrl: newManga.author.avatarUrl,
-        contactDetails: newManga.authorDetails
+        contactDetails: newManga.authorDetails,
+        walletBalance: 0, // Initialize wallet for new author
     };
     mockAuthors.push(newAuthorData);
   }
@@ -333,6 +357,7 @@ export const addMockMangaSeries = (newManga: MangaSeries) => {
     ...newManga,
     isPublished: newManga.isPublished !== undefined ? newManga.isPublished : true,
     subscriptionModel: newManga.subscriptionModel || 'monthly', // Default subscription model
+    comments: newManga.comments || [], // Initialize comments
   };
   modifiableMockMangaSeries.unshift(mangaWithDefaults);
 };
@@ -393,4 +418,19 @@ export const updateListingFollowerCount = (listingId: string, increment: boolean
     const currentFollowers = mockShareListingsData[listingIndex].followersCount || 0;
     mockShareListingsData[listingIndex].followersCount = Math.max(0, currentFollowers + (increment ? 1 : -1));
   }
+};
+
+// Function to add a comment to a manga series
+export const addCommentToMockManga = (mangaId: string, newComment: Comment): Comment | null => {
+  const mangaIndex = modifiableMockMangaSeries.findIndex(m => m.id === mangaId);
+  if (mangaIndex !== -1) {
+    const manga = modifiableMockMangaSeries[mangaIndex];
+    if (!manga.comments) {
+      manga.comments = [];
+    }
+    manga.comments.push(newComment);
+    modifiableMockMangaSeries[mangaIndex] = manga;
+    return newComment;
+  }
+  return null;
 };

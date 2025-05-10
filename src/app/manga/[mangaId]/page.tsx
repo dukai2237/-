@@ -28,6 +28,7 @@ import { Label } from "@/components/ui/label"
 import type { MangaSeries } from '@/lib/types';
 import { MANGA_GENRES_DETAILS, MIN_SUBSCRIPTIONS_FOR_INVESTMENT } from '@/lib/constants';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { CommentSection } from '@/components/manga/CommentSection';
 
 
 interface MangaDetailPageProps {
@@ -51,39 +52,54 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
   useEffect(() => {
     const currentMangaData = getMangaById(mangaId);
     if (!currentMangaData || !currentMangaData.isPublished) { 
-      setTimeout(() => {
+      // Initial check, if not found or not published, set to undefined to show loading/not found
+      setManga(undefined);
+      // Schedule a re-check. This is a workaround for potential mock data update delays.
+      // In a real app, this might not be necessary or would be handled by a proper data fetching library.
+      const timer = setTimeout(() => {
         const freshCheck = getMangaById(mangaId);
         if(!freshCheck || !freshCheck.isPublished) {
+          // If still not found/published after a delay, then trigger notFound.
+          // This timeout needs to be cleared on unmount.
           notFound();
+        } else {
+          setManga(freshCheck);
         }
       }, 200); 
+      return () => clearTimeout(timer);
+    } else {
+      setManga(currentMangaData);
     }
-    setManga(currentMangaData);
   }, [mangaId]);
 
 
   useEffect(() => {
     if (!mangaId) return;
+    // Interval to refresh manga data, simulating real-time updates (e.g., new comments, rating changes)
     const interval = setInterval(() => {
       const freshMangaData = getMangaById(mangaId);
       if (freshMangaData && freshMangaData.isPublished) { 
         setManga(prevManga => {
           if (JSON.stringify(freshMangaData) !== JSON.stringify(prevManga)) {
-            return freshMangaData;
+            return freshMangaData; // Update only if data has changed
           }
           return prevManga;
         });
       } else {
+        // If manga was previously loaded but now is not found or unpublished
         if (manga && (!freshMangaData || !freshMangaData.isPublished)) {
-           // Potentially call notFound() here if strict behavior is desired
+           // Handle case where manga becomes unpublished or deleted
+           // For now, we'll let it show the "not found" message if `manga` becomes undefined
+           // Or, you could redirect or show a specific message here.
         }
       }
-    }, 1000);
+    }, 1000); // Check for updates every 1 second
     return () => clearInterval(interval);
-  }, [mangaId, manga]); 
+  }, [mangaId, manga]); // Rerun if mangaId or the local manga state changes
 
 
   if (!manga) {
+    // This covers both initial loading and the case where manga is truly not found/unpublished
     return <div className="text-center py-10" suppressHydrationWarning={true}>Loading manga details or manga not found/unpublished...</div>;
   }
 
@@ -178,10 +194,15 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
 
   const isUserSubscribed = user ? isSubscribedToManga(manga.id) : false;
   const userRating = user?.ratingsGiven?.[manga.id];
-  const canRate = user && (isUserSubscribed || user.investments.some(inv => inv.mangaId === manga.id) || user.subscriptions.some(sub => sub.mangaId === manga.id && sub.type === 'chapter')) && !userRating;
+  // Users can rate if they are subscribed, have purchased any chapter of THIS manga, or have invested in THIS manga.
+  const hasChapterPurchaseForThisManga = user?.subscriptions.some(sub => sub.mangaId === manga.id && sub.type === 'chapter');
+  const hasInvestmentInThisManga = user?.investments.some(inv => inv.mangaId === manga.id);
+
+  const canRate = user && (isUserSubscribed || hasChapterPurchaseForThisManga || hasInvestmentInThisManga) && !userRating;
+
   const ratingDisabledReason = () => {
     if (!user) return "Login to rate";
-    if (!isUserSubscribed && !user.investments.some(inv => inv.mangaId === manga.id) && !user.subscriptions.some(sub => sub.mangaId === manga.id && sub.type === 'chapter')) return "Subscribe, purchase a chapter, or invest to rate";
+    if (!isUserSubscribed && !hasChapterPurchaseForThisManga && !hasInvestmentInThisManga) return "Subscribe, purchase a chapter, or invest to rate";
     if (userRating) return `You've already rated (${userRating}/3)`;
     return "";
   };
@@ -451,6 +472,10 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
         )}
       </div>
 
+      <Separator className="my-8" />
+      <CommentSection mangaId={manga.id} />
+
+
       <Dialog open={isDonationDialogOpen} onOpenChange={setIsDonationDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -521,4 +546,3 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
     </div>
   );
 }
-
