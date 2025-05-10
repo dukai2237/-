@@ -28,8 +28,8 @@ export default function ForgotPasswordPage() {
     console.log(`Simulating: Sending password reset link to ${email}.`);
     toast({
       title: "Password Reset Email Sent (Simulated)",
-      description: `If an account exists for ${email}, a (simulated) password reset link has been sent.`,
-      duration: 7000,
+      description: `If an account exists for ${email}, a (simulated) password reset link/code has been sent. Check console for details or use '654321' or token 'mockResetToken123' on the reset page.`,
+      duration: 10000, // Increased duration for visibility
     });
     
     // In a real app, you wouldn't clear the email here, but for demo purposes it's fine.
@@ -44,7 +44,7 @@ export default function ForgotPasswordPage() {
         <CardHeader>
           <CardTitle className="text-2xl">Forgot Password</CardTitle>
           <CardDescription>
-            Enter your email address and we'll (simulate) send you a link to reset your password.
+            Enter your email address and we'll (simulate) send you a link/code to reset your password.
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
@@ -63,7 +63,7 @@ export default function ForgotPasswordPage() {
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
             <Button type="submit" className="w-full text-lg py-3" disabled={isSubmitting}>
-              {isSubmitting ? 'Sending...' : 'Send Reset Link'}
+              {isSubmitting ? 'Sending...' : 'Send Reset Link/Code'}
             </Button>
             <Button variant="link" asChild className="text-sm">
               <Link href="/login">

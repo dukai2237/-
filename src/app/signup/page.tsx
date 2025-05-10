@@ -10,7 +10,7 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { MailCheck } from "lucide-react";
+import { MailCheck, AlertTriangle } from "lucide-react";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -25,6 +25,7 @@ export default function SignupPage() {
   const [verificationCode, setVerificationCode] = useState("");
   const [isVerificationCodeSent, setIsVerificationCodeSent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -34,10 +35,22 @@ export default function SignupPage() {
 
   const handleSendVerificationCode = async (e: FormEvent) => {
     e.preventDefault();
+    setIsVerifyingEmail(true);
     if (!email) {
       toast({ title: "Email Required", description: "Please enter your email address to send a verification code.", variant: "destructive" });
+      setIsVerifyingEmail(false);
       return;
     }
+    // Simulate checking if email exists (simplified, actual check in AuthContext)
+    // In a real app, this would be an API call to the backend.
+    const storedUsersString = localStorage.getItem('mockUserList');
+    let mockUserListFromStorage: User[] = storedUsersString ? JSON.parse(storedUsersString) : [];
+    if (mockUserListFromStorage.some(u => u.email === email)) {
+        toast({ title: "Email Exists", description: "This email is already registered. Please use a different email or log in.", variant: "destructive" });
+        setIsVerifyingEmail(false);
+        return; // Keep form populated for user to change email
+    }
+
     // Simulate sending verification code
     console.log(`Simulating: Sending verification code to ${email}. For demo, use code: 123456`);
     toast({
@@ -46,6 +59,7 @@ export default function SignupPage() {
       duration: 7000,
     });
     setIsVerificationCodeSent(true);
+    setIsVerifyingEmail(false);
   };
 
   const handleSignup = async (e: FormEvent) => {
@@ -68,19 +82,17 @@ export default function SignupPage() {
       return;
     }
 
-    // Pass verificationCode to signup function
     const newUser = await signup(name, email, password, accountType, verificationCode);
 
     if (newUser) {
-      // Toast for pending approval is handled in AuthContext
-      // Redirect logic can remain simple
       if (newUser.accountType === 'creator' && !newUser.isApproved) {
-         router.push('/login'); // Redirect to login, approval message will be shown by AuthContext or login page
+         router.push('/login'); 
       } else {
         router.push(newUser.accountType === 'creator' ? '/creator/dashboard' : '/profile');
       }
     }
-    // If signup fails, toast is handled by AuthContext
+    // If signup fails (e.g. wrong code), toast is handled by AuthContext.
+    // Form data remains for correction.
     setIsSubmitting(false);
   };
 
@@ -98,30 +110,30 @@ export default function SignupPage() {
           <CardContent className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
-              <Input id="name" placeholder="e.g., John Doe" value={name} onChange={(e) => setName(e.target.value)} required disabled={isVerificationCodeSent} />
+              <Input id="name" placeholder="e.g., John Doe" value={name} onChange={(e) => setName(e.target.value)} required disabled={isSubmitting || isVerifyingEmail} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email Address</Label>
-              <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isVerificationCodeSent} />
+              <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isSubmitting || isVerifyingEmail} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" placeholder="Choose a strong password" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={isVerificationCodeSent} />
+              <Input id="password" type="password" placeholder="Choose a strong password" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={isSubmitting || isVerifyingEmail} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input id="confirmPassword" type="password" placeholder="Confirm your password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required disabled={isVerificationCodeSent}/>
+              <Input id="confirmPassword" type="password" placeholder="Confirm your password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required disabled={isSubmitting || isVerifyingEmail}/>
             </div>
             <div className="space-y-3">
               <Label className="text-base">Account Type</Label>
-              <RadioGroup defaultValue="user" value={accountType} onValueChange={(value: 'user' | 'creator') => setAccountType(value)} className="flex space-x-4" disabled={isVerificationCodeSent}>
+              <RadioGroup defaultValue="user" value={accountType} onValueChange={(value: 'user' | 'creator') => setAccountType(value)} className="flex space-x-4" disabled={isSubmitting || isVerifyingEmail}>
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="user" id="type-user" disabled={isVerificationCodeSent}/>
-                  <Label htmlFor="type-user" className={`font-normal ${isVerificationCodeSent ? 'cursor-not-allowed opacity-70': ''}`}>Regular User</Label>
+                  <RadioGroupItem value="user" id="type-user" disabled={isSubmitting || isVerifyingEmail}/>
+                  <Label htmlFor="type-user" className={`font-normal ${(isSubmitting || isVerifyingEmail) ? 'cursor-not-allowed opacity-70': ''}`}>Regular User</Label>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="creator" id="type-creator" disabled={isVerificationCodeSent}/>
-                  <Label htmlFor="type-creator" className={`font-normal ${isVerificationCodeSent ? 'cursor-not-allowed opacity-70': ''}`}>Manga Creator</Label>
+                  <RadioGroupItem value="creator" id="type-creator" disabled={isSubmitting || isVerifyingEmail}/>
+                  <Label htmlFor="type-creator" className={`font-normal ${(isSubmitting || isVerifyingEmail) ? 'cursor-not-allowed opacity-70': ''}`}>Manga Creator</Label>
                 </div>
               </RadioGroup>
                {accountType === 'creator' && (
@@ -130,6 +142,21 @@ export default function SignupPage() {
                 </p>
               )}
             </div>
+            
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-md">
+                <div className="flex items-start">
+                    <AlertTriangle className="h-5 w-5 text-blue-500 mr-2 mt-0.5" />
+                    <div>
+                        <h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300">Important Email Notice</h4>
+                        <p className="text-xs text-blue-600 dark:text-blue-400">
+                            Please ensure you use an active email address that you can always access. 
+                            This email is crucial for account verification and password recovery. 
+                            If you lose access to this email, you may not be able to recover your account.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
 
             {isVerificationCodeSent && (
               <div className="space-y-2 pt-4 border-t">
@@ -144,6 +171,7 @@ export default function SignupPage() {
                         onChange={(e) => setVerificationCode(e.target.value)}
                         required
                         maxLength={6}
+                        disabled={isSubmitting}
                     />
                 </div>
                 <p className="text-xs text-muted-foreground">A (simulated) verification code was sent to your email. Use '123456' for this demo.</p>
@@ -152,8 +180,8 @@ export default function SignupPage() {
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
             {!isVerificationCodeSent ? (
-              <Button type="submit" className="w-full text-lg py-3" disabled={isSubmitting}>
-                Send Verification Code
+              <Button type="submit" className="w-full text-lg py-3" disabled={isVerifyingEmail || isSubmitting}>
+                {isVerifyingEmail ? 'Sending Code...' : 'Send Verification Code'}
               </Button>
             ) : (
               <Button type="submit" className="w-full text-lg py-3" disabled={isSubmitting || !verificationCode}>
