@@ -1,4 +1,3 @@
-
 import Image from 'next/image';
 import Link from 'next/link';
 import type { MangaSeries } from '@/lib/types';
@@ -28,7 +27,7 @@ export const MangaCard = React.memo(function MangaCard({ manga, priority = false
   const handleFavoriteToggle = (e: React.MouseEvent) => {
     e.preventDefault(); 
     e.stopPropagation();
-    if (!user) { 
+    if (!user || user.accountType === 'creator') { 
         // toast({ title: "Login Required", description: "Please login to favorite manga."});
         return;
     }
@@ -47,7 +46,7 @@ export const MangaCard = React.memo(function MangaCard({ manga, priority = false
   return (
     <Card className="flex flex-col overflow-hidden h-full shadow-lg hover:shadow-xl transition-shadow duration-300 group">
       <CardHeader className="p-0 relative">
-        <Link href={`/manga/${manga.id}`} className="block aspect-[2/3] relative overflow-hidden">
+        <Link href={`/manga/${manga.id}`} className="block aspect-[2/3] relative overflow-hidden" suppressHydrationWarning>
           <Image
             src={manga.coverImage}
             alt={`Cover of ${manga.title}`}
@@ -71,7 +70,7 @@ export const MangaCard = React.memo(function MangaCard({ manga, priority = false
           </Button>
         )}
          {isRecentUpdate && manga.lastChapterUpdateInfo && (
-            <Badge variant="default" className="absolute bottom-2 left-2 z-10 bg-primary/80 text-primary-foreground text-xs">
+            <Badge variant="default" className="absolute bottom-2 left-2 z-10 bg-primary/80 text-primary-foreground text-xs" suppressHydrationWarning>
                 <Edit2 className="mr-1 h-3 w-3" />
                 Updated: Ch. {manga.lastChapterUpdateInfo.chapterNumber}
                 {manga.lastChapterUpdateInfo.pagesAdded > 0 ? ` (+${manga.lastChapterUpdateInfo.pagesAdded}p)` : ''}
@@ -115,7 +114,7 @@ export const MangaCard = React.memo(function MangaCard({ manga, priority = false
       </CardContent>
       <CardFooter className="p-4 pt-0 mt-auto">
         <Button asChild className="w-full" variant="outline">
-          <Link href={`/manga/${manga.id}`}>
+          <Link href={`/manga/${manga.id}`} suppressHydrationWarning>
             <span suppressHydrationWarning>View Details</span> <ArrowRight className="ml-2 h-4 w-4" />
           </Link>
         </Button>

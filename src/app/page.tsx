@@ -9,12 +9,12 @@ import { useSearchParams } from 'next/navigation';
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Shuffle, Flame, Zap, AlertCircle, Tag, CalendarDays, CalendarClock, Search, Users, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Shuffle, Flame, Zap, AlertCircle, Tag, CalendarDays, CalendarClock, Search, Users, ChevronLeft, ChevronRight, Newspaper, ArrowUpDown } from 'lucide-react';
 import { MANGA_GENRES_DETAILS } from '@/lib/constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
-const ITEMS_PER_SECTION = 20;
+const MANGA_PER_PAGE = 20; 
 const MAX_FILTERED_ITEMS_DISPLAY = 100; 
 const CREATORS_PER_PAGE = 30;
 
@@ -38,6 +38,7 @@ export default function HomePage() {
   const [popularMangaOverall, setPopularMangaOverall] = useState<MangaSeries[]>([]);
 
   const [currentCreatorPage, setCurrentCreatorPage] = useState(1);
+  const [currentMangaPage, setCurrentMangaPage] = useState(1);
 
   useEffect(() => {
     setAllPublishedManga(getPublishedMangaSeries());
@@ -50,6 +51,7 @@ export default function HomePage() {
     setSearchTerm(currentSearch);
     setGenreFilter(currentGenre);
     setCurrentCreatorPage(1); 
+    setCurrentMangaPage(1);
   }, [searchParams]);
 
   const memoizedUpdateUserSearchHistory = useCallback(updateUserSearchHistory, [updateUserSearchHistory]);
@@ -91,7 +93,6 @@ export default function HomePage() {
       [...allPublishedManga]
         .filter(m => new Date(m.publishedDate) >= twentyFourHoursAgo)
         .sort((a, b) => new Date(b.publishedDate).getTime() - new Date(a.publishedDate).getTime())
-        .slice(0, ITEMS_PER_SECTION)
     );
 
     const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
@@ -99,26 +100,72 @@ export default function HomePage() {
       [...allPublishedManga]
         .filter(m => new Date(m.publishedDate) >= thirtyDaysAgo)
         .sort((a, b) => new Date(b.publishedDate).getTime() - new Date(a.publishedDate).getTime())
-        .slice(0, ITEMS_PER_SECTION)
     );
     
     setNewestMangaOverall(
         [...allPublishedManga]
         .sort((a, b) => new Date(b.publishedDate).getTime() - new Date(a.publishedDate).getTime())
-        .slice(0, ITEMS_PER_SECTION)
     );
 
     setPopularMangaOverall(
         [...allPublishedManga]
         .sort((a, b) => b.viewCount - a.viewCount)
-        .slice(0, ITEMS_PER_SECTION)
     );
 
     setClientRandomManga(
-      [...allPublishedManga].sort(() => 0.5 - Math.random()).slice(0, ITEMS_PER_SECTION)
+      [...allPublishedManga].sort(() => 0.5 - Math.random())
     );
 
   }, [searchTerm, genreFilter, user, memoizedUpdateUserSearchHistory, allPublishedManga, allApprovedCreators]);
+
+
+  const renderPaginatedMangaSection = (title: string, icon: React.ReactNode, mangaList: MangaSeries[], pageState: number, setPageState: (page: number) => void, sectionId: string) => {
+    const totalPages = Math.ceil(mangaList.length / MANGA_PER_PAGE);
+    const startIndex = (pageState - 1) * MANGA_PER_PAGE;
+    const paginatedManga = mangaList.slice(startIndex, startIndex + MANGA_PER_PAGE);
+
+    if (paginatedManga.length === 0 && !(isFiltering && mangaList === processedFilteredManga)) return null;
+
+
+    return (
+      <section key={sectionId}>
+        <h2 className="text-3xl font-semibold mb-6 tracking-tight flex items-center" suppressHydrationWarning>{icon}{title} ({mangaList.length})</h2>
+        {paginatedManga.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-8">
+            {paginatedManga.map((manga, index) => (
+              <MangaCard key={`${sectionId}-${manga.id}`} manga={manga} priority={index < 5} />
+            ))}
+          </div>
+        ) : (
+          <p className="text-muted-foreground text-center py-4">No manga found for this section.</p>
+        )}
+        {totalPages > 1 && (
+          <div className="flex justify-center items-center mt-6 space-x-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setPageState(Math.max(1, pageState - 1))}
+              disabled={pageState === 1}
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" /> Previous
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Page {pageState} of {totalPages}
+            </span>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setPageState(Math.min(totalPages, pageState + 1))}
+              disabled={pageState === totalPages}
+            >
+              Next <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
+        )}
+      </section>
+    );
+  };
+
 
   const currentGenreName = genreFilter ? MANGA_GENRES_DETAILS.find(g => g.id === genreFilter)?.name : null;
   const isFiltering = searchTerm || genreFilter;
@@ -172,36 +219,32 @@ export default function HomePage() {
       <div className="flex flex-wrap gap-2 justify-center mb-8">
         {MANGA_GENRES_DETAILS.map(genre => (
           <Button key={genre.id} variant={genreFilter === genre.id ? "default" : "outline"} size="sm" asChild>
-            <Link href={genreFilter === genre.id ? (searchTerm ? `/?search=${searchTerm}` : "/") : `/?genre=${genre.id}${searchTerm ? `&search=${searchTerm}` : ''}`}>
+            <Link href={genreFilter === genre.id ? (searchTerm ? `/?search=${searchTerm}` : "/") : `/?genre=${genre.id}${searchTerm ? `&search=${searchTerm}` : ''}`} suppressHydrationWarning>
               <Tag className="mr-1.5 h-3.5 w-3.5"/> {genre.name}
             </Link>
           </Button>
         ))}
         {(genreFilter || searchTerm) && (
           <Button variant="ghost" size="sm" asChild>
-            <Link href="/">Clear Filters</Link>
+            <Link href="/" suppressHydrationWarning>Clear Filters</Link>
           </Button>
         )}
       </div>
 
       {isFiltering ? (
         <>
-          {processedFilteredManga.length > 0 && (
-            <section>
-              <h2 className="text-3xl font-semibold mb-6 tracking-tight flex items-center" suppressHydrationWarning>
-                <Search className="mr-3 h-7 w-7 text-primary"/>
-                Manga Results ({processedFilteredManga.length})
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-8">
-                {processedFilteredManga.map((manga, index) => (
-                  <MangaCard key={manga.id} manga={manga} priority={index < 5} />
-                ))}
-              </div>
-              {processedFilteredManga.length >= MAX_FILTERED_ITEMS_DISPLAY && (
-                 <p className="text-center text-muted-foreground mt-6">Displaying top {MAX_FILTERED_ITEMS_DISPLAY} manga results. Refine your search for more specific results.</p>
-              )}
-            </section>
+          {renderPaginatedMangaSection(
+            `Manga Results`, 
+            <Search className="mr-3 h-7 w-7 text-primary"/>, 
+            processedFilteredManga, 
+            currentMangaPage, 
+            setCurrentMangaPage,
+            "filtered-manga"
           )}
+           {processedFilteredManga.length >= MAX_FILTERED_ITEMS_DISPLAY && (
+                 <p className="text-center text-muted-foreground mt-6">Displaying top {MAX_FILTERED_ITEMS_DISPLAY} manga results. Refine your search for more specific results.</p>
+            )}
+
           {processedFilteredCreators.length > 0 && (
             <section>
               <Separator className="my-10" />
@@ -210,16 +253,41 @@ export default function HomePage() {
                 Creator Results ({processedFilteredCreators.length})
               </h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                {processedFilteredCreators.map((creator) => (
-                   <Link key={creator.id} href={`/creators/${creator.id}`} className="flex flex-col items-center space-y-1 p-2 hover:bg-secondary rounded-md transition-colors">
+                {paginatedCreators.map((creator) => (
+                   <Link key={creator.id} href={`/creators/${creator.id}`} className="flex flex-col items-center space-y-1 p-2 hover:bg-secondary rounded-md transition-colors" suppressHydrationWarning>
                     <Avatar className="h-16 w-16 sm:h-20 sm:w-20">
                       <AvatarImage src={creator.avatarUrl} alt={creator.name} data-ai-hint="creator avatar" />
-                      <AvatarFallback>{creator.name[0]}</AvatarFallback>
+                      <AvatarFallback suppressHydrationWarning>{creator.name[0]}</AvatarFallback>
                     </Avatar>
                     <p className="text-xs sm:text-sm font-medium truncate w-20 sm:w-24 text-center" suppressHydrationWarning>{creator.name}</p>
                   </Link>
                 ))}
               </div>
+               {totalCreatorPages > 1 && (
+                <div className="flex justify-center items-center mt-6 space-x-2">
+                    <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setCurrentCreatorPage(p => Math.max(1, p - 1))}
+                    disabled={currentCreatorPage === 1}
+                    suppressHydrationWarning
+                    >
+                    <ChevronLeft className="h-4 w-4 mr-1" /> Previous
+                    </Button>
+                    <span className="text-sm text-muted-foreground" suppressHydrationWarning>
+                    Page {currentCreatorPage} of {totalCreatorPages}
+                    </span>
+                    <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setCurrentCreatorPage(p => Math.min(totalCreatorPages, p + 1))}
+                    disabled={currentCreatorPage === totalCreatorPages}
+                    suppressHydrationWarning
+                    >
+                    Next <ChevronRight className="h-4 w-4 ml-1" />
+                    </Button>
+                </div>
+                )}
                {processedFilteredCreators.length >= MAX_FILTERED_ITEMS_DISPLAY && (
                  <p className="text-center text-muted-foreground mt-6">Displaying top {MAX_FILTERED_ITEMS_DISPLAY} creator results. Refine your search for more specific results.</p>
               )}
@@ -228,68 +296,28 @@ export default function HomePage() {
         </>
       ) : (
         <>
-          {dailyNewReleases.length > 0 && (
-            <section>
-              <h2 className="text-3xl font-semibold mb-6 tracking-tight flex items-center" suppressHydrationWarning><CalendarClock className="mr-3 h-7 w-7 text-sky-500"/>Daily New Releases</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-8">
-                {dailyNewReleases.map((manga, index) => (
-                  <MangaCard key={manga.id} manga={manga} priority={index < 5} />
-                ))}
-              </div>
-            </section>
-          )}
+          {renderPaginatedMangaSection("Daily New Releases", <CalendarClock className="mr-3 h-7 w-7 text-sky-500"/>, dailyNewReleases, currentMangaPage, setCurrentMangaPage, "daily-new")}
           {dailyNewReleases.length > 0 && <Separator className="my-10" />}
-
-          {monthlyNewReleases.length > 0 && (
-            <section>
-              <h2 className="text-3xl font-semibold mb-6 tracking-tight flex items-center" suppressHydrationWarning><CalendarDays className="mr-3 h-7 w-7 text-blue-500"/>Monthly New Releases</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-8">
-                {monthlyNewReleases.map((manga, index) => (
-                  <MangaCard key={manga.id} manga={manga} priority={index < 5 && dailyNewReleases.length === 0} />
-                ))}
-              </div>
-            </section>
-          )}
+          
+          {renderPaginatedMangaSection("Monthly New Releases", <CalendarDays className="mr-3 h-7 w-7 text-blue-500"/>, monthlyNewReleases, currentMangaPage, setCurrentMangaPage, "monthly-new")}
           {monthlyNewReleases.length > 0 && <Separator className="my-10" />}
 
+          {renderPaginatedMangaSection("Latest Releases (All Time)", <Newspaper className="mr-3 h-7 w-7 text-yellow-500"/>, newestMangaOverall, currentMangaPage, setCurrentMangaPage, "latest-all")}
+          {newestMangaOverall.length > 0 && <Separator className="my-10" />}
 
-          {newestMangaOverall.length > 0 && (
-            <section>
-              <h2 className="text-3xl font-semibold mb-6 tracking-tight flex items-center" suppressHydrationWarning><Zap className="mr-3 h-7 w-7 text-yellow-500"/>Latest Releases (All Time)</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-8">
-                {newestMangaOverall.map((manga, index) => (
-                  <MangaCard key={manga.id} manga={manga} priority={index < 5 && dailyNewReleases.length === 0 && monthlyNewReleases.length === 0} />
-                ))}
-              </div>
-            </section>
-          )}
-
-          {popularMangaOverall.length > 0 && newestMangaOverall.length > 0 && <Separator className="my-10" />}
-
-
-          {popularMangaOverall.length > 0 && (
-             <section>
-              <h2 className="text-3xl font-semibold mb-6 tracking-tight flex items-center" suppressHydrationWarning><Flame className="mr-3 h-7 w-7 text-red-500"/>Popular Manga (by Views)</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-8">
-                {popularMangaOverall.map((manga) => (
-                  <MangaCard key={manga.id} manga={manga} />
-                ))}
-              </div>
-            </section>
-          )}
+          {renderPaginatedMangaSection("Popular Manga (by Views)", <Flame className="mr-3 h-7 w-7 text-red-500"/>, popularMangaOverall, currentMangaPage, setCurrentMangaPage, "popular-all")}
+          {popularMangaOverall.length > 0 && <Separator className="my-10" />}
           
-          <Separator className="my-10" />
-
           <section>
-            <h2 className="text-3xl font-semibold mb-6 tracking-tight flex items-center" suppressHydrationWarning><Users className="mr-3 h-7 w-7 text-purple-500"/>Featured Creators</h2>
+            <h2 className="text-3xl font-semibold mb-6 tracking-tight flex items-center" suppressHydrationWarning><Users className="mr-3 h-7 w-7 text-purple-500"/>Featured Creators ({allApprovedCreators.length})</h2>
             {paginatedCreators.length > 0 ? (
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                   {paginatedCreators.map((creator) => (
-                    <Link key={creator.id} href={`/creators/${creator.id}`} className="flex flex-col items-center space-y-1 p-2 hover:bg-secondary rounded-md transition-colors">
+                    <Link key={creator.id} href={`/creators/${creator.id}`} className="flex flex-col items-center space-y-1 p-2 hover:bg-secondary rounded-md transition-colors" suppressHydrationWarning>
                       <Avatar className="h-16 w-16 sm:h-20 sm:w-20">
                         <AvatarImage src={creator.avatarUrl} alt={creator.name} data-ai-hint="creator avatar"/>
-                        <AvatarFallback>{creator.name[0]}</AvatarFallback>
+                        <AvatarFallback suppressHydrationWarning>{creator.name[0]}</AvatarFallback>
                       </Avatar>
                       <p className="text-xs sm:text-sm font-medium truncate w-20 sm:w-24 text-center" suppressHydrationWarning>{creator.name}</p>
                     </Link>
@@ -302,10 +330,11 @@ export default function HomePage() {
                       size="sm" 
                       onClick={() => setCurrentCreatorPage(p => Math.max(1, p - 1))}
                       disabled={currentCreatorPage === 1}
+                      suppressHydrationWarning
                     >
                       <ChevronLeft className="h-4 w-4 mr-1" /> Previous
                     </Button>
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-sm text-muted-foreground" suppressHydrationWarning>
                       Page {currentCreatorPage} of {totalCreatorPages}
                     </span>
                     <Button 
@@ -313,6 +342,7 @@ export default function HomePage() {
                       size="sm" 
                       onClick={() => setCurrentCreatorPage(p => Math.min(totalCreatorPages, p + 1))}
                       disabled={currentCreatorPage === totalCreatorPages}
+                      suppressHydrationWarning
                     >
                       Next <ChevronRight className="h-4 w-4 ml-1" />
                     </Button>
@@ -320,23 +350,12 @@ export default function HomePage() {
                 )}
               </>
             ) : (
-              <p className="text-muted-foreground text-center">No creators found.</p>
+              <p className="text-muted-foreground text-center" suppressHydrationWarning>No creators found.</p>
             )}
           </section>
 
-
-          {clientRandomManga.length > 0 && popularMangaOverall.length > 0 && <Separator className="my-10" />}
-
-          {clientRandomManga.length > 0 && (
-             <section>
-              <h2 className="text-3xl font-semibold mb-6 tracking-tight flex items-center" suppressHydrationWarning><Shuffle className="mr-3 h-7 w-7 text-green-500"/>Random Recommendations</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-8">
-                {clientRandomManga.map((manga) => (
-                  <MangaCard key={manga.id} manga={manga} />
-                ))}
-              </div>
-            </section>
-          )}
+          {clientRandomManga.length > 0 && <Separator className="my-10" />}
+          {renderPaginatedMangaSection("Random Recommendations", <Shuffle className="mr-3 h-7 w-7 text-green-500"/>, clientRandomManga, currentMangaPage, setCurrentMangaPage, "random-recs")}
         </>
       )}
 
