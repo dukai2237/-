@@ -1,8 +1,8 @@
 "use client";
 import Link from 'next/link';
-import { Home, BookOpen, Menu, UserCircle, LogIn, LogOut, ShoppingCart, Edit3, BookUp, SearchIcon, Store } from 'lucide-react'; // Store icon for Shares Market
+import { Home, BookOpen, Menu, UserCircle, LogIn, LogOut, ShoppingCart, Edit3, BookUp, SearchIcon, Store } from 'lucide-react'; 
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTrigger, SheetClose } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTrigger, SheetClose, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -34,7 +34,7 @@ export function Header() {
 
   let dynamicNavItems = [];
   if (isClient && user) {
-    if (user.accountType === 'creator') {
+    if (user.accountType === 'creator' && user.isApproved) { // Only show dashboard if creator and approved
       dynamicNavItems.push({ href: '/creator/dashboard', label: 'Creator Dashboard', icon: <BookUp className="h-5 w-5" />, suppressHydrationWarning: true });
     }
     dynamicNavItems.push(
@@ -48,7 +48,7 @@ export function Header() {
       ), suppressHydrationWarning: true },
       { onClick: logout, label: 'Logout', icon: <LogOut className="h-5 w-5" />, isButton: true, suppressHydrationWarning: true }
     );
-  } else if (isClient) { // User is null but client has mounted
+  } else if (isClient) { 
     dynamicNavItems.push(
       { href: '/login', label: 'Login', icon: <LogIn className="h-5 w-5" />, suppressHydrationWarning: true },
       { href: '/signup', label: 'Sign Up', icon: <UserCircle className="h-5 w-5" />, suppressHydrationWarning: true }
@@ -69,6 +69,7 @@ export function Header() {
           <BookOpen className="h-7 w-7 text-primary" />
           <span 
             className="font-bold text-xl tracking-tight hidden sm:inline"
+            suppressHydrationWarning
           >
             Manga Platform
           </span>
@@ -115,7 +116,13 @@ export function Header() {
               </Button>
             </SheetTrigger>
             <SheetContent side="right">
-              <nav className="flex flex-col gap-2 mt-8">
+              <SheetHeader className="mb-4 text-left">
+                <SheetTitle>Navigation Menu</SheetTitle>
+                <SheetDescription>
+                  Explore the platform sections or manage your account.
+                </SheetDescription>
+              </SheetHeader>
+              <nav className="flex flex-col gap-2">
                 {navItems.map((item) => (
                   <SheetClose asChild key={item.label}>
                     {item.isButton ? (
@@ -141,4 +148,3 @@ export function Header() {
     </header>
   );
 }
-
