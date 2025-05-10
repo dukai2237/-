@@ -11,13 +11,15 @@ import { MANGA_GENRES_DETAILS } from '@/lib/constants';
 import { useAuth } from '@/contexts/AuthContext'; 
 import { formatDistanceToNowStrict } from 'date-fns';
 import React from 'react';
+import { cn } from '@/lib/utils';
 
 interface MangaCardProps {
   manga: MangaSeries;
   priority?: boolean; 
+  className?: string;
 }
 
-export const MangaCard = React.memo(function MangaCard({ manga, priority = false }: MangaCardProps) {
+export const MangaCard = React.memo(function MangaCard({ manga, priority = false, className }: MangaCardProps) {
   const { user, isFavorited, toggleFavorite } = useAuth(); 
 
   const getGenreName = (genreId: string) => {
@@ -29,7 +31,6 @@ export const MangaCard = React.memo(function MangaCard({ manga, priority = false
     e.preventDefault(); 
     e.stopPropagation();
     if (!user || user.accountType === 'creator') { 
-        // toast({ title: "Login Required", description: "Please login to favorite manga."});
         return;
     }
     toggleFavorite(manga.id, manga.title);
@@ -41,11 +42,11 @@ export const MangaCard = React.memo(function MangaCard({ manga, priority = false
     ? formatDistanceToNowStrict(new Date(manga.lastChapterUpdateInfo.date), { addSuffix: true })
     : null;
   
-  const isRecentUpdate = manga.lastChapterUpdateInfo?.date && (new Date().getTime() - new Date(manga.lastChapterUpdateInfo.date).getTime()) < 7 * 24 * 60 * 60 * 1000; // Within last 7 days
+  const isRecentUpdate = manga.lastChapterUpdateInfo?.date && (new Date().getTime() - new Date(manga.lastChapterUpdateInfo.date).getTime()) < 7 * 24 * 60 * 60 * 1000;
 
 
   return (
-    <Card className="flex flex-col overflow-hidden h-full shadow-lg hover:shadow-xl transition-shadow duration-300 group">
+    <Card className={cn("flex flex-col overflow-hidden h-full shadow-lg hover:shadow-xl transition-shadow duration-300 group", className)}>
       <CardHeader className="p-0 relative">
         <Link href={`/manga/${manga.id}`} className="block aspect-[2/3] relative overflow-hidden" suppressHydrationWarning>
           <Image

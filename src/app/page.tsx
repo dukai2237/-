@@ -17,9 +17,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from '@/components/ui/label';
 
 
-const MANGA_PER_PAGE = 20; 
+const MANGA_PER_PAGE_DESKTOP = 20; 
+const CREATORS_PER_PAGE_DESKTOP = 30;
 const MAX_FILTERED_ITEMS_DISPLAY = 100; 
-const CREATORS_PER_PAGE = 30;
 
 type MangaSortOption = "popular" | "newest" | "updated" | "title_asc" | "title_desc";
 type CreatorSortOption = "name_asc" | "name_desc";
@@ -38,13 +38,13 @@ export default function HomePage() {
   const [mangaSort, setMangaSort] = useState<MangaSortOption>("popular");
   const [creatorSort, setCreatorSort] = useState<CreatorSortOption>("name_asc");
 
-  const [currentCreatorPage, setCurrentCreatorPage] = useState(1);
-  const [currentMangaPage, setCurrentMangaPage] = useState(1);
-
-  const [dailyNewPage, setDailyNewPage] = useState(1);
-  const [monthlyNewPage, setMonthlyNewPage] = useState(1);
-  const [popularPage, setPopularPage] = useState(1);
-  const [randomRecsPage, setRandomRecsPage] = useState(1);
+  // State for desktop pagination
+  const [currentCreatorPageDesktop, setCurrentCreatorPageDesktop] = useState(1);
+  const [currentMangaPageDesktop, setCurrentMangaPageDesktop] = useState(1);
+  const [dailyNewPageDesktop, setDailyNewPageDesktop] = useState(1);
+  const [monthlyNewPageDesktop, setMonthlyNewPageDesktop] = useState(1);
+  const [popularPageDesktop, setPopularPageDesktop] = useState(1);
+  const [randomRecsPageDesktop, setRandomRecsPageDesktop] = useState(1);
 
 
   useEffect(() => {
@@ -57,12 +57,13 @@ export default function HomePage() {
     const currentGenre = searchParams.get('genre') || '';
     setSearchTerm(currentSearch);
     setGenreFilter(currentGenre);
-    setCurrentCreatorPage(1); 
-    setCurrentMangaPage(1);
-    setDailyNewPage(1);
-    setMonthlyNewPage(1);
-    setPopularPage(1);
-    setRandomRecsPage(1);
+    // Reset desktop pagination on filter change
+    setCurrentCreatorPageDesktop(1); 
+    setCurrentMangaPageDesktop(1);
+    setDailyNewPageDesktop(1);
+    setMonthlyNewPageDesktop(1);
+    setPopularPageDesktop(1);
+    setRandomRecsPageDesktop(1);
   }, [searchParams]);
 
   const memoizedUpdateUserSearchHistory = useCallback(updateUserSearchHistory, [updateUserSearchHistory]);
@@ -94,7 +95,6 @@ export default function HomePage() {
   const [clientRandomManga, setClientRandomManga] = useState<MangaSeries[]>([]);
   useEffect(() => {
     if (allPublishedManga.length > 0) {
-      // Ensure randomness is client-side after initial hydration
       setClientRandomManga(
         [...allPublishedManga].sort(() => 0.5 - Math.random())
       );
@@ -175,20 +175,19 @@ export default function HomePage() {
 
   const isFiltering = searchTerm || genreFilter;
 
-  const renderPaginatedMangaSection = (title: string, icon: React.ReactNode, mangaList: MangaSeries[], pageState: number, setPageState: (page: number) => void, sectionId: string, showSort?: boolean, currentSortValue?: MangaSortOption, onSortChange?: (value: MangaSortOption) => void) => {
-    const totalPages = Math.ceil(mangaList.length / MANGA_PER_PAGE);
-    const startIndex = (pageState - 1) * MANGA_PER_PAGE;
-    const paginatedManga = mangaList.slice(startIndex, startIndex + MANGA_PER_PAGE);
+  const renderPaginatedMangaSection = (title: string, icon: React.ReactNode, mangaList: MangaSeries[], pageStateDesktop: number, setPageStateDesktop: (page: number) => void, sectionId: string, showSort?: boolean, currentSortValue?: MangaSortOption, onSortChange?: (value: MangaSortOption) => void) => {
+    const totalPagesDesktop = Math.ceil(mangaList.length / MANGA_PER_PAGE_DESKTOP);
+    const startIndexDesktop = (pageStateDesktop - 1) * MANGA_PER_PAGE_DESKTOP;
+    const paginatedMangaDesktop = mangaList.slice(startIndexDesktop, startIndexDesktop + MANGA_PER_PAGE_DESKTOP);
 
-    if (paginatedManga.length === 0 && !(isFiltering && mangaList === sortedAndFilteredManga)) return null;
-
+    if (mangaList.length === 0 && !(isFiltering && mangaList === sortedAndFilteredManga)) return null;
 
     return (
-      <section key={sectionId}>
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-3xl font-semibold tracking-tight flex items-center" suppressHydrationWarning>{icon}{title} ({mangaList.length})</h2>
+      <section key={sectionId} className="py-4">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-semibold tracking-tight flex items-center" suppressHydrationWarning>{icon}{title} ({mangaList.length})</h2>
           {showSort && onSortChange && currentSortValue && (
-            <div className="flex items-center gap-2">
+            <div className="hidden md:flex items-center gap-2">
               <Label htmlFor={`${sectionId}-sort`} className="text-sm font-medium">Sort by:</Label>
               <Select value={currentSortValue} onValueChange={onSortChange}>
                 <SelectTrigger id={`${sectionId}-sort`} className="w-[180px] h-9 text-sm">
@@ -205,33 +204,53 @@ export default function HomePage() {
             </div>
           )}
         </div>
-        {paginatedManga.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-8">
-            {paginatedManga.map((manga, index) => (
-              <MangaCard key={`${sectionId}-${manga.id}`} manga={manga} priority={index < 5 && pageState === 1} />
+
+        {/* Mobile: Horizontal Scroll */}
+        <div className="md:hidden -mx-4 px-2"> {/* Negative margin to make scroll area edge-to-edge within container padding */}
+          <div className="flex overflow-x-auto space-x-3 pb-4 scrollbar-thin scrollbar-thumb-muted-foreground scrollbar-track-muted">
+            {mangaList.map((manga, index) => (
+              <MangaCard 
+                key={`${sectionId}-mobile-${manga.id}`} 
+                manga={manga} 
+                priority={index < 3} // Prioritize first 3 images in mobile horizontal scroll
+                className="w-36 xs:w-40 shrink-0" // Fixed width for horizontal items
+              />
             ))}
+            {mangaList.length === 0 && <p className="text-muted-foreground text-center py-4 px-4">No manga found for this section.</p>}
           </div>
-        ) : (
-          <p className="text-muted-foreground text-center py-4">No manga found for this section.</p>
-        )}
-        {totalPages > 1 && (
-          <div className="flex justify-center items-center mt-6 space-x-2">
+        </div>
+
+        {/* Desktop: Grid Layout */}
+        <div className="hidden md:grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-8">
+          {paginatedMangaDesktop.map((manga, index) => (
+            <MangaCard 
+                key={`${sectionId}-desktop-${manga.id}`} 
+                manga={manga} 
+                priority={index < 5 && pageStateDesktop === 1} 
+            />
+          ))}
+           {paginatedMangaDesktop.length === 0 && <p className="col-span-full text-muted-foreground text-center py-4">No manga found for this section.</p>}
+        </div>
+        
+        {/* Desktop Pagination Controls */}
+        {totalPagesDesktop > 1 && (
+          <div className="hidden md:flex justify-center items-center mt-6 space-x-2">
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={() => setPageState(Math.max(1, pageState - 1))}
-              disabled={pageState === 1}
+              onClick={() => setPageStateDesktop(Math.max(1, pageStateDesktop - 1))}
+              disabled={pageStateDesktop === 1}
             >
               <ChevronLeft className="h-4 w-4 mr-1" /> Previous
             </Button>
             <span className="text-sm text-muted-foreground">
-              Page {pageState} of {totalPages}
+              Page {pageStateDesktop} of {totalPagesDesktop}
             </span>
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={() => setPageState(Math.min(totalPages, pageState + 1))}
-              disabled={pageState === totalPages}
+              onClick={() => setPageStateDesktop(Math.min(totalPagesDesktop, pageStateDesktop + 1))}
+              disabled={pageStateDesktop === totalPagesDesktop}
             >
               Next <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
@@ -241,21 +260,21 @@ export default function HomePage() {
     );
   };
 
-  const renderPaginatedCreatorSection = (title: string, icon: React.ReactNode, creatorList: AuthorInfo[], pageState: number, setPageState: (page:number) => void, sectionId: string, showSort?: boolean, currentSortValue?: CreatorSortOption, onSortChange?: (value: CreatorSortOption) => void) => {
-    const totalPages = Math.ceil(creatorList.length / CREATORS_PER_PAGE);
-    const startIndex = (pageState - 1) * CREATORS_PER_PAGE;
-    const paginatedCreators = creatorList.slice(startIndex, startIndex + CREATORS_PER_PAGE);
+  const renderPaginatedCreatorSection = (title: string, icon: React.ReactNode, creatorList: AuthorInfo[], pageStateDesktop: number, setPageStateDesktop: (page:number) => void, sectionId: string, showSort?: boolean, currentSortValue?: CreatorSortOption, onSortChange?: (value: CreatorSortOption) => void) => {
+    const totalPagesDesktop = Math.ceil(creatorList.length / CREATORS_PER_PAGE_DESKTOP);
+    const startIndexDesktop = (pageStateDesktop - 1) * CREATORS_PER_PAGE_DESKTOP;
+    const paginatedCreatorsDesktop = creatorList.slice(startIndexDesktop, startIndexDesktop + CREATORS_PER_PAGE_DESKTOP);
 
-    if (paginatedCreators.length === 0 && !(isFiltering && creatorList === sortedAndFilteredCreators)) return null;
+    if (creatorList.length === 0 && !(isFiltering && creatorList === sortedAndFilteredCreators)) return null;
 
     return (
-       <section key={sectionId}>
-         <div className="flex justify-between items-center mb-6">
-            <h2 className="text-3xl font-semibold tracking-tight flex items-center" suppressHydrationWarning>
+       <section key={sectionId} className="py-4">
+         <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-semibold tracking-tight flex items-center" suppressHydrationWarning>
                 {icon} {title} ({creatorList.length})
             </h2>
             {showSort && onSortChange && currentSortValue && (
-                 <div className="flex items-center gap-2">
+                 <div className="hidden md:flex items-center gap-2">
                     <Label htmlFor={`${sectionId}-creator-sort`} className="text-sm font-medium">Sort by:</Label>
                     <Select value={currentSortValue} onValueChange={onSortChange}>
                         <SelectTrigger id={`${sectionId}-creator-sort`} className="w-[180px] h-9 text-sm">
@@ -269,47 +288,60 @@ export default function HomePage() {
                 </div>
             )}
         </div>
-        {paginatedCreators.length > 0 ? (
-          <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-              {paginatedCreators.map((creator) => (
-                <Link key={creator.id} href={`/creators/${creator.id}`} className="flex flex-col items-center space-y-1 p-2 hover:bg-secondary rounded-md transition-colors" suppressHydrationWarning>
-                  <Avatar className="h-16 w-16 sm:h-20 sm:w-20">
+
+        {/* Mobile: Horizontal Scroll */}
+        <div className="md:hidden -mx-4 px-2">
+          <div className="flex overflow-x-auto space-x-3 pb-4 scrollbar-thin scrollbar-thumb-muted-foreground scrollbar-track-muted">
+            {creatorList.map((creator) => (
+              <Link key={`${sectionId}-mobile-${creator.id}`} href={`/creators/${creator.id}`} className="flex flex-col items-center space-y-1 p-2 hover:bg-secondary rounded-md transition-colors w-24 shrink-0" suppressHydrationWarning>
+                <Avatar className="h-16 w-16">
+                  <AvatarImage src={creator.avatarUrl} alt={creator.name} data-ai-hint="creator avatar"/>
+                  <AvatarFallback suppressHydrationWarning>{creator.name[0]}</AvatarFallback>
+                </Avatar>
+                <p className="text-xs font-medium truncate w-full text-center" suppressHydrationWarning>{creator.name}</p>
+              </Link>
+            ))}
+            {creatorList.length === 0 &&  <p className="text-muted-foreground text-center py-4 px-4">No creators found for this section.</p>}
+          </div>
+        </div>
+        
+        {/* Desktop: Grid Layout */}
+        <div className="hidden md:grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            {paginatedCreatorsDesktop.map((creator) => (
+                <Link key={`${sectionId}-desktop-${creator.id}`} href={`/creators/${creator.id}`} className="flex flex-col items-center space-y-1 p-2 hover:bg-secondary rounded-md transition-colors" suppressHydrationWarning>
+                    <Avatar className="h-16 w-16 sm:h-20 sm:w-20">
                     <AvatarImage src={creator.avatarUrl} alt={creator.name} data-ai-hint="creator avatar"/>
                     <AvatarFallback suppressHydrationWarning>{creator.name[0]}</AvatarFallback>
-                  </Avatar>
-                  <p className="text-xs sm:text-sm font-medium truncate w-20 sm:w-24 text-center" suppressHydrationWarning>{creator.name}</p>
+                    </Avatar>
+                    <p className="text-xs sm:text-sm font-medium truncate w-20 sm:w-24 text-center" suppressHydrationWarning>{creator.name}</p>
                 </Link>
-              ))}
+            ))}
+            {paginatedCreatorsDesktop.length === 0 && <p className="col-span-full text-muted-foreground text-center py-4">No creators found for this section.</p>}
+        </div>
+        {totalPagesDesktop > 1 && (
+            <div className="hidden md:flex justify-center items-center mt-6 space-x-2">
+            <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setPageStateDesktop(p => Math.max(1, p - 1))}
+                disabled={pageStateDesktop === 1}
+                suppressHydrationWarning
+            >
+                <ChevronLeft className="h-4 w-4 mr-1" /> Previous
+            </Button>
+            <span className="text-sm text-muted-foreground" suppressHydrationWarning>
+                Page {pageStateDesktop} of {totalPagesDesktop}
+            </span>
+            <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setPageStateDesktop(p => Math.min(totalPagesDesktop, p + 1))}
+                disabled={pageStateDesktop === totalPagesDesktop}
+                suppressHydrationWarning
+            >
+                Next <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
             </div>
-            {totalPages > 1 && (
-              <div className="flex justify-center items-center mt-6 space-x-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => setPageState(p => Math.max(1, p - 1))}
-                  disabled={pageState === 1}
-                  suppressHydrationWarning
-                >
-                  <ChevronLeft className="h-4 w-4 mr-1" /> Previous
-                </Button>
-                <span className="text-sm text-muted-foreground" suppressHydrationWarning>
-                  Page {pageState} of {totalPages}
-                </span>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => setPageState(p => Math.min(totalPages, p + 1))}
-                  disabled={pageState === totalPages}
-                  suppressHydrationWarning
-                >
-                  Next <ChevronRight className="h-4 w-4 ml-1" />
-                </Button>
-              </div>
-            )}
-          </>
-        ) : (
-          <p className="text-muted-foreground text-center" suppressHydrationWarning>No creators found for this section.</p>
         )}
       </section>
     );
@@ -340,7 +372,7 @@ export default function HomePage() {
 
 
   return (
-    <div className="space-y-12">
+    <div className="space-y-8">
       <section className="text-center pt-8 pb-4">
         <h1 className="text-4xl font-bold tracking-tight mb-2" suppressHydrationWarning>Explore Your Favorite Manga</h1>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto" suppressHydrationWarning>
@@ -373,8 +405,8 @@ export default function HomePage() {
             `Manga Results`, 
             <Search className="mr-3 h-7 w-7 text-primary"/>, 
             sortedAndFilteredManga, 
-            currentMangaPage, 
-            setCurrentMangaPage,
+            currentMangaPageDesktop, 
+            setCurrentMangaPageDesktop,
             "filtered-manga",
             true, 
             mangaSort, 
@@ -391,8 +423,8 @@ export default function HomePage() {
                 "Creator Results",
                 <Users className="mr-3 h-7 w-7 text-primary"/>,
                 sortedAndFilteredCreators,
-                currentCreatorPage,
-                setCurrentCreatorPage,
+                currentCreatorPageDesktop,
+                setCurrentCreatorPageDesktop,
                 "filtered-creators",
                 true, 
                 creatorSort, 
@@ -406,18 +438,18 @@ export default function HomePage() {
         </>
       ) : (
         <>
-          {renderPaginatedMangaSection("Daily New Releases", <CalendarClock className="mr-3 h-7 w-7 text-sky-500"/>, dailyNewReleases, dailyNewPage, setDailyNewPage, "daily-new")}
+          {renderPaginatedMangaSection("Daily New Releases", <CalendarClock className="mr-3 h-7 w-7 text-sky-500"/>, dailyNewReleases, dailyNewPageDesktop, setDailyNewPageDesktop, "daily-new")}
           {dailyNewReleases.length > 0 && <Separator className="my-10" />}
           
-          {renderPaginatedMangaSection("Monthly New Releases", <CalendarDays className="mr-3 h-7 w-7 text-blue-500"/>, monthlyNewReleases, monthlyNewPage, setMonthlyNewPage, "monthly-new")}
+          {renderPaginatedMangaSection("Monthly New Releases", <CalendarDays className="mr-3 h-7 w-7 text-blue-500"/>, monthlyNewReleases, monthlyNewPageDesktop, setMonthlyNewPageDesktop, "monthly-new")}
           {monthlyNewReleases.length > 0 && <Separator className="my-10" />}
 
           {renderPaginatedMangaSection(
             "Browse All Manga", 
             <Newspaper className="mr-3 h-7 w-7 text-yellow-500"/>, 
             sortedAndFilteredManga, 
-            currentMangaPage, 
-            setCurrentMangaPage, 
+            currentMangaPageDesktop, 
+            setCurrentMangaPageDesktop, 
             "all-manga-browse",
             true,
             mangaSort,
@@ -425,15 +457,15 @@ export default function HomePage() {
           )}
           {sortedAndFilteredManga.length > 0 && <Separator className="my-10" />}
           
-          {renderPaginatedMangaSection("Popular Manga (by Views)", <Flame className="mr-3 h-7 w-7 text-red-500"/>, popularMangaOverall, popularPage, setPopularPage, "popular-all")}
+          {renderPaginatedMangaSection("Popular Manga (by Views)", <Flame className="mr-3 h-7 w-7 text-red-500"/>, popularMangaOverall, popularPageDesktop, setPopularPageDesktop, "popular-all")}
           {popularMangaOverall.length > 0 && <Separator className="my-10" />}
           
           {renderPaginatedCreatorSection(
             "Browse All Creators",
             <Users className="mr-3 h-7 w-7 text-purple-500"/>,
             sortedAndFilteredCreators, 
-            currentCreatorPage,
-            setCurrentCreatorPage,
+            currentCreatorPageDesktop,
+            setCurrentCreatorPageDesktop,
             "all-creators-browse",
             true,
             creatorSort,
@@ -441,7 +473,7 @@ export default function HomePage() {
           )}
           
           {clientRandomManga.length > 0 && <Separator className="my-10" />}
-          {renderPaginatedMangaSection("Random Recommendations", <Shuffle className="mr-3 h-7 w-7 text-green-500"/>, clientRandomManga, randomRecsPage, setRandomRecsPage, "random-recs")}
+          {renderPaginatedMangaSection("Random Recommendations", <Shuffle className="mr-3 h-7 w-7 text-green-500"/>, clientRandomManga, randomRecsPageDesktop, setRandomRecsPageDesktop, "random-recs")}
         </>
       )}
 
