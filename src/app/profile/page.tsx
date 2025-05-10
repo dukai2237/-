@@ -1,4 +1,3 @@
-
 "use client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -103,7 +102,7 @@ export default function ProfilePage() {
 
   const handleOpenListSharesDialog = (investment: UserInvestment) => {
     setSelectedInvestmentToList(investment);
-    setSharesToList((investment.sharesOwned - (investment.sharesListed || 0)).toString()); // Default to remaining unlisted shares
+    setSharesToList((investment.sharesOwned - (investment.sharesListed || 0)).toString()); 
     setPricePerShareToList("");
     setListingDescription("");
     setIsListSharesDialogOpen(true);
@@ -194,11 +193,9 @@ export default function ProfilePage() {
             <Button onClick={() => setIsAddFundsDialogOpen(true)} variant="secondary" className="w-full sm:w-auto">
               <PlusCircle className="mr-2 h-4 w-4" /> Add Funds (Simulated)
             </Button>
-            {isCreator && user.isApproved && (
-              <Button onClick={() => setIsWithdrawFundsDialogOpen(true)} variant="outline" className="w-full sm:w-auto">
-                <Landmark className="mr-2 h-4 w-4" /> Withdraw Funds (Simulated)
-              </Button>
-            )}
+            <Button onClick={() => setIsWithdrawFundsDialogOpen(true)} variant="outline" className="w-full sm:w-auto" disabled={user.walletBalance <= 0}>
+              <Landmark className="mr-2 h-4 w-4" /> Withdraw Funds
+            </Button>
             <Button onClick={logout} variant="destructive" className="w-full sm:w-auto">
                 <LogOut className="mr-2 h-4 w-4" /> Logout
             </Button>
@@ -283,7 +280,7 @@ export default function ProfilePage() {
         </CardHeader>
         <CardContent>
           {investmentsWithMockROI.length > 0 ? (
-             <ScrollArea className="h-72"> {/* Increased height slightly */}
+             <ScrollArea className="h-72"> 
                 <Table>
                   <TableHeader>
                     <TableRow>

@@ -100,9 +100,9 @@ export interface MangaSeries {
   genres: string[];
   chapters: Chapter[];
   
-  subscriptionModel: 'monthly' | 'per_chapter' | 'none'; // New: Subscription model
-  subscriptionPrice?: number; // For 'monthly' model
-  chapterSubscriptionPrice?: number; // For 'per_chapter' model, price per chapter
+  subscriptionModel: 'monthly' | 'per_chapter' | 'none'; 
+  subscriptionPrice?: number; 
+  chapterSubscriptionPrice?: number; 
 
   freePreviewPageCount: number;
   freePreviewChapterCount?: number;
@@ -136,7 +136,7 @@ export interface SimulatedTransaction {
   id: string;
   type:
     | 'subscription_payment'
-    | 'chapter_purchase' // New for per-chapter model
+    | 'chapter_purchase' 
     | 'donation_payment'
     | 'investment_payment' 
     | 'merchandise_purchase'
@@ -153,9 +153,10 @@ export interface SimulatedTransaction {
     | 'creator_approved'
     | 'shares_purchase_secondary' 
     | 'shares_sale_secondary'
-    | 'list_shares_for_sale' // New
-    | 'delist_shares_from_sale'; // New
-  amount: number; // Can be 0 for non-financial transactions like listing shares
+    | 'list_shares_for_sale' 
+    | 'delist_shares_from_sale'
+    | 'user_payment'; // Generic payment made by a user
+  amount: number; 
   userId?: string; 
   authorId?: string; 
   mangaId?: string;
@@ -176,16 +177,16 @@ export interface ShareListing {
   id: string;
   mangaId: string;
   mangaTitle: string;
-  coverImage: string; // Manga's cover image for display
-  authorName: string; // Manga's author name
+  coverImage: string; 
+  authorName: string; 
   sellerUserId: string;
-  sellerName: string; // Name of the user selling the shares
+  sellerName: string; 
   sharesOffered: number;
   pricePerShare: number;
-  description: string; // Seller's description for the listing
-  listedDate: string; // ISO date string
-  isActive: boolean; // If the listing is currently active
-  followersCount?: number; // Number of users following this listing
+  description: string; 
+  listedDate: string; 
+  isActive: boolean; 
+  followersCount?: number; 
 }
 
 // Represents a user's intent to buy shares from a listing
@@ -193,5 +194,5 @@ export interface UserShareTradeRequest {
     listingId: string;
     buyerUserId: string;
     sharesToBuy: number;
-    // Potential execution details can be added if a more complex trade execution model is built
 }
+
