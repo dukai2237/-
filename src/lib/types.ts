@@ -114,7 +114,8 @@ export interface Comment {
   userAvatarUrl: string;
   text: string;
   timestamp: string;
-  replies?: Comment[]; // Optional: for nested comments
+  replies?: Comment[]; 
+  parentId?: string; 
 }
 
 export interface MangaSeries {

@@ -261,8 +261,11 @@ export const getAuthorById = (id: string): (AuthorInfo & { contactDetails?: Auth
 
 export const getApprovedCreators = (): AuthorInfo[] => {
   return mockAuthors.filter(author => {
-    const isActualCreator = author.id.startsWith('author-') || (author.id === 'user-123'); 
-    return isActualCreator && !author.isSystemUser && author.id !== 'author-pending'; 
+    // Check if the author ID pattern matches 'author-' or if it's the specific 'user-123'
+    const isCreatorPattern = author.id.startsWith('author-') || author.id === 'user-123';
+    // Ensure it's not a system user (if that's a distinct category you want to exclude) 
+    // and not 'author-pending'
+    return isCreatorPattern && !author.isSystemUser && author.id !== 'author-pending';
   });
 };
 
@@ -447,16 +450,46 @@ export const updateListingFollowerCount = (listingId: string, increment: boolean
   }
 };
 
-export const addCommentToMockManga = (mangaId: string, newComment: Comment): Comment | null => {
+export const addCommentToMockManga = (mangaId: string, newComment: Comment, parentId?: string): Comment | null => {
   const mangaIndex = modifiableMockMangaSeries.findIndex(m => m.id === mangaId);
   if (mangaIndex !== -1) {
     const manga = modifiableMockMangaSeries[mangaIndex];
     if (!manga.comments) {
       manga.comments = [];
     }
-    manga.comments.push(newComment);
-    modifiableMockMangaSeries[mangaIndex] = manga;
-    return newComment;
+
+    if (parentId) {
+      // Function to find a comment by ID recursively and add a reply
+      const findAndAddReply = (comments: Comment[]): boolean => {
+        for (let i = 0; i < comments.length; i++) {
+          if (comments[i].id === parentId) {
+            if (!comments[i].replies) {
+              comments[i].replies = [];
+            }
+            comments[i].replies!.push(newComment);
+            return true; // Reply added
+          }
+          if (comments[i].replies && findAndAddReply(comments[i].replies!)) {
+            return true; // Reply added in a nested reply
+          }
+        }
+        return false; // Parent comment not found at this level
+      };
+
+      if (findAndAddReply(manga.comments)) {
+        modifiableMockMangaSeries[mangaIndex] = manga; // Update the main array
+        return newComment;
+      } else {
+        console.warn(`Parent comment with ID ${parentId} not found for manga ${mangaId}.`);
+        return null; // Parent comment not found
+      }
+    } else {
+      // Add as a top-level comment
+      manga.comments.push(newComment);
+      modifiableMockMangaSeries[mangaIndex] = manga; // Update the main array
+      return newComment;
+    }
   }
-  return null;
+  console.warn(`Manga with ID ${mangaId} not found.`);
+  return null; // Manga not found
 };

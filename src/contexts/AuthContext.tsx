@@ -67,7 +67,7 @@ interface AuthContextType {
   unfollowShareListing: (listingId: string) => void;
   isShareListingFollowed: (listingId: string) => boolean;
 
-  addCommentToManga: (mangaId: string, text: string) => Promise<Comment | null>;
+  addCommentToManga: (mangaId: string, text: string, parentId?: string) => Promise<Comment | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -361,7 +361,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const updateUserProfile = useCallback(async (newName: string, newAvatarDataUrl: string | null): Promise<boolean> => {
     if (!user) {
-        toast({ title: "Not Logged In", description: "You must be logged in to update your profile.", variant: "destructive" });
+        setTimeout(()=>toast({ title: "Not Logged In", description: "You must be logged in to update your profile.", variant: "destructive" }), 0);
         return false;
     }
 
@@ -371,11 +371,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const now = Date.now();
         const daysSinceLastUpdate = (now - lastUpdate) / (1000 * 60 * 60 * 24);
         if (daysSinceLastUpdate < cooldownDays) {
-            toast({
+            setTimeout(()=>toast({
                 title: "Update Too Soon",
                 description: `You can update your profile again in ${Math.ceil(cooldownDays - daysSinceLastUpdate)} days.`,
                 variant: "destructive"
-            });
+            }), 0);
             return false;
         }
     }
@@ -394,7 +394,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         if (nameExists) {
-            toast({ title: "Name Taken", description: "This name is already in use. Please choose another.", variant: "destructive" });
+            setTimeout(()=>toast({ title: "Name Taken", description: "This name is already in use. Please choose another.", variant: "destructive" }),0);
             return false;
         }
     }
@@ -404,7 +404,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (newAvatarDataUrl) updatedUserData.avatarUrl = newAvatarDataUrl;
     
     if (Object.keys(updatedUserData).length === 0) {
-        toast({title: "No Changes", description: "No changes were made to your profile."});
+        setTimeout(()=>toast({title: "No Changes", description: "No changes were made to your profile."}), 0);
         return true; // No actual update needed
     }
 
@@ -440,7 +440,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         relatedData: { newName: updatedUserData.name, newAvatar: !!updatedUserData.avatarUrl }
     });
 
-    toast({ title: "Profile Updated", description: "Your profile has been successfully updated." });
+    setTimeout(()=>toast({ title: "Profile Updated", description: "Your profile has been successfully updated." }), 0);
     return true;
   }, [user, toast, recordTransaction]);
 
@@ -1311,14 +1311,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return user.followedShareListings?.includes(listingId) || false;
   }, [user]);
 
-  const addCommentToManga = useCallback(async (mangaId: string, text: string): Promise<Comment | null> => {
+  const addCommentToManga = useCallback(async (mangaId: string, text: string, parentId?: string): Promise<Comment | null> => {
     if (!user) {
       setTimeout(() => toast({ title: "Login Required", description: "Please log in to add a comment.", variant: "destructive" }), 0);
       return null;
     }
-     const currentManga = getMangaById(mangaId);
+    const currentManga = getMangaById(mangaId);
+    // Allow creators to comment on their own manga, but not others. Users can comment on any.
     if (user.accountType === 'creator' && currentManga && currentManga.author.id !== user.id) {
-      setTimeout(() => toast({ title: "Action Not Allowed", description: "Creators cannot comment on other creators' works.", variant: "destructive" }), 0);
+      setTimeout(() => toast({ title: "Action Not Allowed", description: "Creators can only comment on their own works.", variant: "destructive" }), 0);
       return null;
     }
     if (!currentManga) {
@@ -1330,8 +1331,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return null;
     }
 
-
-    const newComment: Comment = {
+    const newCommentData: Comment = {
       id: `comment-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       mangaId,
       userId: user.id,
@@ -1339,19 +1339,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       userAvatarUrl: user.avatarUrl,
       text: text.trim(),
       timestamp: new Date().toISOString(),
+      parentId: parentId, // Store parentId if it's a reply
+      replies: [], // Initialize replies array
     };
 
-    const addedComment = addCommentToMockManga(mangaId, newComment);
+    const addedComment = addCommentToMockManga(mangaId, newCommentData, parentId);
     if (addedComment) {
         recordTransaction({
             type: 'comment_added',
             amount: 0,
             userId: user.id,
             mangaId,
-            description: `User ${user.name} commented on ${currentManga.title}`,
-            relatedData: { commentText: text.trim() }
+            description: `User ${user.name} ${parentId ? 'replied to a comment on' : 'commented on'} ${currentManga.title}`,
+            relatedData: { commentText: text.trim(), parentId }
         });
-        setTimeout(() => toast({ title: "Comment Added!", description: "Your comment has been posted." }), 0);
+        setTimeout(() => toast({ title: "Comment Added!", description: `Your ${parentId ? 'reply' : 'comment'} has been posted.` }), 0);
         return addedComment;
     } else {
         setTimeout(() => toast({ title: "Error", description: "Failed to add comment.", variant: "destructive" }), 0);

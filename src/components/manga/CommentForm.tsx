@@ -6,16 +6,18 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Send } from 'lucide-react';
+import { Send, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getMangaById } from '@/lib/mock-data'; // To check manga author
 
 interface CommentFormProps {
   mangaId: string;
   onCommentAdded: () => void; 
+  parentId?: string; // Optional: ID of the comment being replied to
+  onCancelReply?: () => void; // Optional: Callback to cancel replying
 }
 
-export function CommentForm({ mangaId, onCommentAdded }: CommentFormProps) {
+export function CommentForm({ mangaId, onCommentAdded, parentId, onCancelReply }: CommentFormProps) {
   const { user, addCommentToManga } = useAuth();
   const [commentText, setCommentText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -27,12 +29,17 @@ export function CommentForm({ mangaId, onCommentAdded }: CommentFormProps) {
       toast({ title: "Login Required", description: "Please log in to post a comment.", variant: "destructive" });
       return;
     }
-    // Additional check for creator restriction, though AuthContext should be primary guard
+    
     const currentManga = getMangaById(mangaId);
-    if (user.accountType === 'creator' && currentManga && currentManga.author.id !== user.id) {
+    if (user.accountType === 'creator' && currentManga && currentManga.author.id !== user.id && !parentId) { // Creators cannot make top-level comments on others' manga
         toast({ title: "Action Not Allowed", description: "Creators cannot comment on other creators' works.", variant: "destructive" });
         return;
     }
+     if (user.accountType === 'creator' && currentManga && currentManga.author.id !== user.id && parentId) { // Also prevent creators from replying on other's manga
+        toast({ title: "Action Not Allowed", description: "Creators cannot reply to comments on other creators' works.", variant: "destructive" });
+        return;
+    }
+
 
     if (!commentText.trim()) {
       toast({ title: "Empty Comment", description: "Comment cannot be empty.", variant: "destructive" });
@@ -40,7 +47,7 @@ export function CommentForm({ mangaId, onCommentAdded }: CommentFormProps) {
     }
 
     setIsSubmitting(true);
-    const newComment = await addCommentToManga(mangaId, commentText.trim());
+    const newComment = await addCommentToManga(mangaId, commentText.trim(), parentId);
     setIsSubmitting(false);
 
     if (newComment) {
@@ -57,34 +64,51 @@ export function CommentForm({ mangaId, onCommentAdded }: CommentFormProps) {
     );
   }
   
-  // UI check for creator restriction
   const currentManga = getMangaById(mangaId);
-  if (user.accountType === 'creator' && currentManga && currentManga.author.id !== user.id) {
+  // For top-level comments, creators can only comment on their own manga
+  if (!parentId && user.accountType === 'creator' && currentManga && currentManga.author.id !== user.id) {
     return (
       <div className="p-4 border-t text-center text-muted-foreground">
-        <p>Creators cannot comment on other creators' works.</p>
+        <p>Creators can only comment on their own manga series.</p>
+      </div>
+    );
+  }
+  // For replies, creators can only reply if it's their manga. Users can reply to any.
+  if (parentId && user.accountType === 'creator' && currentManga && currentManga.author.id !== user.id) {
+     return (
+      <div className="p-4 border-t text-center text-muted-foreground">
+        <p>Creators can only reply to comments on their own manga series.</p>
       </div>
     );
   }
 
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 p-4 border-t">
+    <form onSubmit={handleSubmit} className="space-y-3">
       <div>
-        <Label htmlFor="commentText" className="text-lg font-semibold mb-2 block">Leave a Comment</Label>
+        {!parentId && <Label htmlFor={`commentText-${parentId || 'new'}`} className="text-lg font-semibold mb-2 block">Leave a Comment</Label>}
         <Textarea
-          id="commentText"
+          id={`commentText-${parentId || 'new'}`}
           value={commentText}
           onChange={(e) => setCommentText(e.target.value)}
-          placeholder="Write your comment here..."
-          rows={4}
+          placeholder={parentId ? "Write your reply..." : "Write your comment here..."}
+          rows={parentId ? 2 : 4}
           disabled={isSubmitting}
+          className="text-sm"
         />
       </div>
-      <Button type="submit" disabled={isSubmitting || !commentText.trim()} className="w-full sm:w-auto">
-        <Send className="mr-2 h-4 w-4" />
-        {isSubmitting ? 'Posting...' : 'Post Comment'}
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button type="submit" disabled={isSubmitting || !commentText.trim()} size={parentId ? "sm" : "default"}>
+          <Send className="mr-2 h-4 w-4" />
+          {isSubmitting ? (parentId ? 'Replying...' : 'Posting...') : (parentId ? 'Post Reply' : 'Post Comment')}
+        </Button>
+        {parentId && onCancelReply && (
+          <Button type="button" variant="ghost" size="sm" onClick={onCancelReply} disabled={isSubmitting}>
+            <X className="mr-1 h-4 w-4" />
+            Cancel
+          </Button>
+        )}
+      </div>
     </form>
   );
 }
