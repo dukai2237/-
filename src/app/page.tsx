@@ -1,4 +1,3 @@
-
 "use client";
 
 import { MangaCard } from '@/components/manga/MangaCard';
@@ -35,9 +34,6 @@ export default function HomePage() {
   const [allPublishedManga, setAllPublishedManga] = useState<MangaSeries[]>([]);
   const [allApprovedCreators, setAllApprovedCreators] = useState<AuthorInfo[]>([]);
   
-  const [processedFilteredManga, setProcessedFilteredManga] = useState<MangaSeries[]>([]); 
-  const [processedFilteredCreators, setProcessedFilteredCreators] = useState<AuthorInfo[]>([]);
-  
   const [clientRandomManga, setClientRandomManga] = useState<MangaSeries[]>([]);
   const [dailyNewReleases, setDailyNewReleases] = useState<MangaSeries[]>([]);
   const [monthlyNewReleases, setMonthlyNewReleases] = useState<MangaSeries[]>([]);
@@ -46,9 +42,8 @@ export default function HomePage() {
   const [creatorSort, setCreatorSort] = useState<CreatorSortOption>("name_asc");
 
   const [currentCreatorPage, setCurrentCreatorPage] = useState(1);
-  const [currentMangaPage, setCurrentMangaPage] = useState(1); // Used for generic manga section
+  const [currentMangaPage, setCurrentMangaPage] = useState(1);
 
-  // Specific pagination states for distinct sections
   const [dailyNewPage, setDailyNewPage] = useState(1);
   const [monthlyNewPage, setMonthlyNewPage] = useState(1);
   const [popularPage, setPopularPage] = useState(1);
@@ -78,7 +73,6 @@ export default function HomePage() {
   const sortedAndFilteredManga = useMemo(() => {
     let baseManga = [...allPublishedManga];
 
-    // Apply sorting
     switch (mangaSort) {
       case "popular":
         baseManga.sort((a, b) => b.viewCount - a.viewCount);
@@ -101,7 +95,6 @@ export default function HomePage() {
         break;
     }
     
-    // Apply filtering if searchTerm or genreFilter is active
     if (searchTerm || genreFilter) {
         if (searchTerm) {
           baseManga = baseManga.filter(manga =>
@@ -116,13 +109,12 @@ export default function HomePage() {
         }
         return baseManga.slice(0, MAX_FILTERED_ITEMS_DISPLAY);
     }
-    return baseManga; // Return all sorted manga if no filter
+    return baseManga;
   }, [allPublishedManga, mangaSort, searchTerm, genreFilter]);
 
   const sortedAndFilteredCreators = useMemo(() => {
     let baseCreators = [...allApprovedCreators];
     
-    // Apply sorting
     switch (creatorSort) {
       case "name_asc":
         baseCreators.sort((a, b) => a.name.localeCompare(b.name));
@@ -132,29 +124,31 @@ export default function HomePage() {
         break;
     }
 
-    // Apply filtering if searchTerm is active
     if (searchTerm) {
         baseCreators = baseCreators.filter(creator =>
             creator.name.toLowerCase().includes(searchTerm.toLowerCase())
         );
         return baseCreators.slice(0, MAX_FILTERED_ITEMS_DISPLAY);
     }
-    return baseCreators; // Return all sorted creators if no filter
+    return baseCreators;
   }, [allApprovedCreators, creatorSort, searchTerm]);
+
+  const isFiltering = searchTerm || genreFilter;
+
+  const processedFilteredManga = useMemo(() => {
+    if (isFiltering) return sortedAndFilteredManga;
+    return [];
+  }, [isFiltering, sortedAndFilteredManga]);
+
+  const processedFilteredCreators = useMemo(() => {
+    if (isFiltering) return sortedAndFilteredCreators;
+    return [];
+  }, [isFiltering, sortedAndFilteredCreators]);
 
 
   useEffect(() => {
     if (searchTerm && user && user.accountType === 'user') { 
       memoizedUpdateUserSearchHistory(searchTerm);
-    }
-    
-    // Set processed lists based on whether filtering is active
-    if (searchTerm || genreFilter) {
-        setProcessedFilteredManga(sortedAndFilteredManga);
-        setProcessedFilteredCreators(sortedAndFilteredCreators);
-    } else {
-        setProcessedFilteredManga([]); // Clear if no filters, main lists will use sortedAndFiltered
-        setProcessedFilteredCreators([]);
     }
     
     const now = new Date();
@@ -176,10 +170,10 @@ export default function HomePage() {
       [...allPublishedManga].sort(() => 0.5 - Math.random())
     );
 
-  }, [searchTerm, genreFilter, user, memoizedUpdateUserSearchHistory, allPublishedManga, allApprovedCreators, sortedAndFilteredManga, sortedAndFilteredCreators]);
+  }, [searchTerm, user, memoizedUpdateUserSearchHistory, allPublishedManga]);
 
 
-  const renderPaginatedMangaSection = (title: string, icon: React.ReactNode, mangaList: MangaSeries[], pageState: number, setPageState: (page: number) => void, sectionId: string, showSort?: boolean, currentSort?: MangaSortOption, onSortChange?: (value: MangaSortOption) => void) => {
+  const renderPaginatedMangaSection = (title: string, icon: React.ReactNode, mangaList: MangaSeries[], pageState: number, setPageState: (page: number) => void, sectionId: string, showSort?: boolean, currentSortValue?: MangaSortOption, onSortChange?: (value: MangaSortOption) => void) => {
     const totalPages = Math.ceil(mangaList.length / MANGA_PER_PAGE);
     const startIndex = (pageState - 1) * MANGA_PER_PAGE;
     const paginatedManga = mangaList.slice(startIndex, startIndex + MANGA_PER_PAGE);
@@ -190,10 +184,10 @@ export default function HomePage() {
       <section key={sectionId}>
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-3xl font-semibold tracking-tight flex items-center" suppressHydrationWarning>{icon}{title} ({mangaList.length})</h2>
-          {showSort && onSortChange && currentSort && (
+          {showSort && onSortChange && currentSortValue && (
             <div className="flex items-center gap-2">
               <Label htmlFor={`${sectionId}-sort`} className="text-sm font-medium">Sort by:</Label>
-              <Select value={currentSort} onValueChange={onSortChange}>
+              <Select value={currentSortValue} onValueChange={onSortChange}>
                 <SelectTrigger id={`${sectionId}-sort`} className="w-[180px] h-9 text-sm">
                   <SelectValue placeholder="Sort manga" />
                 </SelectTrigger>
@@ -244,7 +238,7 @@ export default function HomePage() {
     );
   };
 
-  const renderPaginatedCreatorSection = (title: string, icon: React.ReactNode, creatorList: AuthorInfo[], pageState: number, setPageState: (page:number) => void, sectionId: string, showSort?: boolean, currentSort?: CreatorSortOption, onSortChange?: (value: CreatorSortOption) => void) => {
+  const renderPaginatedCreatorSection = (title: string, icon: React.ReactNode, creatorList: AuthorInfo[], pageState: number, setPageState: (page:number) => void, sectionId: string, showSort?: boolean, currentSortValue?: CreatorSortOption, onSortChange?: (value: CreatorSortOption) => void) => {
     const totalPages = Math.ceil(creatorList.length / CREATORS_PER_PAGE);
     const startIndex = (pageState - 1) * CREATORS_PER_PAGE;
     const paginatedCreators = creatorList.slice(startIndex, startIndex + CREATORS_PER_PAGE);
@@ -257,17 +251,16 @@ export default function HomePage() {
             <h2 className="text-3xl font-semibold tracking-tight flex items-center" suppressHydrationWarning>
                 {icon} {title} ({creatorList.length})
             </h2>
-            {showSort && onSortChange && currentSort && (
+            {showSort && onSortChange && currentSortValue && (
                  <div className="flex items-center gap-2">
                     <Label htmlFor={`${sectionId}-creator-sort`} className="text-sm font-medium">Sort by:</Label>
-                    <Select value={currentSort} onValueChange={onSortChange}>
+                    <Select value={currentSortValue} onValueChange={onSortChange}>
                         <SelectTrigger id={`${sectionId}-creator-sort`} className="w-[180px] h-9 text-sm">
                         <SelectValue placeholder="Sort creators" />
                         </SelectTrigger>
                         <SelectContent>
                         <SelectItem value="name_asc">Name (A-Z)</SelectItem>
                         <SelectItem value="name_desc">Name (Z-A)</SelectItem>
-                        {/* Future: <SelectItem value="works_desc">Most Works</SelectItem> */}
                         </SelectContent>
                     </Select>
                 </div>
@@ -321,8 +314,6 @@ export default function HomePage() {
 
 
   const currentGenreName = genreFilter ? MANGA_GENRES_DETAILS.find(g => g.id === genreFilter)?.name : null;
-  const isFiltering = searchTerm || genreFilter;
-
 
   if (isFiltering && processedFilteredManga.length === 0 && processedFilteredCreators.length === 0) {
     return (
@@ -387,9 +378,9 @@ export default function HomePage() {
             currentMangaPage, 
             setCurrentMangaPage,
             "filtered-manga",
-            true, // showSort
-            mangaSort, // currentSort
-            (value) => setMangaSort(value as MangaSortOption) // onSortChange
+            true, 
+            mangaSort, 
+            (value) => setMangaSort(value as MangaSortOption) 
           )}
            {processedFilteredManga.length >= MAX_FILTERED_ITEMS_DISPLAY && (
                  <p className="text-center text-muted-foreground mt-6">Displaying top {MAX_FILTERED_ITEMS_DISPLAY} manga results. Refine your search for more specific results.</p>
@@ -405,9 +396,9 @@ export default function HomePage() {
                 currentCreatorPage,
                 setCurrentCreatorPage,
                 "filtered-creators",
-                true, // showSort
-                creatorSort, // currentSort
-                (value) => setCreatorSort(value as CreatorSortOption) // onSortChange
+                true, 
+                creatorSort, 
+                (value) => setCreatorSort(value as CreatorSortOption) 
               )}
             </>
           )}
@@ -426,7 +417,7 @@ export default function HomePage() {
           {renderPaginatedMangaSection(
             "Browse All Manga", 
             <Newspaper className="mr-3 h-7 w-7 text-yellow-500"/>, 
-            sortedAndFilteredManga, // Use the master sorted list
+            sortedAndFilteredManga, 
             currentMangaPage, 
             setCurrentMangaPage, 
             "all-manga-browse",
@@ -442,7 +433,7 @@ export default function HomePage() {
           {renderPaginatedCreatorSection(
             "Browse All Creators",
             <Users className="mr-3 h-7 w-7 text-purple-500"/>,
-            sortedAndFilteredCreators, // Use the master sorted list
+            sortedAndFilteredCreators, 
             currentCreatorPage,
             setCurrentCreatorPage,
             "all-creators-browse",
@@ -451,7 +442,6 @@ export default function HomePage() {
             (value) => setCreatorSort(value as CreatorSortOption)
           )}
           
-
           {clientRandomManga.length > 0 && <Separator className="my-10" />}
           {renderPaginatedMangaSection("Random Recommendations", <Shuffle className="mr-3 h-7 w-7 text-green-500"/>, clientRandomManga, randomRecsPage, setRandomRecsPage, "random-recs")}
         </>

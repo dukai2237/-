@@ -28,12 +28,12 @@ export function Header() {
 
   const baseNavItems = [
     { href: '/', label: 'Home', icon: <Home className="h-5 w-5" />, suppressHydrationWarning: true },
-    { href: '/shares-market', label: 'Shares Market', icon: <Store className="h-5 w-5" />, suppressHydrationWarning: true }, // New Shares Market link
+    { href: '/shares-market', label: 'Shares Market', icon: <Store className="h-5 w-5" />, suppressHydrationWarning: true },
     { href: '/merchandise', label: 'Merchandise', icon: <ShoppingCart className="h-5 w-5" />, suppressHydrationWarning: true },
   ];
 
   let dynamicNavItems = [];
-  if (user) {
+  if (isClient && user) {
     if (user.accountType === 'creator') {
       dynamicNavItems.push({ href: '/creator/dashboard', label: 'Creator Dashboard', icon: <BookUp className="h-5 w-5" />, suppressHydrationWarning: true });
     }
@@ -48,7 +48,7 @@ export function Header() {
       ), suppressHydrationWarning: true },
       { onClick: logout, label: 'Logout', icon: <LogOut className="h-5 w-5" />, isButton: true, suppressHydrationWarning: true }
     );
-  } else {
+  } else if (isClient) { // User is null but client has mounted
     dynamicNavItems.push(
       { href: '/login', label: 'Login', icon: <LogIn className="h-5 w-5" />, suppressHydrationWarning: true },
       { href: '/signup', label: 'Sign Up', icon: <UserCircle className="h-5 w-5" />, suppressHydrationWarning: true }
@@ -69,7 +69,6 @@ export function Header() {
           <BookOpen className="h-7 w-7 text-primary" />
           <span 
             className="font-bold text-xl tracking-tight hidden sm:inline"
-            suppressHydrationWarning={true} 
           >
             Manga Platform
           </span>
@@ -142,3 +141,4 @@ export function Header() {
     </header>
   );
 }
+
