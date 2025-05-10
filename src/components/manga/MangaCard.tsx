@@ -1,3 +1,4 @@
+
 import Image from 'next/image';
 import Link from 'next/link';
 import type { MangaSeries } from '@/lib/types';
@@ -13,7 +14,7 @@ import React from 'react';
 
 interface MangaCardProps {
   manga: MangaSeries;
-  priority?: boolean; // Add priority prop
+  priority?: boolean; 
 }
 
 export const MangaCard = React.memo(function MangaCard({ manga, priority = false }: MangaCardProps) {
@@ -54,7 +55,7 @@ export const MangaCard = React.memo(function MangaCard({ manga, priority = false
             objectFit="cover"
             className="group-hover:scale-105 transition-transform duration-300"
             data-ai-hint="manga cover"
-            priority={priority} // Use the prop here
+            priority={priority} 
           />
         </Link>
         {user && (user.accountType === 'user' || (user.accountType === 'creator' && user.id !== manga.author.id )) && (

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { MangaCard } from '@/components/manga/MangaCard';
@@ -34,10 +35,6 @@ export default function HomePage() {
   const [allPublishedManga, setAllPublishedManga] = useState<MangaSeries[]>([]);
   const [allApprovedCreators, setAllApprovedCreators] = useState<AuthorInfo[]>([]);
   
-  const [clientRandomManga, setClientRandomManga] = useState<MangaSeries[]>([]);
-  const [dailyNewReleases, setDailyNewReleases] = useState<MangaSeries[]>([]);
-  const [monthlyNewReleases, setMonthlyNewReleases] = useState<MangaSeries[]>([]);
-  
   const [mangaSort, setMangaSort] = useState<MangaSortOption>("popular");
   const [creatorSort, setCreatorSort] = useState<CreatorSortOption>("name_asc");
 
@@ -69,6 +66,48 @@ export default function HomePage() {
   }, [searchParams]);
 
   const memoizedUpdateUserSearchHistory = useCallback(updateUserSearchHistory, [updateUserSearchHistory]);
+
+  useEffect(() => {
+    if (searchTerm && user && user.accountType === 'user') { 
+      memoizedUpdateUserSearchHistory(searchTerm);
+    }
+  }, [searchTerm, user, memoizedUpdateUserSearchHistory]);
+
+  const dailyNewReleases = useMemo(() => {
+    if (!allPublishedManga.length) return [];
+    const now = new Date();
+    const twentyFourHoursAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+    return [...allPublishedManga]
+      .filter(m => new Date(m.publishedDate) >= twentyFourHoursAgo)
+      .sort((a, b) => new Date(b.publishedDate).getTime() - new Date(a.publishedDate).getTime());
+  }, [allPublishedManga]);
+
+  const monthlyNewReleases = useMemo(() => {
+    if (!allPublishedManga.length) return [];
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+    return [...allPublishedManga]
+      .filter(m => new Date(m.publishedDate) >= thirtyDaysAgo)
+      .sort((a, b) => new Date(b.publishedDate).getTime() - new Date(a.publishedDate).getTime());
+  }, [allPublishedManga]);
+  
+  const [clientRandomManga, setClientRandomManga] = useState<MangaSeries[]>([]);
+  useEffect(() => {
+    if (allPublishedManga.length > 0) {
+      // Ensure randomness is client-side after initial hydration
+      setClientRandomManga(
+        [...allPublishedManga].sort(() => 0.5 - Math.random())
+      );
+    } else {
+      setClientRandomManga([]);
+    }
+  }, [allPublishedManga]);
+
+  const popularMangaOverall = useMemo(() => {
+    if (!allPublishedManga.length) return [];
+    return [...allPublishedManga].sort((a, b) => b.viewCount - a.viewCount);
+  }, [allPublishedManga]);
+
 
   const sortedAndFilteredManga = useMemo(() => {
     let baseManga = [...allPublishedManga];
@@ -133,52 +172,16 @@ export default function HomePage() {
     return baseCreators;
   }, [allApprovedCreators, creatorSort, searchTerm]);
 
+
   const isFiltering = searchTerm || genreFilter;
-
-  const processedFilteredManga = useMemo(() => {
-    if (isFiltering) return sortedAndFilteredManga;
-    return [];
-  }, [isFiltering, sortedAndFilteredManga]);
-
-  const processedFilteredCreators = useMemo(() => {
-    if (isFiltering) return sortedAndFilteredCreators;
-    return [];
-  }, [isFiltering, sortedAndFilteredCreators]);
-
-
-  useEffect(() => {
-    if (searchTerm && user && user.accountType === 'user') { 
-      memoizedUpdateUserSearchHistory(searchTerm);
-    }
-    
-    const now = new Date();
-    const twentyFourHoursAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000));
-    setDailyNewReleases(
-      [...allPublishedManga]
-        .filter(m => new Date(m.publishedDate) >= twentyFourHoursAgo)
-        .sort((a, b) => new Date(b.publishedDate).getTime() - new Date(a.publishedDate).getTime())
-    );
-
-    const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
-    setMonthlyNewReleases(
-      [...allPublishedManga]
-        .filter(m => new Date(m.publishedDate) >= thirtyDaysAgo)
-        .sort((a, b) => new Date(b.publishedDate).getTime() - new Date(a.publishedDate).getTime())
-    );
-    
-    setClientRandomManga(
-      [...allPublishedManga].sort(() => 0.5 - Math.random())
-    );
-
-  }, [searchTerm, user, memoizedUpdateUserSearchHistory, allPublishedManga]);
-
 
   const renderPaginatedMangaSection = (title: string, icon: React.ReactNode, mangaList: MangaSeries[], pageState: number, setPageState: (page: number) => void, sectionId: string, showSort?: boolean, currentSortValue?: MangaSortOption, onSortChange?: (value: MangaSortOption) => void) => {
     const totalPages = Math.ceil(mangaList.length / MANGA_PER_PAGE);
     const startIndex = (pageState - 1) * MANGA_PER_PAGE;
     const paginatedManga = mangaList.slice(startIndex, startIndex + MANGA_PER_PAGE);
 
-    if (paginatedManga.length === 0 && !(isFiltering && mangaList === processedFilteredManga)) return null;
+    if (paginatedManga.length === 0 && !(isFiltering && mangaList === sortedAndFilteredManga)) return null;
+
 
     return (
       <section key={sectionId}>
@@ -243,7 +246,7 @@ export default function HomePage() {
     const startIndex = (pageState - 1) * CREATORS_PER_PAGE;
     const paginatedCreators = creatorList.slice(startIndex, startIndex + CREATORS_PER_PAGE);
 
-    if (paginatedCreators.length === 0 && !(isFiltering && creatorList === processedFilteredCreators)) return null;
+    if (paginatedCreators.length === 0 && !(isFiltering && creatorList === sortedAndFilteredCreators)) return null;
 
     return (
        <section key={sectionId}>
@@ -315,7 +318,7 @@ export default function HomePage() {
 
   const currentGenreName = genreFilter ? MANGA_GENRES_DETAILS.find(g => g.id === genreFilter)?.name : null;
 
-  if (isFiltering && processedFilteredManga.length === 0 && processedFilteredCreators.length === 0) {
+  if (isFiltering && sortedAndFilteredManga.length === 0 && sortedAndFilteredCreators.length === 0) {
     return (
       <div className="text-center py-12">
         <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
@@ -325,7 +328,7 @@ export default function HomePage() {
             ? `No manga or creators matched "${searchTerm}" in category "${currentGenreName}".`
             : searchTerm 
             ? `No manga or creators matched "${searchTerm}".`
-            : `No manga found in category "${currentGenreName}".`
+            : currentGenreName ? `No manga found in category "${currentGenreName}".` : "No results."
           }
         </p>
         <Button asChild className="mt-6">
@@ -334,11 +337,6 @@ export default function HomePage() {
       </div>
     );
   }
-
-  const popularMangaOverall = useMemo(() => 
-    [...allPublishedManga].sort((a, b) => b.viewCount - a.viewCount), 
-    [allPublishedManga]
-  );
 
 
   return (
@@ -374,7 +372,7 @@ export default function HomePage() {
           {renderPaginatedMangaSection(
             `Manga Results`, 
             <Search className="mr-3 h-7 w-7 text-primary"/>, 
-            processedFilteredManga, 
+            sortedAndFilteredManga, 
             currentMangaPage, 
             setCurrentMangaPage,
             "filtered-manga",
@@ -382,17 +380,17 @@ export default function HomePage() {
             mangaSort, 
             (value) => setMangaSort(value as MangaSortOption) 
           )}
-           {processedFilteredManga.length >= MAX_FILTERED_ITEMS_DISPLAY && (
+           {sortedAndFilteredManga.length >= MAX_FILTERED_ITEMS_DISPLAY && (
                  <p className="text-center text-muted-foreground mt-6">Displaying top {MAX_FILTERED_ITEMS_DISPLAY} manga results. Refine your search for more specific results.</p>
             )}
 
-          {processedFilteredCreators.length > 0 && (
+          {sortedAndFilteredCreators.length > 0 && (
             <>
               <Separator className="my-10" />
               {renderPaginatedCreatorSection(
                 "Creator Results",
                 <Users className="mr-3 h-7 w-7 text-primary"/>,
-                processedFilteredCreators,
+                sortedAndFilteredCreators,
                 currentCreatorPage,
                 setCurrentCreatorPage,
                 "filtered-creators",
@@ -400,10 +398,10 @@ export default function HomePage() {
                 creatorSort, 
                 (value) => setCreatorSort(value as CreatorSortOption) 
               )}
+               {sortedAndFilteredCreators.length >= MAX_FILTERED_ITEMS_DISPLAY && (
+                <p className="text-center text-muted-foreground mt-6">Displaying top {MAX_FILTERED_ITEMS_DISPLAY} creator results. Refine your search for more specific results.</p>
+                )}
             </>
-          )}
-           {processedFilteredCreators.length >= MAX_FILTERED_ITEMS_DISPLAY && (
-             <p className="text-center text-muted-foreground mt-6">Displaying top {MAX_FILTERED_ITEMS_DISPLAY} creator results. Refine your search for more specific results.</p>
           )}
         </>
       ) : (
