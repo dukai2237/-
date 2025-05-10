@@ -10,13 +10,14 @@ import { DollarSign, Users, Package, Eye, Briefcase } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
+import React from 'react';
 
 interface ShareListingCardProps {
   listing: ShareListing;
   currentUserId?: string;
 }
 
-export function ShareListingCard({ listing, currentUserId }: ShareListingCardProps) {
+export const ShareListingCard = React.memo(function ShareListingCard({ listing, currentUserId }: ShareListingCardProps) {
   const { user, followShareListing, unfollowShareListing, isShareListingFollowed, purchaseSharesFromListing } = useAuth();
   const { toast } = useToast();
 
@@ -40,6 +41,10 @@ export function ShareListingCard({ listing, currentUserId }: ShareListingCardPro
       toast({ title: "Login Required", description: "Please login to purchase shares.", variant: "destructive" });
       return;
     }
+    if (user.accountType === 'creator') {
+        toast({ title: "Action Not Allowed", description: "Creators cannot purchase shares from the market.", variant: "destructive" });
+        return;
+    }
     if (!canUserPurchaseShares) {
         toast({ title: "Purchase Locked", description: `You need an available investment opportunity. Earn one via 5 combined subscriptions/donations. You have ${user.investmentOpportunitiesAvailable || 0}.`, variant: "destructive", duration: 8000 });
         return;
@@ -48,11 +53,9 @@ export function ShareListingCard({ listing, currentUserId }: ShareListingCardPro
       toast({ title: "Cannot Buy Own Shares", description: "You cannot purchase shares you listed yourself.", variant: "default" });
       return;
     }
-    // For simplicity, let's assume user wants to buy all offered shares in this mock
-    // A real app would have an input for number of shares to buy.
+    
     const sharesToBuy = listing.sharesOffered; 
     await purchaseSharesFromListing(listing.id, sharesToBuy);
-    // Toast messages are handled within purchaseSharesFromListing
   };
 
 
@@ -111,14 +114,14 @@ export function ShareListingCard({ listing, currentUserId }: ShareListingCardPro
         <Button 
           onClick={handlePurchase} 
           className="w-full sm:flex-grow" 
-          disabled={currentUserId === listing.sellerUserId || !listing.isActive || !canUserPurchaseShares}
-          title={!canUserPurchaseShares ? `Requires investment opportunity (earned via 5 subscriptions/donations). You have ${user?.investmentOpportunitiesAvailable || 0}.` : (currentUserId === listing.sellerUserId ? "Cannot buy own shares" : (!listing.isActive ? "Listing not active" : "Buy Shares"))}
+          disabled={currentUserId === listing.sellerUserId || !listing.isActive || !canUserPurchaseShares || user?.accountType === 'creator'}
+          title={user?.accountType === 'creator' ? "Creators cannot purchase shares" : !canUserPurchaseShares ? `Requires investment opportunity (earned via 5 subscriptions/donations). You have ${user?.investmentOpportunitiesAvailable || 0}.` : (currentUserId === listing.sellerUserId ? "Cannot buy own shares" : (!listing.isActive ? "Listing not active" : "Buy Shares"))}
           suppressHydrationWarning
         >
           <DollarSign className="mr-1.5 h-4 w-4" /> 
           Buy Shares ({listing.sharesOffered})
         </Button>
-        {user && user.id !== listing.sellerUserId && (
+        {user && user.id !== listing.sellerUserId && user.accountType !== 'creator' && (
            <Button 
             variant="outline" 
             onClick={handleFollowToggle} 
@@ -132,5 +135,6 @@ export function ShareListingCard({ listing, currentUserId }: ShareListingCardPro
       </CardFooter>
     </Card>
   );
-}
+});
+ShareListingCard.displayName = 'ShareListingCard';
 

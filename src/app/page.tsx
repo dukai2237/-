@@ -49,7 +49,7 @@ export default function HomePage() {
     const currentGenre = searchParams.get('genre') || '';
     setSearchTerm(currentSearch);
     setGenreFilter(currentGenre);
-    setCurrentCreatorPage(1); // Reset creator page on filter change
+    setCurrentCreatorPage(1); 
   }, [searchParams]);
 
   const memoizedUpdateUserSearchHistory = useCallback(updateUserSearchHistory, [updateUserSearchHistory]);
@@ -66,7 +66,7 @@ export default function HomePage() {
       baseFilteredCreators = baseFilteredCreators.filter(creator =>
         creator.name.toLowerCase().includes(searchTerm.toLowerCase())
       );
-      if (user && searchTerm) { 
+      if (user && user.accountType === 'user' && searchTerm) { 
         memoizedUpdateUserSearchHistory(searchTerm);
       }
     }
@@ -75,12 +75,11 @@ export default function HomePage() {
       baseFilteredManga = baseFilteredManga.filter(manga =>
         manga.genres.includes(genreFilter)
       );
-      // Genre filter does not apply to creators directly in this setup
     }
     
     if(searchTerm || genreFilter){
         setProcessedFilteredManga(baseFilteredManga.slice(0, MAX_FILTERED_ITEMS_DISPLAY));
-        setProcessedFilteredCreators(baseFilteredCreators.slice(0, MAX_FILTERED_ITEMS_DISPLAY)); // Also cap creators for search
+        setProcessedFilteredCreators(baseFilteredCreators.slice(0, MAX_FILTERED_ITEMS_DISPLAY)); 
     } else {
         setProcessedFilteredManga([]); 
         setProcessedFilteredCreators([]);
@@ -194,8 +193,8 @@ export default function HomePage() {
                 Manga Results ({processedFilteredManga.length})
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-8">
-                {processedFilteredManga.map((manga) => (
-                  <MangaCard key={manga.id} manga={manga} />
+                {processedFilteredManga.map((manga, index) => (
+                  <MangaCard key={manga.id} manga={manga} priority={index < 5} />
                 ))}
               </div>
               {processedFilteredManga.length >= MAX_FILTERED_ITEMS_DISPLAY && (
@@ -233,8 +232,8 @@ export default function HomePage() {
             <section>
               <h2 className="text-3xl font-semibold mb-6 tracking-tight flex items-center" suppressHydrationWarning><CalendarClock className="mr-3 h-7 w-7 text-sky-500"/>Daily New Releases</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-8">
-                {dailyNewReleases.map((manga) => (
-                  <MangaCard key={manga.id} manga={manga} />
+                {dailyNewReleases.map((manga, index) => (
+                  <MangaCard key={manga.id} manga={manga} priority={index < 5} />
                 ))}
               </div>
             </section>
@@ -245,8 +244,8 @@ export default function HomePage() {
             <section>
               <h2 className="text-3xl font-semibold mb-6 tracking-tight flex items-center" suppressHydrationWarning><CalendarDays className="mr-3 h-7 w-7 text-blue-500"/>Monthly New Releases</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-8">
-                {monthlyNewReleases.map((manga) => (
-                  <MangaCard key={manga.id} manga={manga} />
+                {monthlyNewReleases.map((manga, index) => (
+                  <MangaCard key={manga.id} manga={manga} priority={index < 5 && dailyNewReleases.length === 0} />
                 ))}
               </div>
             </section>
@@ -258,8 +257,8 @@ export default function HomePage() {
             <section>
               <h2 className="text-3xl font-semibold mb-6 tracking-tight flex items-center" suppressHydrationWarning><Zap className="mr-3 h-7 w-7 text-yellow-500"/>Latest Releases (All Time)</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-8">
-                {newestMangaOverall.map((manga) => (
-                  <MangaCard key={manga.id} manga={manga} />
+                {newestMangaOverall.map((manga, index) => (
+                  <MangaCard key={manga.id} manga={manga} priority={index < 5 && dailyNewReleases.length === 0 && monthlyNewReleases.length === 0} />
                 ))}
               </div>
             </section>

@@ -4,12 +4,13 @@
 import type { Comment } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatDistanceToNowStrict } from 'date-fns';
+import React from 'react';
 
 interface CommentItemProps {
   comment: Comment;
 }
 
-export function CommentItem({ comment }: CommentItemProps) {
+export const CommentItem = React.memo(function CommentItem({ comment }: CommentItemProps) {
   const timeAgo = formatDistanceToNowStrict(new Date(comment.timestamp), { addSuffix: true });
 
   return (
@@ -35,4 +36,5 @@ export function CommentItem({ comment }: CommentItemProps) {
       </div>
     </div>
   );
-}
+});
+CommentItem.displayName = 'CommentItem';

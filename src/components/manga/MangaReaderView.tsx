@@ -58,13 +58,12 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
       }
     }
     setCurrentPageIndex(initialPageIdx);
-    // Ensure loading is true initially if pages exist, to show skeleton then image
     setIsLoading(pages.length > 0);
   }, [mangaId, chapterId, getViewingHistory, pages.length]);
 
 
   useEffect(() => {
-    if (user && mangaId && chapterId) { 
+    if (user && mangaId && chapterId && user.accountType === 'user') { 
       updateViewingHistory(mangaId, chapterId, currentPageIndex);
     }
   }, [currentPageIndex, mangaId, chapterId, user, updateViewingHistory]);
@@ -101,7 +100,7 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
   }, [handleNextPage, handlePrevPage]);
   
   useEffect(() => {
-    setIsLoading(true); // Reset loading state when page index changes
+    setIsLoading(true); 
     setError(null);
     if (!currentPageData) {
         setError("Page data not found.");
@@ -160,16 +159,20 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
   const freePreviewChapterCount = manga.freePreviewChapterCount || 0;
 
   const isChapterWithinFreeChapterLimit = initialChapterNumber <= freePreviewChapterCount;
-  const isPageWithinFreePageLimitOfChapter = currentPageIndex < freePreviewTotalPageCount;
   
-  const isContentFree = isChapterWithinFreeChapterLimit || (manga.subscriptionModel !== 'per_chapter' && isPageWithinFreePageLimitOfChapter);
+  // If chapter is free, all its pages are free.
+  // Otherwise, check if current page is within general free page limit for *this specific chapter*.
+  const isPageWithinThisChaptersFreePreview = currentPageIndex < freePreviewTotalPageCount;
+  
+  const isContentFree = isChapterWithinFreeChapterLimit || isPageWithinThisChaptersFreePreview;
+
 
   let needsAccess = false;
   let accessButtonText = "";
   let accessIcon = <ShoppingCart className="mr-2 h-5 w-5" />;
   let accessAction = async () => {};
 
-  if (!isContentFree) {
+  if (!isContentFree && user?.accountType !== 'creator') { // Creators have full access to all content
     if (manga.subscriptionModel === 'monthly' && manga.subscriptionPrice && !isSubscribedToManga(mangaId)) {
         needsAccess = true;
         accessButtonText = `Subscribe Monthly for $${manga.subscriptionPrice.toFixed(2)}`;
@@ -201,6 +204,9 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
         <XCircle className="w-16 h-16 text-destructive mb-4" />
         <h2 className="text-2xl font-semibold mb-2">No Pages Available</h2>
         <p className="text-muted-foreground">This chapter doesn't seem to have any pages.</p>
+         <Link href={`/manga/${mangaId}`} className="mt-4">
+          <Button variant="outline">Back to Manga Details</Button>
+        </Link>
       </div>
     );
   }
@@ -256,7 +262,7 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
         {currentPageData && (
           <>
             <Image
-                key={currentPageData.id + currentPageIndex} // Add index to key to force re-render on page change if necessary
+                key={currentPageData.id + currentPageIndex} 
                 src={currentPageData.imageUrl}
                 alt={currentPageData.altText}
                 layout="fill"
@@ -269,7 +275,6 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
                 }}
                 className={`transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'} `}
                 data-ai-hint="manga page comic"
-                unoptimized={true} 
             />
             <div className="absolute inset-0 w-full h-full z-10"></div>
           </>
@@ -292,3 +297,4 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
     </div>
   );
 }
+

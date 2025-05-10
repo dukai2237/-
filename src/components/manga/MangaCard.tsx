@@ -10,12 +10,14 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { MANGA_GENRES_DETAILS } from '@/lib/constants';
 import { useAuth } from '@/contexts/AuthContext'; 
 import { formatDistanceToNowStrict } from 'date-fns';
+import React from 'react';
 
 interface MangaCardProps {
   manga: MangaSeries;
+  priority?: boolean; // Add priority prop
 }
 
-export function MangaCard({ manga }: MangaCardProps) {
+export const MangaCard = React.memo(function MangaCard({ manga, priority = false }: MangaCardProps) {
   const { user, isFavorited, toggleFavorite } = useAuth(); 
 
   const getGenreName = (genreId: string) => {
@@ -26,7 +28,7 @@ export function MangaCard({ manga }: MangaCardProps) {
   const handleFavoriteToggle = (e: React.MouseEvent) => {
     e.preventDefault(); 
     e.stopPropagation();
-    if (!user) { // Optional: Prompt login if user is not logged in
+    if (!user) { 
         // toast({ title: "Login Required", description: "Please login to favorite manga."});
         return;
     }
@@ -53,9 +55,10 @@ export function MangaCard({ manga }: MangaCardProps) {
             objectFit="cover"
             className="group-hover:scale-105 transition-transform duration-300"
             data-ai-hint="manga cover"
+            priority={priority} // Use the prop here
           />
         </Link>
-        {user && (
+        {user && (user.accountType === 'user' || (user.accountType === 'creator' && user.id !== manga.author.id )) && (
           <Button
             variant="ghost"
             size="icon"
@@ -119,5 +122,6 @@ export function MangaCard({ manga }: MangaCardProps) {
       </CardFooter>
     </Card>
   );
-}
+});
+MangaCard.displayName = 'MangaCard';
 

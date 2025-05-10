@@ -1,14 +1,16 @@
+
 import Link from 'next/link';
 import type { Chapter } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { BookText, ChevronRight } from 'lucide-react';
+import React from 'react';
 
 interface ChapterListItemProps {
   mangaId: string;
   chapter: Chapter;
 }
 
-export function ChapterListItem({ mangaId, chapter }: ChapterListItemProps) {
+export const ChapterListItem = React.memo(function ChapterListItem({ mangaId, chapter }: ChapterListItemProps) {
   return (
     <li className="border-b last:border-b-0">
       <Link href={`/manga/${mangaId}/${chapter.id}`} className="block hover:bg-secondary/50 transition-colors duration-200">
@@ -27,6 +29,6 @@ export function ChapterListItem({ mangaId, chapter }: ChapterListItemProps) {
       </Link>
     </li>
   );
-}
-
+});
+ChapterListItem.displayName = 'ChapterListItem';
     
