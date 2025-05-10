@@ -45,21 +45,28 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
 
   useEffect(() => {
     const history = getViewingHistory(mangaId);
-    let initialPageIdx = 0;
+    let calculatedInitialPageIdx = 0; 
     if (history && history.chapterId === chapterId && history.pageIndex < pages.length) {
-      initialPageIdx = history.pageIndex;
+      calculatedInitialPageIdx = history.pageIndex;
     } else {
-      const hash = window.location.hash;
+      // This part runs on the client after mount, so window.location.hash is fine
+      const hash = typeof window !== 'undefined' ? window.location.hash : '';
       if (hash.startsWith("#page=")) {
         const pageNum = parseInt(hash.substring(6), 10);
         if (!isNaN(pageNum) && pageNum > 0 && pageNum <= pages.length) {
-          initialPageIdx = pageNum - 1;
+          calculatedInitialPageIdx = pageNum - 1;
         }
       }
     }
-    setCurrentPageIndex(initialPageIdx);
+    
+    // Only call setCurrentPageIndex if the newly calculated index is different from the current one.
+    // This prevents an infinite loop.
+    if (calculatedInitialPageIdx !== currentPageIndex) {
+      setCurrentPageIndex(calculatedInitialPageIdx);
+    }
+    
     setIsLoading(pages.length > 0);
-  }, [mangaId, chapterId, getViewingHistory, pages.length]);
+  }, [mangaId, chapterId, getViewingHistory, pages, currentPageIndex]); // Added currentPageIndex and pages
 
 
   useEffect(() => {
@@ -100,24 +107,27 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
   }, [handleNextPage, handlePrevPage]);
   
   useEffect(() => {
-    setIsLoading(true); 
-    setError(null);
-    if (!currentPageData) {
+    // This effect handles loading state based on currentPageData
+    // It should not set isLoading to true repeatedly if data is already there.
+    if (!currentPageData && totalPages > 0) { // If we expect data but don't have it for current page
+        setIsLoading(true); 
         setError("Page data not found.");
-    }
-    
-    if (!currentPageData || totalPages === 0) {
+    } else if (currentPageData) {
+        setIsLoading(false); // Data is available
+        setError(null);
+    } else if (totalPages === 0) { // No pages at all
         setIsLoading(false);
+        setError(null); // Or set a specific "no pages" error
     }
-
-  }, [currentPageIndex, currentPageData, totalPages]);
+  }, [currentPageData, totalPages]);
 
   useEffect(() => {
-    if (totalPages > 0) {
+    if (totalPages > 0 && typeof window !== 'undefined') {
       const newUrl = `${pathname}${searchParams.toString() ? '?' + searchParams.toString() : ''}#page=${currentPageIndex + 1}`;
-      router.replace(newUrl, { scroll: false });
+      // router.replace causes issues with re-renders in some cases, history.replaceState is safer for hash changes.
+      window.history.replaceState(null, '', newUrl);
     }
-  }, [currentPageIndex, router, totalPages, pathname, searchParams]);
+  }, [currentPageIndex, totalPages, pathname, searchParams]);
 
   const onTouchStart = (e: React.TouchEvent) => {
     setTouchEndX(null); 
@@ -181,7 +191,7 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
                  toast({ title: "Login Required", description: "Please log in to subscribe.", variant: "destructive", action: <Button onClick={() => router.push('/login?redirect=' + pathname + `#page=${currentPageIndex + 1}`)}>Login</Button> });
                  return;
             }
-            await purchaseAccess(mangaId, 'monthly', mangaId, manga.subscriptionPrice!);
+            await purchaseAccess(manga.id, 'monthly', manga.id, manga.subscriptionPrice!);
         };
     } else if (manga.subscriptionModel === 'per_chapter' && manga.chapterSubscriptionPrice && !hasPurchasedChapter(mangaId, chapterId)) {
         needsAccess = true;
@@ -192,7 +202,7 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
                  toast({ title: "Login Required", description: "Please log in to purchase this chapter.", variant: "destructive", action: <Button onClick={() => router.push('/login?redirect=' + pathname + `#page=${currentPageIndex + 1}`)}>Login</Button> });
                  return;
             }
-            await purchaseAccess(mangaId, 'chapter', chapterId, manga.chapterSubscriptionPrice!);
+            await purchaseAccess(manga.id, 'chapter', chapterId, manga.chapterSubscriptionPrice!);
         };
     }
   }
@@ -211,8 +221,8 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
     );
   }
   
-  if (error) {
-    return (
+  if (error && !isLoading) { // Show error only if not loading and error exists
+         return (
          <Alert variant="destructive" className="max-w-lg mx-auto my-8">
           <XCircle className="h-5 w-5" />
           <AlertTitle>Error Loading Page</AlertTitle>
@@ -268,7 +278,10 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
                 layout="fill"
                 objectFit="contain"
                 priority={currentPageIndex < 2} 
-                onLoad={() => setIsLoading(false)}
+                onLoad={() => {
+                  if (currentPageData) setIsLoading(false); // Set loading false only if this image loaded
+                  setError(null);
+                }}
                 onError={() => {
                   setError(`Failed to load image for page ${currentPageIndex + 1}.`);
                   setIsLoading(false);
@@ -279,9 +292,9 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
             <div className="absolute inset-0 w-full h-full z-10"></div>
           </>
         )}
-        {!currentPageData && !isLoading && ( 
+        {!currentPageData && !isLoading && totalPages > 0 && ( 
             <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
-                <p>Page not available.</p>
+                <p>Page {currentPageIndex + 1} not available or error loading.</p>
             </div>
         )}
       </div>
