@@ -1,3 +1,4 @@
+
 // src/app/profile/page.tsx
 "use client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -15,8 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { getMangaById, getShareListingById, mockAuthors, updateMockAuthorBalance } from "@/lib/mock-data"; 
-import type { UserInvestment, ShareListing, AuthorInfo as GlobalAuthorInfo } from '@/lib/types';
+import { getMangaById, getShareListingById, mockAuthors, updateMockAuthorBalance, fetchAuthorDetails } from "@/lib/mock-data"; 
+import type { UserInvestment, ShareListing, AuthorInfo as GlobalAuthorInfo, MangaSeries } from '@/lib/types';
 import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog,
@@ -29,16 +30,14 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import Image from 'next/image';
-
-const USER_PROFILE_UPDATE_COOLDOWN_DAYS = 30;
-const CREATOR_PROFILE_UPDATE_COOLDOWN_DAYS = 90;
+import { USER_PROFILE_UPDATE_COOLDOWN_DAYS, CREATOR_PROFILE_UPDATE_COOLDOWN_DAYS } from '@/lib/constants';
 
 
 export default function ProfilePage() {
   const { 
     user, logout, viewingHistory, transactions, addFunds, withdrawFunds, 
     approveCreatorAccount, favorites, listSharesForSale, delistSharesFromSale,
-    updateUserProfile 
+    updateUserProfile, deleteMangaSeries // Added deleteMangaSeries from context
   } = useAuth(); 
   const router = useRouter();
   const { toast } = useToast();
@@ -63,7 +62,9 @@ export default function ProfilePage() {
 
 
   const [isMockAdmin, setIsMockAdmin] = useState(false); 
-  const [authorDetails, setAuthorDetails] = useState<GlobalAuthorInfo | null | undefined>(null);
+  const [authorDetails, setAuthorDetails] = useState<GlobalAuthorInfo | null | undefined>(undefined);
+  const [mangaToEdit, setMangaToEdit] = useState<MangaSeries | null>(null); // For delete confirmation
+  const [isDeletionAllowed, setIsDeletionAllowed] = useState(false); // For delete confirmation
 
   useEffect(() => {
     if (user) {
@@ -75,7 +76,7 @@ export default function ProfilePage() {
             setIsMockAdmin(false);
         }
         if (user.accountType === 'creator') {
-             const author = mockAuthors.find(author => author.id === user.id);
+             const author = fetchAuthorDetails(user.id); // Use fetchAuthorDetails
              setAuthorDetails(author);
         } else {
              setAuthorDetails(null);
@@ -137,58 +138,22 @@ export default function ProfilePage() {
         return;
     }
     
-    // Simulate dividend check logic if needed (copied from AuthContext, adapt if necessary)
-    for (const mangaId of user.authoredMangaIds) {
-        const manga = getMangaById(mangaId);
-        if (manga?.investmentOffer?.isActive && manga.investmentOffer.dividendPayoutCycle && manga.investors.length > 0) {
-            const cycleMonths = manga.investmentOffer.dividendPayoutCycle;
-            const lastPayoutDateForManga = manga.investmentOffer.lastDividendPayoutDate
-                                        ? new Date(manga.investmentOffer.lastDividendPayoutDate)
-                                        : (manga.lastInvestmentDate ? new Date(manga.lastInvestmentDate) : new Date(manga.publishedDate));
-            
-            const nextPayoutDueDate = new Date(lastPayoutDateForManga);
-            nextPayoutDueDate.setMonth(nextPayoutDueDate.getMonth() + cycleMonths);
-
-            if (new Date() >= nextPayoutDueDate) {
-                const totalEarningsForManga = (manga.totalRevenueFromSubscriptions + manga.totalRevenueFromDonations + manga.totalRevenueFromMerchandise);
-                const potentialDividendPool = totalEarningsForManga * (manga.investmentOffer.sharesOfferedTotalPercent / 100);
-                
-                if (potentialDividendPool > 0) { 
-                    toast({
-                        title: "Withdrawal Blocked",
-                        description: `Dividends for manga "${manga.title}" are due. Process payouts before withdrawing.`,
-                        variant: "destructive", duration: 8000,
-                    });
-                    return;
-                }
-            }
-        }
+    const success = await withdrawFunds(amount); // Using the central withdrawFunds from context
+    
+    if(success){
+      setFundsToWithdraw("");
+      setIsWithdrawFundsDialogOpen(false);
+      // Update local authorDetails state if withdrawFunds doesn't do it or to ensure UI consistency
+      setAuthorDetails(prev => prev ? {...prev, walletBalance: prev.walletBalance - amount} : null);
     }
-
-    updateMockAuthorBalance(authorDetails.id, authorDetails.walletBalance - amount);
-    // Refresh authorDetails locally (or rely on AuthContext to update user which might trigger re-fetch)
-    setAuthorDetails(prev => prev ? {...prev, walletBalance: prev.walletBalance - amount} : null);
-
-    transactions.unshift({ // Manually add to local transaction display if not handled by a global context call
-        id: `tx-withdraw-${Date.now()}`,
-        type: 'wallet_withdrawal',
-        amount: -amount,
-        userId: user.id,
-        description: `Creator ${user.name} withdrew $${amount.toFixed(2)} from author wallet.`,
-        timestamp: new Date().toISOString(),
-    });
-
-    setFundsToWithdraw("");
-    setIsWithdrawFundsDialogOpen(false);
-    toast({title: "Withdrawal Processed", description: `$${amount.toFixed(2)} has been withdrawn from author wallet.`});
   };
 
 
   const handleOpenListSharesDialog = (investment: UserInvestment) => {
     setSelectedInvestmentToList(investment);
     setSharesToList((investment.sharesOwned - (investment.sharesListed || 0)).toString()); 
-    setPricePerShareToList("");
-    setListingDescription("");
+    setPricePerShareToList(investment.listedPricePerShare?.toString() || "");
+    setListingDescription(investment.listingDescription || "");
     setIsListSharesDialogOpen(true);
   };
 
@@ -245,32 +210,33 @@ export default function ProfilePage() {
 
   const handleUpdateProfile = async () => {
     if (!user) return;
-    const success = await updateUserProfile(newName, newAvatarPreview);
+    const success = await updateUserProfile(newName, newAvatarPreview); // Pass newAvatarPreview (Data URL)
     if (success) {
         setIsEditProfileDialogOpen(false);
-        // setNewAvatarFile(null); // Optionally reset file input state
     }
   };
 
   const getNextProfileUpdateTime = (): string => {
     if (!user || !user.lastProfileUpdate) return "Now";
     const cooldownDays = user.accountType === 'creator' ? CREATOR_PROFILE_UPDATE_COOLDOWN_DAYS : USER_PROFILE_UPDATE_COOLDOWN_DAYS;
-    const lastUpdate = new Date(user.lastProfileUpdate);
-    const nextUpdate = new Date(lastUpdate.setDate(lastUpdate.getDate() + cooldownDays));
-    return new Date() > nextUpdate ? "Now" : nextUpdate.toLocaleDateString();
+    const lastUpdateDate = new Date(user.lastProfileUpdate);
+    const nextUpdateDate = new Date(lastUpdateDate); // Create a new Date object
+    nextUpdateDate.setDate(lastUpdateDate.getDate() + cooldownDays);
+
+    return new Date() > nextUpdateDate ? "Now" : nextUpdateDate.toLocaleDateString();
   };
 
   const canUpdateProfile = (): boolean => {
     if (!user || !user.lastProfileUpdate) return true;
     const cooldownDays = user.accountType === 'creator' ? CREATOR_PROFILE_UPDATE_COOLDOWN_DAYS : USER_PROFILE_UPDATE_COOLDOWN_DAYS;
-    const lastUpdate = new Date(user.lastProfileUpdate).getTime();
+    const lastUpdateTimestamp = new Date(user.lastProfileUpdate).getTime(); 
     const now = Date.now();
-    return (now - lastUpdate) / (1000 * 60 * 60 * 24) >= cooldownDays;
+    return (now - lastUpdateTimestamp) / (1000 * 60 * 60 * 24) >= cooldownDays;
   };
 
 
   const isCreator = user.accountType === 'creator';
-  const favoritedMangaList = user.favorites?.map(id => getMangaById(id)).filter(Boolean) || [];
+  const favoritedMangaList = user.favorites?.map(id => getMangaById(id)).filter(Boolean) as MangaSeries[] || [];
   const userShareListings = user.investments.filter(inv => inv.isListedForSale && inv.listingId).map(inv => getShareListingById(inv.listingId!)).filter(Boolean) as ShareListing[];
 
   return (
@@ -505,8 +471,8 @@ export default function ProfilePage() {
                       <TableCell className="text-xs tabular-nums">{new Date(tx.timestamp).toLocaleDateString()}</TableCell>
                       <TableCell><Badge variant="outline" className="capitalize text-xs whitespace-nowrap">{tx.type.replace(/_/g, ' ')}</Badge></TableCell>
                       <TableCell className="text-sm">{tx.description}</TableCell>
-                      <TableCell className={`text-right font-medium ${tx.amount < 0 || ['platform_earning', 'user_payment'].includes(tx.type) ? 'text-red-600' : 'text-green-600'}`}>
-                        {tx.amount < 0 || tx.type === 'user_payment' ? '-' : (tx.amount > 0 && !['rating_update', 'manga_creation', 'manga_deletion', 'creator_approval_pending', 'creator_approved', 'platform_earning', 'list_shares_for_sale', 'delist_shares_from_sale', 'profile_update'].includes(tx.type) ? '+' : '')}
+                      <TableCell className={`text-right font-medium ${tx.amount < 0 ? 'text-red-600' : (tx.amount > 0 ? 'text-green-600' : 'text-muted-foreground')}`}>
+                        {tx.amount < 0 ? '-' : (tx.amount > 0 && !['rating_update', 'manga_creation', 'manga_deletion', 'creator_approval_pending', 'creator_approved', 'list_shares_for_sale', 'delist_shares_from_sale', 'profile_update'].includes(tx.type) ? '+' : '')}
                         ${Math.abs(tx.amount).toFixed(['rating_update', 'manga_creation', 'manga_deletion', 'creator_approval_pending', 'creator_approved', 'list_shares_for_sale', 'delist_shares_from_sale', 'profile_update'].includes(tx.type) ? 0 : 2)}
                       </TableCell>
                     </TableRow>
@@ -674,9 +640,9 @@ export default function ProfilePage() {
               />
             </div>
             <div className="space-y-2">
-                <Label htmlFor="listingDescription">Listing Description (Optional, Max 1000 chars)</Label>
+                <Label htmlFor="listingDescriptionProfile">Listing Description (Optional, Max 1000 chars)</Label>
                 <Textarea 
-                    id="listingDescription"
+                    id="listingDescriptionProfile"
                     value={listingDescription}
                     onChange={(e) => setListingDescription(e.target.value)}
                     placeholder="Why are you selling? What's special about this manga?"
@@ -740,3 +706,4 @@ export default function ProfilePage() {
     </div>
   );
 }
+

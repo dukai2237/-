@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -24,7 +25,7 @@ interface MangaReaderViewProps {
 
 export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initialChapterNumber }: MangaReaderViewProps) {
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
-  const [isImageLoading, setIsImageLoading] = useState(true); // For the current page's image
+  const [isImageLoading, setIsImageLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user, purchaseAccess, hasPurchasedChapter, isSubscribedToManga, updateViewingHistory, getViewingHistory } = useAuth();
 
@@ -47,7 +48,6 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
   // Effect 1: Determine and set the initial/current page index
   useEffect(() => {
     if (pages.length === 0) {
-      // If pages are empty, reset to 0 only if it's not already 0
       if (currentPageIndex !== 0) {
         setCurrentPageIndex(0);
       }
@@ -71,13 +71,13 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
       }
     }
     
-    // Only call setCurrentPageIndex if the calculated target is different from the current state.
-    // This is crucial to prevent loops.
-    if (targetPageIndex !== currentPageIndex) {
-      setCurrentPageIndex(targetPageIndex);
-    }
-    // Image loading state for the *new* targetPageIndex will be handled by Effect 4
-  }, [mangaId, chapterId, pages, getViewingHistory, currentPageIndex]); // Added currentPageIndex to dependencies.
+    setCurrentPageIndex(prevCurrentPageIndex => {
+        if (targetPageIndex !== prevCurrentPageIndex) {
+            return targetPageIndex;
+        }
+        return prevCurrentPageIndex; 
+    });
+  }, [mangaId, chapterId, pages, getViewingHistory]);
 
 
   const handleNextPage = useCallback(() => {
@@ -98,7 +98,6 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
     });
   }, []);
 
-  // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
@@ -114,14 +113,12 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleNextPage, handlePrevPage]);
 
-  // Effect 2: Update user's viewing history (depends on currentPageIndex)
   useEffect(() => {
     if (user && mangaId && chapterId && user.accountType === 'user' && totalPages > 0 && currentPageIndex >= 0 && currentPageIndex < totalPages) {
       updateViewingHistory(mangaId, chapterId, currentPageIndex);
     }
   }, [currentPageIndex, mangaId, chapterId, user, updateViewingHistory, totalPages]);
 
-  // Effect 3: Update URL hash (depends on currentPageIndex)
   useEffect(() => {
     if (totalPages > 0 && typeof window !== 'undefined' && currentPageIndex >= 0 && currentPageIndex < totalPages) {
       const newUrl = `${pathname}${searchParams.toString() ? '?' + searchParams.toString() : ''}#page=${currentPageIndex + 1}`;
@@ -129,7 +126,6 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
     }
   }, [currentPageIndex, totalPages, pathname, searchParams]);
 
-  // Effect 4: Handle image loading state for the current page
   useEffect(() => {
     if (totalPages === 0) {
       setIsImageLoading(false);
@@ -141,10 +137,9 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
       setIsImageLoading(false);
       return;
     }
-    // When currentPageIndex changes to a valid page, assume its image needs to load.
     setIsImageLoading(true);
-    setError(null); // Reset error for new page
-  }, [currentPageIndex, totalPages]); // Rerun if currentPageIndex changes or totalPages changes
+    setError(null); 
+  }, [currentPageIndex, totalPages]); 
 
 
   const currentPageData = (totalPages > 0 && currentPageIndex >= 0 && currentPageIndex < totalPages) ? pages[currentPageIndex] : null;
@@ -226,7 +221,7 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
   }
 
 
-  if (!totalPages && !isImageLoading) { // If loading is also false and no pages
+  if (!totalPages && !isImageLoading) { 
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] text-center p-4">
         <XCircle className="w-16 h-16 text-destructive mb-4" />
@@ -278,11 +273,12 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
   return (
     <div className="flex flex-col items-center pb-24">
       <div
-        className="w-full max-w-3xl aspect-[800/1200] relative my-4 bg-muted rounded-md overflow-hidden shadow-lg touch-manipulation select-none prevent-selection prevent-right-click"
+        className="w-full max-w-3xl aspect-[800/1200] relative my-4 bg-muted rounded-md overflow-hidden shadow-lg touch-manipulation select-none prevent-selection"
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
-        style={{ touchAction: 'pan-y' }}
+        onContextMenu={(e) => e.preventDefault()} 
+        style={{ touchAction: 'pan-y' }} 
       >
         {isImageLoading && currentPageData && (
           <Skeleton className="absolute inset-0 w-full h-full" />
@@ -307,8 +303,6 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
               className={`transition-opacity duration-300 ${isImageLoading ? 'opacity-0' : 'opacity-100'}`}
               data-ai-hint="manga page comic"
             />
-            {/* This div is to ensure right-click prevention works on the image area if Image component itself doesn't block it effectively */}
-            <div className="absolute inset-0 w-full h-full z-10"></div>
           </>
         )}
         {!currentPageData && !isImageLoading && totalPages > 0 && (

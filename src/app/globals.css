@@ -90,8 +90,8 @@
     user-select: none; /* Standard syntax */
     -webkit-touch-callout: none; /* iOS Safari */
   }
-  .prevent-right-click img, .prevent-right-click div {
-    pointer-events: none; /* Disables right-click on images and divs with this class */
+  .prevent-right-click img {
+    pointer-events: none; /* Disables right-click on images with this class */
   }
    /* Attempt to disable screenshot functionality via CSS (very limited effectiveness) */
   @media print {
@@ -128,3 +128,4 @@
     background-color: hsl(var(--muted-foreground) / 0.7);
   }
 }
+
