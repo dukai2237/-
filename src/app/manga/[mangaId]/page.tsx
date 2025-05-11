@@ -1,4 +1,3 @@
-
 "use client";
 import Image from 'next/image';
 import { notFound, useRouter } from 'next/navigation';
@@ -9,7 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { DollarSign, Gift, TrendingUp, CheckCircle, Landmark, Users, Percent, Info, PiggyBank, Ticket, Mail, Link as LinkIcon, ThumbsUp, ThumbsDown, Meh, Lock, Heart, Edit2 } from 'lucide-react';
+import { DollarSign, Gift, TrendingUp, CheckCircle, Landmark, Users, Percent, Info, PiggyBank, Ticket, Mail, Link as LinkIcon, ThumbsUp, ThumbsDown, Meh, Lock, Heart, Edit2, Share2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
@@ -30,6 +29,7 @@ import type { MangaSeries } from '@/lib/types';
 import { MANGA_GENRES_DETAILS } from '@/lib/constants';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import dynamic from 'next/dynamic';
+import { ShareMangaDialog } from '@/components/manga/ShareMangaDialog';
 
 const CommentSection = dynamic(() =>
   import('@/components/manga/CommentSection').then((mod) => mod.CommentSection),
@@ -57,6 +57,9 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
   const [investmentShares, setInvestmentShares] = useState<string>("");
   const [isDonationDialogOpen, setIsDonationDialogOpen] = useState(false);
   const [isInvestmentDialogOpen, setIsInvestmentDialogOpen] = useState(false);
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+  const [currentUrl, setCurrentUrl] = useState("");
+
 
   useEffect(() => {
     const currentMangaData = getMangaById(mangaId);
@@ -92,6 +95,13 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
     }, 1000); 
     return () => clearInterval(interval);
   }, [mangaId]); 
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && manga) {
+      const origin = window.location.origin;
+      setCurrentUrl(`${origin}/manga/${manga.id}`);
+    }
+  }, [manga]);
 
 
   if (!manga) {
@@ -272,20 +282,32 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
             />
           </div>
           <div className="md:w-2/3 p-6 md:p-0 flex flex-col">
-            <div className="flex justify-between items-start">
-                <h1 className="text-3xl lg:text-4xl font-bold mb-2" suppressHydrationWarning>{manga.title}</h1>
-                {user && user.accountType !== 'creator' && (
+            <div className="flex justify-between items-start mb-1">
+                <h1 className="text-3xl lg:text-4xl font-bold " suppressHydrationWarning>{manga.title}</h1>
+                <div className="flex items-center">
+                    {user && user.accountType !== 'creator' && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={handleToggleFavorite}
+                            className="text-muted-foreground hover:text-primary"
+                            title={userHasFavorited ? "Remove from Favorites" : "Add to Favorites"}
+                            suppressHydrationWarning
+                        >
+                            <Heart className={`h-6 w-6 ${userHasFavorited ? 'fill-primary text-primary' : ''}`} />
+                        </Button>
+                    )}
                     <Button
                         variant="ghost"
                         size="icon"
-                        onClick={handleToggleFavorite}
-                        className="text-muted-foreground hover:text-primary"
-                        title={userHasFavorited ? "Remove from Favorites" : "Add to Favorites"}
+                        onClick={() => setIsShareDialogOpen(true)}
+                        className="text-muted-foreground hover:text-primary ml-1"
+                        title="Share this Manga"
                         suppressHydrationWarning
                     >
-                        <Heart className={`h-7 w-7 ${userHasFavorited ? 'fill-primary text-primary' : ''}`} />
+                        <Share2 className="h-6 w-6" />
                     </Button>
-                )}
+                </div>
             </div>
             <div className="flex items-center gap-3 mb-1 text-muted-foreground">
               <Avatar className="h-10 w-10">
@@ -465,7 +487,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
                {currentInvestmentOffer.minSubscriptionRequirement && (
                 <p className="text-xs text-muted-foreground flex items-center" suppressHydrationWarning>
                   <Info className="mr-1 h-3 w-3"/> Author Requirement: At least {currentInvestmentOffer.minSubscriptionRequirement} monthly subscriptions to *this* manga.
-                  {user && ` You have ${user.subscriptions?.filter(s=>s.type==='monthly' && s.mangaId === manga.id).length || 0} for this manga.`}
+                  {user && ` You have ${user.subscriptions?.filter(s => s.type === 'monthly' && s.mangaId === manga.id).length || 0} for this manga.`}
                 </p>
               )}
 
@@ -513,13 +535,22 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
       </div>
 
       <Separator className="my-8" />
-      { (!user || user.accountType !== 'creator') && ( // Show comments for users, or if user is the author themselves
+      { (!user || user.accountType !== 'creator' || (user.accountType === 'creator' && user.id === manga.author.id) ) && ( 
         <CommentSection mangaId={manga.id} />
       )}
-       {user && user.accountType === 'creator' && user.id !== manga.author.id && ( // Explicitly hide for other creators
+       {user && user.accountType === 'creator' && user.id !== manga.author.id && ( 
         <div className="text-center text-muted-foreground py-4">
             Creators cannot comment on other creators' works.
         </div>
+      )}
+
+      {manga && currentUrl && (
+        <ShareMangaDialog
+          mangaTitle={manga.title}
+          mangaUrl={currentUrl}
+          isOpen={isShareDialogOpen}
+          onOpenChange={setIsShareDialogOpen}
+        />
       )}
 
 
@@ -593,4 +624,3 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
     </div>
   );
 }
-
