@@ -26,7 +26,7 @@ export default function CreatorDashboardPage() {
   const fetchAuthoredManga = useCallback(() => {
     if (user && user.accountType === 'creator' && user.isApproved && user.authoredMangaIds) {
       const mangaList = user.authoredMangaIds
-        .map(id => getMangaById(id)) // This will fetch manga regardless of its 'isPublished' status
+        .map(id => getMangaById(id)) 
         .filter(manga => manga !== undefined) as MangaSeries[];
 
       setAuthoredManga(prevList => {
@@ -43,7 +43,8 @@ export default function CreatorDashboardPage() {
         return prevList;
       });
     }
-  }, [user]);
+  }, [user?.id, user?.accountType, user?.isApproved, user?.authoredMangaIds]);
+
 
   useEffect(() => {
     if (!user) {
@@ -308,3 +309,4 @@ export default function CreatorDashboardPage() {
     </div>
   );
 }
+
