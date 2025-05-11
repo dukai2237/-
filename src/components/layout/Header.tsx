@@ -71,7 +71,7 @@ export function Header() {
             className="font-bold text-xl tracking-tight hidden sm:inline"
             suppressHydrationWarning
           >
-            Manga Platform
+            Manga Walker
           </span>
         </Link>
 
@@ -82,21 +82,16 @@ export function Header() {
             className="pr-10 text-sm h-9"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            suppressHydrationWarning
           />
-          <Button type="submit" variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7">
+          <Button type="submit" variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7" suppressHydrationWarning>
             <SearchIcon className="h-4 w-4" />
-            <span className="sr-only">Search</span>
+            <span className="sr-only" suppressHydrationWarning>Search</span>
           </Button>
         </form>
         
         <nav className="hidden md:flex items-center gap-1 ml-4">
           {navItems.map((item) => {
-            // Filter out the "Website" link if it's the 'Test Creator' user
-            if (user && user.id === 'user-123' && item.label === 'Creator Dashboard') {
-                const creatorNavItems = item.href // Assuming this is where the creator specific navs are
-                // This part is conceptual as item.href is a string. 
-                // You'd need to adjust how you filter sub-items if 'Creator Dashboard' has a sub-menu with 'Website'
-            }
             return item.isButton ? (
               <Button key={item.label} variant="ghost" onClick={item.onClick} className="flex items-center gap-2" suppressHydrationWarning={item.suppressHydrationWarning}>
                 {item.icon}
@@ -118,21 +113,18 @@ export function Header() {
             <SheetTrigger asChild>
               <Button variant="outline" size="icon" suppressHydrationWarning>
                 <Menu className="h-6 w-6" />
-                <span className="sr-only">Toggle navigation menu</span>
+                <span className="sr-only" suppressHydrationWarning>Toggle navigation menu</span>
               </Button>
             </SheetTrigger>
             <SheetContent side="right">
               <SheetHeader className="mb-4 text-left">
-                <SheetTitle>Navigation Menu</SheetTitle>
-                <SheetDescription>
+                <SheetTitle suppressHydrationWarning>Navigation Menu</SheetTitle>
+                <SheetDescription suppressHydrationWarning>
                   Explore the platform sections or manage your account.
                 </SheetDescription>
               </SheetHeader>
               <nav className="flex flex-col gap-2">
                 {navItems.map((item) => {
-                   if (user && user.id === 'user-123' && item.label === 'Creator Dashboard') {
-                       // Skip or modify 'Website' link for Test Creator in mobile nav as well
-                   }
                   return (
                   <SheetClose asChild key={item.label}>
                     {item.isButton ? (

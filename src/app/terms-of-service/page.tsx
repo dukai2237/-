@@ -2,7 +2,7 @@
 import { FileText } from 'lucide-react';
 
 export const metadata = {
-  title: 'Terms of Service | Manga Reader Platform',
+  title: 'Terms of Service | Manga Walker',
   description: 'Read our Terms of Service.',
 };
 
@@ -16,14 +16,14 @@ export default function TermsOfServicePage() {
 
       <p className="text-lg text-muted-foreground">Last updated: {new Date().toLocaleDateString()}</p>
 
-      <p>Welcome to Manga Reader Platform! These terms and conditions outline the rules and regulations for the use of Manga Reader Platform's Website.</p>
+      <p>Welcome to Manga Walker! These terms and conditions outline the rules and regulations for the use of Manga Walker's Website.</p>
 
       <h2 className="mt-8">1. Introduction</h2>
-      <p>By accessing this website we assume you accept these terms and conditions. Do not continue to use Manga Reader Platform if you do not agree to take all of the terms and conditions stated on this page.</p>
+      <p>By accessing this website we assume you accept these terms and conditions. Do not continue to use Manga Walker if you do not agree to take all of the terms and conditions stated on this page.</p>
 
       <h2 className="mt-6">2. Intellectual Property Rights</h2>
-      <p>Other than the content you own, under these Terms, Manga Reader Platform and/or its licensors own all the intellectual property rights and materials contained in this Website. You are granted limited license only for purposes of viewing the material contained on this Website.</p>
-      <p>Creators retain all rights to their uploaded content, but grant Manga Reader Platform a license to display and distribute it on the platform according to the terms agreed upon during content submission.</p>
+      <p>Other than the content you own, under these Terms, Manga Walker and/or its licensors own all the intellectual property rights and materials contained in this Website. You are granted limited license only for purposes of viewing the material contained on this Website.</p>
+      <p>Creators retain all rights to their uploaded content, but grant Manga Walker a license to display and distribute it on the platform according to the terms agreed upon during content submission.</p>
 
       <h2 className="mt-6">3. User Responsibilities</h2>
       <p>Users are responsible for maintaining the confidentiality of their account information and for all activities that occur under their account. Users agree not to engage in any activity that disrupts or interferes with the Platform's services.</p>
@@ -36,7 +36,7 @@ export default function TermsOfServicePage() {
       <p>Details regarding payments for subscriptions, donations, investments, and merchandise will be outlined in specific sections of the platform. All transactions are subject to platform fees as detailed. Investment in manga series carries financial risk, and users should invest responsibly.</p>
 
       <h2 className="mt-6">6. Limitation of Liability</h2>
-      <p>In no event shall Manga Reader Platform, nor any of its officers, directors and employees, be held liable for anything arising out of or in any way connected with your use of this Website whether such liability is under contract. Manga Reader Platform, including its officers, directors and employees shall not be held liable for any indirect, consequential or special liability arising out of or in any way related to your use of this Website.</p>
+      <p>In no event shall Manga Walker, nor any of its officers, directors and employees, be held liable for anything arising out of or in any way connected with your use of this Website whether such liability is under contract. Manga Walker, including its officers, directors and employees shall not be held liable for any indirect, consequential or special liability arising out of or in any way related to your use of this Website.</p>
 
       <h2 className="mt-6">7. Governing Law & Jurisdiction</h2>
       <p>These Terms will be governed by and interpreted in accordance with the laws of [Your Jurisdiction], and you submit to the non-exclusive jurisdiction of the state and federal courts located in [Your Jurisdiction] for the resolution of any disputes.</p>

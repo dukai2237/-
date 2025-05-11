@@ -55,11 +55,12 @@ export default function SignupPage() {
 
     // Simulate sending verification code
     console.log(`Simulating: Sending verification code to ${email}. For demo, use code: 123456`);
-    toast({
-      title: "Verification Code Sent (Simulated)",
-      description: `A verification code has been "sent" to ${email}. Please check your email. For this demo, you can use the code '123456'.`,
-      duration: 7000,
-    });
+    // In a real app, an email with the code would be sent. The toast informs about the simulation.
+    // toast({
+    //   title: "Verification Code Sent (Simulated)",
+    //   description: `A verification code has been "sent" to ${email}. Please check your email. For this demo, you can use the code '123456'.`,
+    //   duration: 7000,
+    // });
     setIsVerificationCodeSent(true);
     setIsVerifyingEmail(false);
   };
@@ -105,36 +106,36 @@ export default function SignupPage() {
         <CardHeader>
           <CardTitle className="text-2xl">Sign Up</CardTitle>
           <CardDescription>
-            Create your Manga Platform account. Email verification is required. Creator accounts require admin approval after registration.
+            Create your Manga Walker account. Email verification is required. Creator accounts require admin approval after registration.
           </CardDescription>
         </CardHeader>
         <form onSubmit={isVerificationCodeSent ? handleSignup : handleSendVerificationCode}>
           <CardContent className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
-              <Input id="name" placeholder="e.g., John Doe" value={name} onChange={(e) => setName(e.target.value)} required disabled={isSubmitting || isVerifyingEmail} />
+              <Input id="name" placeholder="e.g., John Doe" value={name} onChange={(e) => setName(e.target.value)} required disabled={isSubmitting || isVerifyingEmail || (isVerificationCodeSent && !verificationCode.trim())} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email Address</Label>
-              <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isSubmitting || isVerifyingEmail} />
+              <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isSubmitting || isVerifyingEmail || (isVerificationCodeSent && !verificationCode.trim())} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" placeholder="Choose a strong password" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={isSubmitting || isVerifyingEmail} />
+              <Input id="password" type="password" placeholder="Choose a strong password" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={isSubmitting || isVerifyingEmail || (isVerificationCodeSent && !verificationCode.trim())} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input id="confirmPassword" type="password" placeholder="Confirm your password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required disabled={isSubmitting || isVerifyingEmail}/>
+              <Input id="confirmPassword" type="password" placeholder="Confirm your password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required disabled={isSubmitting || isVerifyingEmail || (isVerificationCodeSent && !verificationCode.trim())}/>
             </div>
             <div className="space-y-3">
               <Label className="text-base">Account Type</Label>
-              <RadioGroup defaultValue="user" value={accountType} onValueChange={(value: 'user' | 'creator') => setAccountType(value)} className="flex space-x-4" disabled={isSubmitting || isVerifyingEmail}>
+              <RadioGroup defaultValue="user" value={accountType} onValueChange={(value: 'user' | 'creator') => setAccountType(value)} className="flex space-x-4" disabled={isSubmitting || isVerifyingEmail || (isVerificationCodeSent && !verificationCode.trim())}>
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="user" id="type-user" disabled={isSubmitting || isVerifyingEmail}/>
+                  <RadioGroupItem value="user" id="type-user" disabled={isSubmitting || isVerifyingEmail || (isVerificationCodeSent && !verificationCode.trim())}/>
                   <Label htmlFor="type-user" className={`font-normal ${(isSubmitting || isVerifyingEmail) ? 'cursor-not-allowed opacity-70': ''}`}>Regular User</Label>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="creator" id="type-creator" disabled={isSubmitting || isVerifyingEmail}/>
+                  <RadioGroupItem value="creator" id="type-creator" disabled={isSubmitting || isVerifyingEmail || (isVerificationCodeSent && !verificationCode.trim())}/>
                   <Label htmlFor="type-creator" className={`font-normal ${(isSubmitting || isVerifyingEmail) ? 'cursor-not-allowed opacity-70': ''}`}>Manga Creator</Label>
                 </div>
               </RadioGroup>
@@ -176,17 +177,17 @@ export default function SignupPage() {
                         disabled={isSubmitting}
                     />
                 </div>
-                <p className="text-xs text-muted-foreground">A (simulated) verification code was sent to your email. Use '123456' for this demo.</p>
+                {/* Removed the demo code display toast from here, it's handled in handleSendVerificationCode now if needed for testing. */}
               </div>
             )}
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
             {!isVerificationCodeSent ? (
-              <Button type="submit" className="w-full text-lg py-3" disabled={isVerifyingEmail || isSubmitting}>
+              <Button type="submit" className="w-full text-lg py-3" disabled={isVerifyingEmail || isSubmitting || !email.trim() || !name.trim() || !password.trim() || !confirmPassword.trim()}>
                 {isVerifyingEmail ? 'Sending Code...' : 'Send Verification Code'}
               </Button>
             ) : (
-              <Button type="submit" className="w-full text-lg py-3" disabled={isSubmitting || !verificationCode}>
+              <Button type="submit" className="w-full text-lg py-3" disabled={isSubmitting || !verificationCode.trim()}>
                 {isSubmitting ? 'Creating Account...' : 'Create Account'}
               </Button>
             )}

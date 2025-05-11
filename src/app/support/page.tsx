@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
 export const metadata = {
-  title: 'Support | Manga Reader Platform',
-  description: 'Get help and support for Manga Reader Platform.',
+  title: 'Support | Manga Walker',
+  description: 'Get help and support for Manga Walker.',
 };
 
 export default function SupportPage() {
@@ -58,13 +58,13 @@ export default function SupportPage() {
               For general inquiries, technical support, or feedback, please email us at:
             </p>
             <p className="font-semibold text-primary text-lg">
-              support@manga-platform.example.com
+              support@manga-walker.example.com
             </p>
             <p className="text-xs text-muted-foreground">
               We aim to respond to all queries within 24-48 business hours.
             </p>
              <Button className="mt-4 w-full" asChild>
-                <a href="mailto:support@manga-platform.example.com">Send an Email</a>
+                <a href="mailto:support@manga-walker.example.com">Send an Email</a>
             </Button>
           </CardContent>
         </Card>

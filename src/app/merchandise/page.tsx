@@ -2,7 +2,7 @@
 import { ShoppingCart } from 'lucide-react';
 
 export const metadata = {
-  title: 'Merchandise | Manga Reader Platform',
+  title: 'Merchandise | Manga Walker',
   description: 'Browse official merchandise from your favorite manga creators.',
 };
 

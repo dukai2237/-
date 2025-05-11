@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Manga Reader Platform',
+  title: 'Manga Walker',
   description: 'Read, subscribe, and support your favorite manga creators.',
 };
 
@@ -35,7 +35,7 @@ export default function RootLayout({
           </main>
           <Toaster />
           <footer className="py-6 text-center text-sm text-muted-foreground border-t">
-            © {new Date().getFullYear()} Manga Reader Platform. All rights reserved.
+            © {new Date().getFullYear()} Manga Walker. All rights reserved.
           </footer>
         </AuthProvider>
       </body>
