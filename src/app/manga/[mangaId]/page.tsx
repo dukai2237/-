@@ -325,7 +325,7 @@ export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageP
                     <a href={`mailto:${manga.authorDetails.email}`} className="hover:text-primary" suppressHydrationWarning>{manga.authorDetails.email}</a>
                   </div>
                 )}
-                {manga.authorDetails.socialLinks?.map(link => (
+                {manga.authorDetails.socialLinks?.filter(link => link.platform.toLowerCase() !== 'website').map(link => (
                   <div key={link.platform} className="flex items-center gap-1.5">
                     <LinkIcon className="h-4 w-4" />
                     <a href={link.url} target="_blank" rel="noopener noreferrer" className="hover:text-primary" suppressHydrationWarning>{link.platform}</a>

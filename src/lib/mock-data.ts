@@ -57,7 +57,7 @@ export let mockAuthors: (AuthorInfo & { contactDetails?: AuthorContactDetails, i
     isSystemUser: true, 
     contactDetails: {
       email: 'test@example.com',
-      socialLinks: [{ platform: 'Website', url: 'https://testcreator.com'}]
+      socialLinks: [] // Removed website link
     },
     walletBalance: 500, 
     bankDetails: { accountHolderName: 'Test Creator', bankName: 'Bank of America', accountNumber: '1122334455', routingNumber: '026009593' },
@@ -135,8 +135,8 @@ export const mockMangaSeriesData: MangaSeries[] = [
     viewCount: 12000,
     isPublished: true,
     comments: [
-      { id: 'comment-1-1', mangaId: 'manga-1', userId: 'user-generic', userName: 'Generic User', userAvatarUrl: 'https://picsum.photos/50/50?random=generic', text: 'Great first chapter!', timestamp: new Date(Date.now() - 1000*60*60*24*2).toISOString()},
-      { id: 'comment-1-2', mangaId: 'manga-1', userId: 'user-another', userName: 'Another Reader', userAvatarUrl: 'https://picsum.photos/50/50?random=another', text: 'Looking forward to more!', timestamp: new Date(Date.now() - 1000*60*60*20).toISOString()},
+      { id: 'comment-1-1', mangaId: 'manga-1', userId: 'user-generic', userName: 'Generic User', userAvatarUrl: 'https://picsum.photos/50/50?random=generic', text: 'Great first chapter!', timestamp: new Date(Date.now() - 1000*60*60*24*2).toISOString(), replies: []},
+      { id: 'comment-1-2', mangaId: 'manga-1', userId: 'user-another', userName: 'Another Reader', userAvatarUrl: 'https://picsum.photos/50/50?random=another', text: 'Looking forward to more!', timestamp: new Date(Date.now() - 1000*60*60*20).toISOString(), replies: []},
     ],
   },
   {
@@ -261,10 +261,7 @@ export const getAuthorById = (id: string): (AuthorInfo & { contactDetails?: Auth
 
 export const getApprovedCreators = (): AuthorInfo[] => {
   return mockAuthors.filter(author => {
-    // Check if the author ID pattern matches 'author-' or if it's the specific 'user-123'
     const isCreatorPattern = author.id.startsWith('author-') || author.id === 'user-123';
-    // Ensure it's not a system user (if that's a distinct category you want to exclude) 
-    // and not 'author-pending'
     return isCreatorPattern && !author.isSystemUser && author.id !== 'author-pending';
   });
 };
@@ -379,8 +376,6 @@ export const addMockMangaSeries = (newManga: MangaSeries) => {
         contactDetails: newManga.authorDetails,
         walletBalance: 0, // Initialize wallet for new author
         isSystemUser: false, 
-        // donationCount: 0, // These are User specific, not AuthorInfo specific
-        // investmentOpportunitiesAvailable: 0,
     };
     mockAuthors.push(newAuthorData);
   }
@@ -459,7 +454,6 @@ export const addCommentToMockManga = (mangaId: string, newComment: Comment, pare
     }
 
     if (parentId) {
-      // Function to find a comment by ID recursively and add a reply
       const findAndAddReply = (comments: Comment[]): boolean => {
         for (let i = 0; i < comments.length; i++) {
           if (comments[i].id === parentId) {
@@ -467,29 +461,29 @@ export const addCommentToMockManga = (mangaId: string, newComment: Comment, pare
               comments[i].replies = [];
             }
             comments[i].replies!.push(newComment);
-            return true; // Reply added
+            return true; 
           }
           if (comments[i].replies && findAndAddReply(comments[i].replies!)) {
-            return true; // Reply added in a nested reply
+            return true; 
           }
         }
-        return false; // Parent comment not found at this level
+        return false; 
       };
 
       if (findAndAddReply(manga.comments)) {
-        modifiableMockMangaSeries[mangaIndex] = manga; // Update the main array
+        modifiableMockMangaSeries[mangaIndex] = manga; 
         return newComment;
       } else {
         console.warn(`Parent comment with ID ${parentId} not found for manga ${mangaId}.`);
-        return null; // Parent comment not found
+        return null; 
       }
     } else {
-      // Add as a top-level comment
       manga.comments.push(newComment);
-      modifiableMockMangaSeries[mangaIndex] = manga; // Update the main array
+      modifiableMockMangaSeries[mangaIndex] = manga; 
       return newComment;
     }
   }
   console.warn(`Manga with ID ${mangaId} not found.`);
-  return null; // Manga not found
+  return null; 
 };
+

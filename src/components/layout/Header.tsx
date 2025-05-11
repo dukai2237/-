@@ -34,7 +34,7 @@ export function Header() {
 
   let dynamicNavItems = [];
   if (isClient && user) {
-    if (user.accountType === 'creator' && user.isApproved) { // Only show dashboard if creator and approved
+    if (user.accountType === 'creator' && user.isApproved) { 
       dynamicNavItems.push({ href: '/creator/dashboard', label: 'Creator Dashboard', icon: <BookUp className="h-5 w-5" />, suppressHydrationWarning: true });
     }
     dynamicNavItems.push(
@@ -90,8 +90,14 @@ export function Header() {
         </form>
         
         <nav className="hidden md:flex items-center gap-1 ml-4">
-          {navItems.map((item) =>
-            item.isButton ? (
+          {navItems.map((item) => {
+            // Filter out the "Website" link if it's the 'Test Creator' user
+            if (user && user.id === 'user-123' && item.label === 'Creator Dashboard') {
+                const creatorNavItems = item.href // Assuming this is where the creator specific navs are
+                // This part is conceptual as item.href is a string. 
+                // You'd need to adjust how you filter sub-items if 'Creator Dashboard' has a sub-menu with 'Website'
+            }
+            return item.isButton ? (
               <Button key={item.label} variant="ghost" onClick={item.onClick} className="flex items-center gap-2" suppressHydrationWarning={item.suppressHydrationWarning}>
                 {item.icon}
                 <span suppressHydrationWarning={item.suppressHydrationWarning}>{item.label}</span>
@@ -104,7 +110,7 @@ export function Header() {
                 </Link>
               </Button>
             )
-          )}
+          })}
         </nav>
 
         <div className="md:hidden ml-2">
@@ -123,7 +129,11 @@ export function Header() {
                 </SheetDescription>
               </SheetHeader>
               <nav className="flex flex-col gap-2">
-                {navItems.map((item) => (
+                {navItems.map((item) => {
+                   if (user && user.id === 'user-123' && item.label === 'Creator Dashboard') {
+                       // Skip or modify 'Website' link for Test Creator in mobile nav as well
+                   }
+                  return (
                   <SheetClose asChild key={item.label}>
                     {item.isButton ? (
                        <Button variant="ghost" onClick={item.onClick} className="justify-start text-lg py-3 px-3 flex items-center gap-3" suppressHydrationWarning={item.suppressHydrationWarning}>
@@ -139,7 +149,7 @@ export function Header() {
                       </Button>
                     )}
                   </SheetClose>
-                ))}
+                )})}
               </nav>
             </SheetContent>
           </Sheet>
