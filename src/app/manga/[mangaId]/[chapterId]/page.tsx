@@ -17,7 +17,7 @@ export async function generateMetadata({ params }: MangaReaderPageProps) {
     return { title: 'Chapter Not Found' };
   }
   return {
-    title: `${manga.title} - Chapter ${chapter.chapterNumber} by ${manga.author.name} | Manga Platform`,
+    title: `${manga.title} - Chapter ${chapter.chapterNumber} by ${manga.author.name} | Manga Walker`,
     description: `Reading ${manga.title}, Chapter ${chapter.chapterNumber}: ${chapter.title}. Authored by ${manga.author.name}.`,
   };
 }
@@ -54,9 +54,11 @@ export default function MangaReaderPage({ params }: MangaReaderPageProps) {
         pages={chapter.pages} 
         mangaId={mangaId} 
         chapterId={chapterId} 
-        initialManga={manga} // Pass full manga object
-        initialChapterNumber={chapter.chapterNumber} // Pass chapter number for paywall logic
+        initialManga={manga} 
+        initialChapterNumber={chapter.chapterNumber}
+        key={`${mangaId}-${chapterId}-${chapter.pages.length}`} // Add key to re-mount on critical changes
       />
     </div>
   );
 }
+
