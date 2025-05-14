@@ -6,15 +6,16 @@ import { Label } from "@/components/ui/label";
 import { useAuth, MOCK_USER_VALID } from "@/contexts/AuthContext";
 import type { User } from "@/lib/types";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, type FormEvent, useEffect } from "react";
+import { useState, type FormEvent, useEffect, Suspense } from "react"; // Import Suspense
 import Link from "next/link";
 
-export default function LoginPage() {
+// Extracted content into a new component
+function LoginFormContent() {
   const { user: loggedInUser, login } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [email, setEmail] = useState("test@example.com"); // Default to MOCK_USER_VALID's email
-  const [password, setPassword] = useState("password123"); // Mock password
+  const [email, setEmail] = useState("test@example.com");
+  const [password, setPassword] = useState("password123");
 
   useEffect(() => {
     if (loggedInUser) {
@@ -23,19 +24,12 @@ export default function LoginPage() {
     }
   }, [loggedInUser, router, searchParams]);
 
-
   const handleMockLogin = (e: FormEvent) => {
     e.preventDefault();
-    // In a real app, you'd validate credentials against a backend.
-    // For this mock, if email matches MOCK_USER_VALID, log them in as that user (a creator).
-    // Otherwise, log in as a generic new user (regular user type).
     let userToLogin: User;
     if (email === MOCK_USER_VALID.email) {
       userToLogin = MOCK_USER_VALID;
     } else {
-      // Simulate logging in a non-creator user if email doesn't match MOCK_USER_VALID
-      // This part is highly conceptual for a mock login without actual user database.
-      // We'll create a new mock 'user' type user on the fly for this demo.
       userToLogin = {
         id: `user-${Date.now()}`,
         email: email,
@@ -45,12 +39,10 @@ export default function LoginPage() {
         subscriptions: [],
         investments: [],
         authoredMangaIds: [],
-        accountType: 'user', 
+        accountType: 'user',
       };
     }
-    
     login(userToLogin);
-    // Redirection is handled by the useEffect hook above once loggedInUser state updates.
   };
 
   return (
@@ -78,12 +70,20 @@ export default function LoginPage() {
             <Button type="submit" className="w-full text-lg py-3">
               Login (Mock)
             </Button>
-             <p className="text-sm text-center text-muted-foreground">
+            <p className="text-sm text-center text-muted-foreground">
               No account? <Link href="/signup" className="text-primary hover:underline">Sign up here</Link>
             </p>
           </CardFooter>
         </form>
       </Card>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="flex justify-center items-center py-12"><p>Loading page...</p></div>}>
+      <LoginFormContent />
+    </Suspense>
   );
 }
