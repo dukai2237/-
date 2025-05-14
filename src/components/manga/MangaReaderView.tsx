@@ -45,59 +45,54 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
 
   const totalPages = pages.length;
 
-  // Effect 1: Determine and set the initial/current page index
+  // Effect 1: Determine and set the initial page index when critical props change.
   useEffect(() => {
     if (pages.length === 0) {
-      if (currentPageIndex !== 0) {
-        setCurrentPageIndex(0);
-      }
+      setCurrentPageIndex(0);
       setIsImageLoading(false);
       setError(null);
       return;
     }
 
-    let targetPageIndex = 0;
+    let initialTargetPageIndex = 0;
     const history = getViewingHistory(mangaId);
 
     if (history && history.chapterId === chapterId && history.pageIndex >= 0 && history.pageIndex < pages.length) {
-      targetPageIndex = history.pageIndex;
+      initialTargetPageIndex = history.pageIndex;
     } else {
-      const hash = typeof window !== 'undefined' ? window.location.hash : '';
-      if (hash.startsWith("#page=")) {
-        const pageNumFromHash = parseInt(hash.substring(6), 10);
-        if (!isNaN(pageNumFromHash) && pageNumFromHash > 0 && pageNumFromHash <= pages.length) {
-          targetPageIndex = pageNumFromHash - 1;
+      if (typeof window !== 'undefined') {
+        const hash = window.location.hash;
+        if (hash.startsWith("#page=")) {
+          const pageNumFromHash = parseInt(hash.substring(6), 10);
+          if (!isNaN(pageNumFromHash) && pageNumFromHash > 0 && pageNumFromHash <= pages.length) {
+            initialTargetPageIndex = pageNumFromHash - 1;
+          }
         }
       }
     }
     
-    setCurrentPageIndex(prevCurrentPageIndex => {
-        if (targetPageIndex !== prevCurrentPageIndex) {
-            return targetPageIndex;
-        }
-        return prevCurrentPageIndex; 
-    });
-  }, [mangaId, chapterId, pages, getViewingHistory]);
+    // Set current page only if it's different, to avoid unnecessary re-renders from this effect
+    if (currentPageIndex !== initialTargetPageIndex) {
+      setCurrentPageIndex(initialTargetPageIndex);
+    }
+    
+    setIsImageLoading(true); 
+    setError(null);
+
+  // getViewingHistory is potentially unstable if it returns new function reference.
+  // pages.length is more stable than `pages` object itself.
+  }, [mangaId, chapterId, pages.length, getViewingHistory]); // Removed currentPageIndex from deps
 
 
   const handleNextPage = useCallback(() => {
-    setCurrentPageIndex((prev) => {
-      if (prev < totalPages - 1) {
-        return prev + 1;
-      }
-      return prev;
-    });
+    setCurrentPageIndex((prev) => Math.min(prev + 1, totalPages - 1));
   }, [totalPages]);
 
   const handlePrevPage = useCallback(() => {
-    setCurrentPageIndex((prev) => {
-      if (prev > 0) {
-        return prev - 1;
-      }
-      return prev;
-    });
+    setCurrentPageIndex((prev) => Math.max(prev - 1, 0));
   }, []);
 
+  // Effect for keyboard navigation
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
@@ -113,12 +108,14 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleNextPage, handlePrevPage]);
 
+  // Effect for updating viewing history
   useEffect(() => {
     if (user && mangaId && chapterId && user.accountType === 'user' && totalPages > 0 && currentPageIndex >= 0 && currentPageIndex < totalPages) {
       updateViewingHistory(mangaId, chapterId, currentPageIndex);
     }
   }, [currentPageIndex, mangaId, chapterId, user, updateViewingHistory, totalPages]);
 
+  // Effect for updating URL hash
   useEffect(() => {
     if (totalPages > 0 && typeof window !== 'undefined' && currentPageIndex >= 0 && currentPageIndex < totalPages) {
       const newUrl = `${pathname}${searchParams.toString() ? '?' + searchParams.toString() : ''}#page=${currentPageIndex + 1}`;
@@ -126,6 +123,7 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
     }
   }, [currentPageIndex, totalPages, pathname, searchParams]);
 
+  // Effect for handling image loading state changes based on currentPageIndex or totalPages
   useEffect(() => {
     if (totalPages === 0) {
       setIsImageLoading(false);
@@ -137,9 +135,9 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
       setIsImageLoading(false);
       return;
     }
-    setIsImageLoading(true);
+    setIsImageLoading(true); // Assume new page needs loading
     setError(null); 
-  }, [currentPageIndex, totalPages]); 
+  }, [currentPageIndex, totalPages]);
 
 
   const currentPageData = (totalPages > 0 && currentPageIndex >= 0 && currentPageIndex < totalPages) ? pages[currentPageIndex] : null;
@@ -159,9 +157,9 @@ export function MangaReaderView({ pages, mangaId, chapterId, initialManga, initi
     const isLeftSwipe = distance > MIN_SWIPE_DISTANCE;
     const isRightSwipe = distance < -MIN_SWIPE_DISTANCE;
 
-    if (isLeftSwipe && currentPageIndex < totalPages - 1) {
+    if (isLeftSwipe) {
       handleNextPage();
-    } else if (isRightSwipe && currentPageIndex > 0) {
+    } else if (isRightSwipe) {
       handlePrevPage();
     }
 
