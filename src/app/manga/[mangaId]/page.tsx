@@ -1,626 +1,298 @@
-"use client";
-import Image from 'next/image';
-import { notFound, useRouter } from 'next/navigation';
-import { getMangaById } from '@/lib/mock-data';
-import { ChapterListItem } from '@/components/manga/ChapterListItem';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
-import { DollarSign, Gift, TrendingUp, CheckCircle, Landmark, Users, Percent, Info, PiggyBank, Ticket, Mail, Link as LinkIcon, ThumbsUp, ThumbsDown, Meh, Lock, Heart, Edit2, Share2 } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
+'use client';
+
 import Link from 'next/link';
-import { useState, useEffect, use } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogClose,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import type { MangaSeries } from '@/lib/types';
-import { MANGA_GENRES_DETAILS } from '@/lib/constants';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import dynamic from 'next/dynamic';
+import { use, useState } from 'react';
+import { getMangaById } from '@/lib/mock-data';
+import { CommentSection } from '@/components/manga/CommentSection';
 import { ShareMangaDialog } from '@/components/manga/ShareMangaDialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { Star } from 'lucide-react';
 
-const CommentSection = dynamic(() =>
-  import('@/components/manga/CommentSection').then((mod) => mod.CommentSection),
-  {
-    loading: () => <p className="text-center p-4">Loading comments...</p>,
-    ssr: false 
-  }
-);
-
-
-interface MangaDetailPageProps {
-  params: { mangaId: string };
-}
-
-export default function MangaDetailPage({ params: paramsProp }: MangaDetailPageProps) {
-  const resolvedParams = use(paramsProp);
-  const mangaId = resolvedParams.mangaId;
-
-  const [manga, setManga] = useState<MangaSeries | undefined>(undefined);
-  const { user, isSubscribedToManga, purchaseAccess, donateToManga, investInManga, rateManga, isFavorited, toggleFavorite } = useAuth();
+export default function MangaDetailPage({ params }: { params: Promise<{ mangaId: string }> }) {
+  const { mangaId } = use(params);
+  const manga = getMangaById(mangaId);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [payType, setPayType] = useState<'subscribe'|'donate'|'invest'|null>(null);
+  const [payAmount, setPayAmount] = useState('');
+  const [isPayPal, setIsPayPal] = useState(false);
+  const [rating, setRating] = useState<number>(0);
+  const [isRating, setIsRating] = useState(false);
   const { toast } = useToast();
-  const router = useRouter();
-
-  const [donationAmount, setDonationAmount] = useState<string>("");
-  const [investmentShares, setInvestmentShares] = useState<string>("");
-  const [isDonationDialogOpen, setIsDonationDialogOpen] = useState(false);
-  const [isInvestmentDialogOpen, setIsInvestmentDialogOpen] = useState(false);
-  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
-  const [currentUrl, setCurrentUrl] = useState("");
-
-
-  useEffect(() => {
-    const currentMangaData = getMangaById(mangaId);
-    if (!currentMangaData || !currentMangaData.isPublished) { 
-      setManga(undefined);
-      const timer = setTimeout(() => {
-        const freshCheck = getMangaById(mangaId);
-        if(!freshCheck || !freshCheck.isPublished) {
-          notFound();
-        } else {
-          setManga(freshCheck);
-        }
-      }, 200); 
-      return () => clearTimeout(timer);
-    } else {
-      setManga(currentMangaData);
-    }
-  }, [mangaId]);
-
-
-  useEffect(() => {
-    if (!mangaId) return;
-    const interval = setInterval(() => {
-      const freshMangaData = getMangaById(mangaId);
-      if (freshMangaData && freshMangaData.isPublished) { 
-        setManga(prevManga => {
-          if (JSON.stringify(freshMangaData) !== JSON.stringify(prevManga)) {
-            return freshMangaData; 
-          }
-          return prevManga;
-        });
-      }
-    }, 1000); 
-    return () => clearInterval(interval);
-  }, [mangaId]); 
-
-  useEffect(() => {
-    if (typeof window !== "undefined" && manga) {
-      const origin = window.location.origin;
-      setCurrentUrl(`${origin}/manga/${manga.id}`);
-    }
-  }, [manga]);
-
+  const { user, investInManga, purchaseAccess, donateToManga, rateManga, isSubscribedToManga, hasPurchasedChapter } = useAuth();
 
   if (!manga) {
-    return <div className="text-center py-10" suppressHydrationWarning={true}>Loading manga details or manga not found/unpublished...</div>;
+    return <div>404 Not Found</div>;
   }
 
-  const getGenreName = (genreId: string) => {
-    const genreDetail = MANGA_GENRES_DETAILS.find(g => g.id === genreId);
-    return genreDetail ? genreDetail.name : genreId;
-  };
+  // 权限与状态判断
+  const isCreator = user?.accountType === 'creator';
+  const isOwnManga = user && manga.author.id === user.id;
+  // 访问权限判断（订阅、购买、投资）
+  const isSubscribed = user && isSubscribedToManga(manga.id);
+  const hasPurchased = user && manga.chapters.some(ch => hasPurchasedChapter(manga.id, ch.id));
+  const isInvestor = user && manga.investmentOffer && manga.investmentOffer.isActive && user.investments?.some(inv => inv.mangaId === manga.id);
+  // 评分权限：仅普通用户且非作者可评分
+  const canRate = user && user.accountType === 'user' && !isOwnManga;
 
-  const isCreatorViewingOwnManga = user?.accountType === 'creator' && user?.id === manga.author.id;
-  const isCreatorViewingOtherManga = user?.accountType === 'creator' && user?.id !== manga.author.id;
-
-
-  const handleSubscribe = async () => {
-    if (isCreatorViewingOtherManga || user?.accountType === 'creator') {
-        toast({ title: "Action Not Allowed", description: "Creators cannot subscribe to manga series.", variant: "destructive" });
-        return;
-    }
-    if (!user) {
-      toast({ title: "Login Required", description: "Please login to subscribe.", variant: "destructive", action: <Button onClick={() => router.push('/login?redirect=/manga/' + mangaId)}>Login</Button> });
+  // 评分提交
+  const handleRate = async (score: 1 | 2 | 3) => {
+    if (!canRate) {
+      toast({ title: '无法评分', description: isCreator ? '创作者不能为漫画评分' : '请先解锁本漫画后再评分', variant: 'destructive' });
       return;
     }
-    if (manga.subscriptionPrice && manga.subscriptionModel === 'monthly') {
-      await purchaseAccess(manga.id, 'monthly', manga.id, manga.subscriptionPrice);
-    } else {
-      toast({ title: "Cannot Subscribe", description: "This manga has no monthly subscription price set or is not on a monthly model.", variant: "destructive" });
-    }
-  };
-
-  const handleOpenDonationDialog = () => {
-     if (isCreatorViewingOtherManga || user?.accountType === 'creator') {
-        toast({ title: "Action Not Allowed", description: "Creators cannot donate to other creators' works.", variant: "destructive" });
-        return;
-    }
-     if (!user) {
-      toast({ title: "Login Required", description: "Please login to donate.", variant: "destructive", action: <Button onClick={() => router.push('/login?redirect=/manga/' + mangaId)}>Login</Button> });
-      return;
-    }
-    setIsDonationDialogOpen(true);
-  }
-
-  const handleDonate = async () => {
-    if (!user) return;
-     if (isCreatorViewingOtherManga || user.accountType === 'creator') {
-        toast({ title: "Action Not Allowed", description: "Creators cannot donate to other creators' works.", variant: "destructive" });
-        setIsDonationDialogOpen(false);
-        return;
-    }
-    const amount = parseFloat(donationAmount);
-    if (isNaN(amount) || amount <= 0) {
-      toast({ title: "Invalid Amount", description: "Please enter a valid positive amount to donate.", variant: "destructive" });
-      return;
-    }
-    const success = await donateToManga(manga.id, manga.title, manga.author.id, amount);
-    if (success) {
-      setDonationAmount("");
-      setIsDonationDialogOpen(false);
-    }
-  };
-
-  const handleOpenInvestmentDialog = () => {
-    if (isCreatorViewingOtherManga || user?.accountType === 'creator') {
-        toast({ title: "Action Not Allowed", description: "Creators cannot invest in other creators' works.", variant: "destructive" });
-        return;
-    }
-    if (!user) {
-      toast({ title: "Login Required", description: "Please login to invest.", variant: "destructive", action: <Button onClick={() => router.push('/login?redirect=/manga/' + mangaId)}>Login</Button> });
-      return;
-    }
-     if (!manga.investmentOffer || !manga.investmentOffer.isActive) {
-      toast({ title: "Investment Closed", description: "This manga is not currently open for investment.", variant: "destructive" });
-      return;
-    }
-    const combinedActions = (user.subscriptions?.length || 0) + (user.donationCount || 0);
-    if ((user.investmentOpportunitiesAvailable || 0) <= 0) {
-        toast({ title: "Investment Locked", description: `You need an available investment opportunity. Earn one by making 5 combined subscriptions or donations. You currently have ${user.investmentOpportunitiesAvailable || 0} opportunities and ${combinedActions} combined actions.`, variant: "destructive", duration: 8000 });
-        return;
-    }
-    if (manga.investmentOffer.minSubscriptionRequirement && (!user.subscriptions || user.subscriptions.filter(s => s.type === 'monthly' && s.mangaId === manga.id).length < manga.investmentOffer.minSubscriptionRequirement)) {
-        toast({ title: "Author's Investment Requirement Not Met", description: `The author requires you to subscribe to *this specific manga* at least ${manga.investmentOffer.minSubscriptionRequirement} times (monthly) to invest. You currently have ${user.subscriptions?.filter(s=>s.type==='monthly' && s.mangaId === manga.id).length || 0} monthly subscriptions for this manga.`, variant: "destructive", duration: 8000 });
-        return;
-    }
-    setIsInvestmentDialogOpen(true);
-  }
-
-  const handleInvest = async () => {
-    if (!user || !manga.investmentOffer) return;
-    if (isCreatorViewingOtherManga || user.accountType === 'creator') {
-        toast({ title: "Action Not Allowed", description: "Creators cannot invest in other creators' works.", variant: "destructive" });
-        setIsInvestmentDialogOpen(false);
-        return;
-    }
-    const combinedActions = (user.subscriptions?.length || 0) + (user.donationCount || 0);
-    if ((user.investmentOpportunitiesAvailable || 0) <= 0) { 
-        toast({ title: "Investment Locked", description: `No investment opportunities available. You have ${combinedActions} combined actions.`, variant: "destructive" });
-        setIsInvestmentDialogOpen(false);
-        return;
-    }
-    const shares = parseInt(investmentShares);
-    if (isNaN(shares) || shares <= 0) {
-      toast({ title: "Invalid Shares", description: "Please enter a valid positive number of shares.", variant: "destructive" });
-      return;
-    }
-    const totalCost = shares * manga.investmentOffer.pricePerShare;
-    const success = await investInManga(manga.id, manga.title, shares, manga.investmentOffer.pricePerShare, totalCost);
-    if (success) {
-      setInvestmentShares("");
-      setIsInvestmentDialogOpen(false);
-    }
-  };
-
-  const handleRating = async (score: 1 | 2 | 3) => {
-     if (isCreatorViewingOtherManga || user?.accountType === 'creator') {
-        toast({ title: "Action Not Allowed", description: "Creators cannot rate other creators' works.", variant: "destructive" });
-        return;
-    }
-    if (!user) {
-      toast({ title: "Login Required", description: "Please login to rate.", variant: "destructive", action: <Button onClick={() => router.push('/login?redirect=/manga/' + mangaId)}>Login</Button> });
-      return;
-    }
+    setIsRating(true);
     await rateManga(manga.id, score);
+    setRating(score);
+    setIsRating(false);
+    toast({ title: '感谢您的评分！', description: `您为本漫画打了${score}星。` });
   };
 
-  const handleToggleFavorite = () => {
-     if (isCreatorViewingOtherManga || user?.accountType === 'creator') {
-        toast({ title: "Action Not Allowed", description: "Creators cannot favorite other creators' works.", variant: "destructive" });
-        return;
+  // 支付/投资校验
+  const validatePayAmount = () => {
+    if (!payAmount || Number(payAmount) <= 0) return false;
+    if (payType === 'invest' && manga.investmentOffer) {
+      const price = manga.investmentOffer.pricePerShare;
+      return Number(payAmount) % price === 0;
     }
-    if (!user) {
-        toast({ title: "Login Required", description: "Please login to favorite manga.", variant: "destructive", action: <Button onClick={() => router.push('/login?redirect=/manga/' + mangaId)}>Login</Button> });
-        return;
+    return true;
+  };
+
+  // 支付处理
+  const handlePayment = async () => {
+    if (!validatePayAmount()) {
+      toast({ title: '金额无效', description: payType === 'invest' ? `投资金额需为每股单价（${manga.investmentOffer?.pricePerShare}）的整数倍` : '请输入有效金额', variant: 'destructive' });
+      return;
     }
-    toggleFavorite(manga.id, manga.title);
+    setPayType(null);
+    if (payType === 'subscribe') {
+      const accessType = manga.subscriptionModel === 'monthly' ? 'monthly' : 'chapter';
+      await purchaseAccess(manga.id, accessType, manga.id, Number(payAmount));
+      toast({ title: '订阅成功', description: '您已成功订阅本漫画。' });
+    } else if (payType === 'donate') {
+      await donateToManga(manga.id, manga.title, manga.author.id, Number(payAmount));
+      toast({ title: '打赏成功', description: '感谢您的支持！' });
+    } else if (payType === 'invest') {
+      const shares = Math.floor(Number(payAmount) / (manga.investmentOffer?.pricePerShare || 1));
+      await investInManga(manga.id, manga.title, shares, Number(payAmount), Number(payAmount));
+      toast({ title: '投资成功', description: '感谢您对本漫画的投资！' });
+    }
   };
 
-  const isUserSubscribed = user ? isSubscribedToManga(manga.id) : false;
-  const userRating = user?.ratingsGiven?.[manga.id];
-  const hasChapterPurchaseForThisManga = user ? user.subscriptions.some(sub => sub.mangaId === manga.id && sub.type === 'chapter') : false;
-  const hasInvestmentInThisManga = user ? user.investments.some(inv => inv.mangaId === manga.id) : false;
-
-  const canRate = user && user.accountType !== 'creator' && (isUserSubscribed || hasChapterPurchaseForThisManga || hasInvestmentInThisManga) && !userRating;
-
-  const ratingDisabledReason = () => {
-    if (user?.accountType === 'creator') return "Creators cannot rate manga.";
-    if (!user) return "Login to rate";
-    if (!isUserSubscribed && !hasChapterPurchaseForThisManga && !hasInvestmentInThisManga) return "Subscribe, purchase a chapter, or invest to rate";
-    if (userRating) return `You've already rated (${userRating}/3)`;
-    return "";
+  // PayPal 支付模拟
+  const handlePayPal = () => {
+    setIsPayPal(false);
+    setPayType(null);
+    toast({ title: 'PayPal 支付', description: '模拟 PayPal 支付成功。' });
   };
-  const userHasFavorited = user ? isFavorited(manga.id) : false;
-
-  const currentInvestmentOffer = manga.investmentOffer;
-  const sharesRemaining = currentInvestmentOffer ? currentInvestmentOffer.totalSharesInOffer - manga.investors.reduce((sum, inv) => sum + inv.sharesOwned, 0) : 0;
-  
-  const combinedActionsForInvestment = user ? (user.subscriptions?.length || 0) + (user.donationCount || 0) : 0;
-  const canUserInvest = user && user.accountType !== 'creator' && (user.investmentOpportunitiesAvailable || 0) > 0;
-
-  const canUserInvestAuthorSpecific = user && currentInvestmentOffer && currentInvestmentOffer.minSubscriptionRequirement
-    ? (user.subscriptions?.filter(s => s.type === 'monthly' && s.mangaId === manga.id).length || 0) >= currentInvestmentOffer.minSubscriptionRequirement
-    : true; 
-
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <Card className="overflow-hidden shadow-lg">
-        <CardContent className="p-0 md:p-6 md:flex md:gap-8">
-          <div className="md:w-1/3 aspect-[2/3] md:aspect-auto relative">
-            <Image
-              src={manga.coverImage}
-              alt={`Cover of ${manga.title}`}
-              width={400}
-              height={600}
-              className="w-full h-full object-cover md:rounded-lg"
-              data-ai-hint="manga cover"
-              priority
+    <div style={{ width: '100%', minHeight: '100vh', background: '#f7f7fa', padding: '32px 0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      {/* 主卡片 */}
+      <div style={{
+        width: '100%', maxWidth: 900, background: '#fff', borderRadius: 18, boxShadow: '0 4px 32px #0002', display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: 32, padding: 32, marginBottom: 32
+      }}>
+        {/* 封面 */}
+        <img src={manga.coverImage || '/default-cover.png'} alt={manga.title} style={{ width: 220, height: 320, objectFit: 'cover', borderRadius: 12, boxShadow: '0 2px 12px #0003', background: '#eee', flexShrink: 0 }} />
+        {/* 信息区 */}
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ fontSize: 36, fontWeight: 900, color: '#23243a', lineHeight: 1.2 }}>{manga.title}</div>
+          {/* 作者联系方式展示优化 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 18, color: '#666', fontWeight: 500 }}>Author:</span>
+            <span style={{ fontSize: 18, color: '#23243a', fontWeight: 700 }}>{manga.author.name}</span>
+            {manga.author.contactDetails?.email && (
+              <a href={`mailto:${manga.author.contactDetails.email}`} style={{ color: '#2563eb', fontSize: 15, marginLeft: 8, textDecoration: 'underline' }}>{manga.author.contactDetails.email}</a>
+            )}
+            {manga.author.contactDetails?.socialLinks && manga.author.contactDetails.socialLinks.length > 0 && (
+              <span style={{ color: '#888', fontSize: 15, marginLeft: 8, display: 'flex', gap: 6 }}>
+                {manga.author.contactDetails.socialLinks.map((link: any, idx: number) => (
+                  <a key={idx} href={link.url} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'underline', marginRight: 4 }}>{link.platform}</a>
+                ))}
+              </span>
+            )}
+          </div>
+          {/* 简介 */}
+          <div style={{ fontSize: 16, color: '#444', margin: '8px 0 2px 0', lineHeight: 1.7, maxHeight: 90, overflow: 'auto' }}>{manga.summary}</div>
+          {/* 标签 */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '4px 0' }}>
+            {manga.genres?.map((g, i) => <span key={g} style={{ background: '#f3f4f6', color: '#6b7280', fontSize: 14, borderRadius: 6, padding: '3px 12px', fontWeight: 500 }}>{g}</span>)}
+          </div>
+          {/* 评分优化：仅普通用户且非作者可评分 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0' }}>
+            <span style={{ fontWeight: 600 }}>Rating:</span>
+            <span style={{ color: '#f59e42', fontWeight: 700, fontSize: 18 }}>{manga.averageRating?.toFixed(2) || '--'}</span>
+            <span style={{ color: '#888', fontSize: 14 }}>({manga.ratingCount || 0} ratings)</span>
+            {canRate && (
+              <>
+                {[1, 2, 3].map((s) => (
+                  <button key={s} onClick={() => handleRate(s as 1 | 2 | 3)} disabled={isRating} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginLeft: 4 }} title={`Rate ${s}`}>
+                    <Star size={22} color={rating >= s ? '#f59e42' : '#bbb'} fill={rating >= s ? '#f59e42' : 'none'} />
+                  </button>
+                ))}
+              </>
+            )}
+            {!user && <span style={{ color: '#aaa', fontSize: 14, marginLeft: 8 }}>(Login to rate)</span>}
+            {user && !canRate && <span style={{ color: '#aaa', fontSize: 14, marginLeft: 8 }}>(Only non-authors can rate)</span>}
+          </div>
+          {/* 分享按钮 */}
+          <div style={{ margin: '8px 0 0 0', display: 'flex', gap: 12 }}>
+            <button
+              style={{ background: '#fff', color: '#2563eb', border: '1px solid #2563eb', borderRadius: 8, padding: '8px 24px', fontWeight: 700, fontSize: 16, cursor: 'pointer', boxShadow: '0 1px 6px #2563eb11', display: 'flex', alignItems: 'center', gap: 8 }}
+              onClick={() => setShareOpen(true)}
+            >
+              <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M17 8.5a2.5 2.5 0 1 0-2.45-3.01l-5.1 2.04a2.5 2.5 0 1 0 0 3.94l5.1 2.04A2.5 2.5 0 1 0 17 15.5a2.5 2.5 0 0 0-2.45-3.01l-5.1-2.04a2.5 2.5 0 1 0 0-3.94l5.1-2.04A2.5 2.5 0 1 0 17 8.5z" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              分享
+            </button>
+            <ShareMangaDialog
+              mangaTitle={manga.title}
+              mangaUrl={typeof window !== 'undefined' ? window.location.href : `https://mangawalker.com/manga/${manga.id}`}
+              isOpen={shareOpen}
+              onOpenChange={setShareOpen}
             />
           </div>
-          <div className="md:w-2/3 p-6 md:p-0 flex flex-col">
-            <div className="flex justify-between items-start mb-1">
-                <h1 className="text-3xl lg:text-4xl font-bold " suppressHydrationWarning>{manga.title}</h1>
-                <div className="flex items-center">
-                    {user && user.accountType !== 'creator' && (
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={handleToggleFavorite}
-                            className="text-muted-foreground hover:text-primary"
-                            title={userHasFavorited ? "Remove from Favorites" : "Add to Favorites"}
-                            suppressHydrationWarning
-                        >
-                            <Heart className={`h-6 w-6 ${userHasFavorited ? 'fill-primary text-primary' : ''}`} />
-                        </Button>
-                    )}
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setIsShareDialogOpen(true)}
-                        className="text-muted-foreground hover:text-primary ml-1"
-                        title="Share this Manga"
-                        suppressHydrationWarning
-                    >
-                        <Share2 className="h-6 w-6" />
-                    </Button>
-                </div>
-            </div>
-            <div className="flex items-center gap-3 mb-1 text-muted-foreground">
-              <Avatar className="h-10 w-10">
-                <AvatarImage src={manga.author.avatarUrl} alt={manga.author.name} data-ai-hint="author avatar" />
-                <AvatarFallback suppressHydrationWarning>{manga.author.name?.[0]}</AvatarFallback>
-              </Avatar>
-              <span className="text-lg font-medium" suppressHydrationWarning>{manga.author.name}</span>
-            </div>
-
-            {manga.authorDetails && (manga.authorDetails.email || (manga.authorDetails.socialLinks && manga.authorDetails.socialLinks.length > 0)) && (
-              <div className="mb-3 text-sm text-muted-foreground space-y-1">
-                {manga.authorDetails.email && (
-                  <div className="flex items-center gap-1.5">
-                    <Mail className="h-4 w-4" />
-                    <a href={`mailto:${manga.authorDetails.email}`} className="hover:text-primary" suppressHydrationWarning>{manga.authorDetails.email}</a>
-                  </div>
-                )}
-                {manga.authorDetails.socialLinks?.filter(link => link.platform.toLowerCase() !== 'website').map(link => (
-                  <div key={link.platform} className="flex items-center gap-1.5">
-                    <LinkIcon className="h-4 w-4" />
-                    <a href={link.url} target="_blank" rel="noopener noreferrer" className="hover:text-primary" suppressHydrationWarning>{link.platform}</a>
-                  </div>
-                ))}
+          {/* 投资/众筹信息优化，增加说明与校验 */}
+          {manga.investmentOffer && manga.investmentOffer.isActive && (
+            <div style={{
+              background: '#f0f6ff', border: '1px solid #b6d4fe', borderRadius: 10, padding: '18px 22px', margin: '10px 0 0 0', color: '#1d3b5a', boxShadow: '0 1px 8px #2563eb11', fontSize: 16
+            }}>
+              <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 6, color: '#2563eb' }}>Investment Opportunity Open</div>
+              <div style={{ marginBottom: 4 }}>
+                <b>Details:</b> {manga.investmentOffer.description}
               </div>
-            )}
-
-            <div className="flex flex-wrap gap-2 mb-4">
-              {manga.genres.map((genreId) => (
-                <Badge key={genreId} variant="outline" suppressHydrationWarning>{getGenreName(genreId)}</Badge>
-              ))}
+              <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 4 }}>
+                <span>Total Dividend Ratio: <b>{manga.investmentOffer.sharesOfferedTotalPercent}%</b></span>
+                <span>Shares Available: <b>{manga.investmentOffer.totalSharesInOffer}</b></span>
+                <span>Price per Share: <b>{manga.investmentOffer.pricePerShare} USD</b></span>
+                {manga.investmentOffer.minSubscriptionRequirement && <span>Min Subscriptions Required: <b>{manga.investmentOffer.minSubscriptionRequirement}</b></span>}
+                {manga.investmentOffer.maxSharesPerUser && <span>Max Shares per User: <b>{manga.investmentOffer.maxSharesPerUser}</b></span>}
+                {manga.investmentOffer.dividendPayoutCycle && <span>Payout Cycle: <b>{manga.investmentOffer.dividendPayoutCycle === 1 ? 'Monthly' : manga.investmentOffer.dividendPayoutCycle === 3 ? 'Quarterly' : manga.investmentOffer.dividendPayoutCycle === 6 ? 'Semi-Annual' : 'Yearly'}</b></span>}
+              </div>
+              <div style={{ color: '#2563eb', fontSize: 15, marginBottom: 6 }}>
+                Invest to become a shareholder and receive dividends. Please read the offer details carefully. Minimum investment: <b>{manga.investmentOffer.pricePerShare} USD</b> per share.
+              </div>
+              <button style={{ background: '#2563eb', color: '#fff', fontWeight: 700, fontSize: 17, border: 'none', borderRadius: 8, padding: '10px 32px', marginTop: 8, cursor: 'pointer', transition: 'background 0.2s' }}
+                onClick={() => { setPayType('invest'); setPayAmount(manga.investmentOffer?.pricePerShare?.toString()||''); }}>
+                Invest in this Manga
+              </button>
             </div>
-             {manga.lastChapterUpdateInfo && (
-                <Card className="mb-4 bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-700">
-                    <CardHeader className="p-3 pb-2">
-                        <CardTitle className="text-md flex items-center text-blue-700 dark:text-blue-300" suppressHydrationWarning>
-                            <Edit2 className="mr-2 h-4 w-4"/>Recent Update
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-3 pt-0 text-sm text-blue-600 dark:text-blue-400">
-                        <p suppressHydrationWarning>
-                            Chapter {manga.lastChapterUpdateInfo.chapterNumber} ("{manga.lastChapterUpdateInfo.chapterTitle}") updated on {new Date(manga.lastChapterUpdateInfo.date).toLocaleDateString()}.
-                            {manga.lastChapterUpdateInfo.pagesAdded > 0 && ` ${manga.lastChapterUpdateInfo.pagesAdded} new page(s) added.`}
-                            Now {manga.lastChapterUpdateInfo.newTotalPagesInChapter} total pages.
-                        </p>
-                    </CardContent>
-                </Card>
+          )}
+          {/* 订阅/打赏按钮 */}
+          <div style={{ display: 'flex', gap: 16, marginTop: 18 }}>
+            {manga.subscriptionModel !== 'none' && (
+              <button style={{ background: '#2563eb', color: '#fff', fontWeight: 700, fontSize: 18, border: 'none', borderRadius: 8, padding: '12px 36px', boxShadow: '0 1px 8px #2563eb22', cursor: 'pointer', transition: 'background 0.2s' }}
+                onClick={() => { setPayType('subscribe'); setPayAmount(manga.subscriptionPrice?.toString()||''); }}>
+                订阅 {manga.subscriptionModel === 'monthly' && `（${manga.subscriptionPrice?.toFixed(2) || 0} USD/月）`}
+                {manga.subscriptionModel === 'per_chapter' && '（按章节）'}
+              </button>
             )}
-
-
-            <p className="text-sm text-foreground leading-relaxed mb-6" suppressHydrationWarning>{manga.summary}</p>
-
-            <Card className="mb-4 bg-secondary/20">
-              <CardHeader className="p-3 pb-2">
-                <CardTitle className="text-md" suppressHydrationWarning>Rate This Manga</CardTitle>
-              </CardHeader>
-              <CardContent className="p-3 pt-0">
-                <div className="flex items-center justify-between">
-                  <div className="flex gap-2">
-                    <Button variant={userRating === 3 ? "default" : "outline"} size="sm" onClick={() => handleRating(3)} title="Good (3 points)" disabled={!canRate && userRating !==3 || user?.accountType === 'creator'}>
-                      <ThumbsUp className={`h-4 w-4 mr-1 ${userRating === 3 ? "" : "text-green-500"}`} /> <span suppressHydrationWarning>Good (3)</span>
-                    </Button>
-                    <Button variant={userRating === 2 ? "default" : "outline"} size="sm" onClick={() => handleRating(2)} title="Okay (2 points)" disabled={!canRate && userRating !==2 || user?.accountType === 'creator'}>
-                      <Meh className={`h-4 w-4 mr-1 ${userRating === 2 ? "" : "text-yellow-500"}`} /> <span suppressHydrationWarning>Okay (2)</span>
-                    </Button>
-                    <Button variant={userRating === 1 ? "default" : "outline"} size="sm" onClick={() => handleRating(1)} title="Bad (1 point)" disabled={!canRate && userRating !==1 || user?.accountType === 'creator'}>
-                      <ThumbsDown className={`h-4 w-4 mr-1 ${userRating === 1 ? "" : "text-red-500"}`} /> <span suppressHydrationWarning>Bad (1)</span>
-                    </Button>
-                  </div>
-                  {manga.averageRating !== undefined && manga.ratingCount !== undefined && (
-                    <div className="text-sm text-muted-foreground" suppressHydrationWarning>
-                      Avg: <span className="font-semibold text-primary">{manga.averageRating.toFixed(1)}</span> ({manga.ratingCount} ratings)
-                    </div>
-                  )}
-                </div>
-                {((!canRate && user && user.accountType !== 'creator') || (user && user.accountType === 'creator')) && (
-                  <p className="text-xs text-muted-foreground mt-2 flex items-center" suppressHydrationWarning>
-                    <Lock className="h-3 w-3 mr-1" /> {ratingDisabledReason()}
-                  </p>
-                )}
-                 {!user && (
-                  <p className="text-xs text-muted-foreground mt-2 flex items-center" suppressHydrationWarning>
-                    <Lock className="h-3 w-3 mr-1" /> Login and get access to rate.
-                     <Button variant="link" size="xs" className="p-0 h-auto ml-1" onClick={() => router.push('/login?redirect=/manga/' + mangaId)}>Login</Button>
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-
-
-            <Card className="mb-6 bg-secondary/30 p-4">
-              <CardHeader className="p-0 pb-2">
-                <CardTitle className="text-lg flex items-center" suppressHydrationWarning><Landmark className="mr-2 h-5 w-5 text-primary" />Manga Financials (Simulated)</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0 text-sm space-y-1">
-                <p suppressHydrationWarning>Total Subscription Revenue: <span className="font-semibold">${(manga.totalRevenueFromSubscriptions || 0).toFixed(2)}</span></p>
-                <p suppressHydrationWarning>Total Donation Revenue: <span className="font-semibold">${(manga.totalRevenueFromDonations || 0).toFixed(2)}</span></p>
-                 <p suppressHydrationWarning>Views: <span className="font-semibold">{manga.viewCount.toLocaleString()}</span></p>
-              </CardContent>
-            </Card>
-
-            <div className="mt-auto space-y-3">
-              {manga.subscriptionPrice && manga.subscriptionModel === 'monthly' && (
-                <Button
-                  onClick={handleSubscribe}
-                  className="w-full text-lg py-6"
-                  disabled={isUserSubscribed || user?.accountType === 'creator'}
-                  suppressHydrationWarning
-                >
-                  {isUserSubscribed ? (
-                    <>
-                      <CheckCircle className="mr-2 h-5 w-5" /> <span suppressHydrationWarning>Subscribed</span>
-                    </>
-                  ) : (
-                    <>
-                     <DollarSign className="mr-2 h-5 w-5" /> <span suppressHydrationWarning>Subscribe (${manga.subscriptionPrice.toFixed(2)}/month)</span>
-                    </>
-                  )}
-                </Button>
-              )}
-               {manga.chapterSubscriptionPrice && manga.subscriptionModel === 'per_chapter' && user?.accountType !== 'creator' && (
-                 <p className="text-sm text-center text-muted-foreground" suppressHydrationWarning>
-                    Chapters can be purchased individually from the chapter list.
-                 </p>
-               )}
-              <Button onClick={handleOpenDonationDialog} variant="outline" className="w-full text-lg py-6" suppressHydrationWarning disabled={user?.accountType === 'creator'}>
-                <Gift className="mr-2 h-5 w-5" /> <span suppressHydrationWarning>Donate to Author</span>
-              </Button>
-            </div>
+            <button style={{ background: '#fff', color: '#2563eb', fontWeight: 700, fontSize: 18, border: '1px solid #2563eb', borderRadius: 8, padding: '12px 36px', boxShadow: '0 1px 8px #2563eb11', cursor: 'pointer', transition: 'background 0.2s' }}
+              onClick={() => { setPayType('donate'); setPayAmount('5'); }}>
+              打赏作者
+            </button>
           </div>
-        </CardContent>
-      </Card>
-
-      {currentInvestmentOffer && currentInvestmentOffer.isActive && (
-        <>
-          <Separator className="my-8" />
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-2xl flex items-center" suppressHydrationWarning>
-                <TrendingUp className="mr-3 h-7 w-7 text-primary" />
-                Manga Crowdfunding Opportunity
-              </CardTitle>
-              <CardDescription suppressHydrationWarning>{currentInvestmentOffer.description}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="font-semibold flex items-center" suppressHydrationWarning><Percent className="mr-2 h-4 w-4 text-muted-foreground" />Investor Total Revenue Share:</p>
-                  <p className="text-lg text-primary" suppressHydrationWarning>{currentInvestmentOffer.sharesOfferedTotalPercent}%</p>
-                </div>
-                <div>
-                  <p className="font-semibold flex items-center" suppressHydrationWarning><Ticket className="mr-2 h-4 w-4 text-muted-foreground" />Total Shares in Crowdfunding:</p>
-                  <p className="text-lg" suppressHydrationWarning>{currentInvestmentOffer.totalSharesInOffer}</p>
-                </div>
-                <div>
-                  <p className="font-semibold flex items-center" suppressHydrationWarning><DollarSign className="mr-2 h-4 w-4 text-muted-foreground" />Investment Amount per Share:</p>
-                  <p className="text-lg" suppressHydrationWarning>${currentInvestmentOffer.pricePerShare.toFixed(2)}</p>
-                </div>
-                 <div>
-                  <p className="font-semibold flex items-center" suppressHydrationWarning><PiggyBank className="mr-2 h-4 w-4 text-muted-foreground" />Shares Remaining:</p>
-                  <p className="text-lg" suppressHydrationWarning>{sharesRemaining > 0 ? sharesRemaining : 'Fully Subscribed'}</p>
-                </div>
-                 <div>
-                  <p className="font-semibold flex items-center" suppressHydrationWarning><Info className="mr-2 h-4 w-4 text-muted-foreground" />Dividend Payout Cycle:</p>
-                  <p className="text-lg" suppressHydrationWarning>
-                    {currentInvestmentOffer.dividendPayoutCycle === 1 && "Monthly"}
-                    {currentInvestmentOffer.dividendPayoutCycle === 3 && "Quarterly"}
-                    {currentInvestmentOffer.dividendPayoutCycle === 6 && "Semi-Annually"}
-                    {currentInvestmentOffer.dividendPayoutCycle === 12 && "Annually"}
-                    {!currentInvestmentOffer.dividendPayoutCycle && "Not Set"}
-                  </p>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground flex items-center" suppressHydrationWarning>
-                <Info className="mr-1 h-3 w-3"/> Platform Requirement: 5 combined subscriptions/donations per investment opportunity.
-                {user && ` You have ${user.investmentOpportunitiesAvailable || 0} opportunities. (${combinedActionsForInvestment} total actions)`}
-              </p>
-               {currentInvestmentOffer.minSubscriptionRequirement && (
-                <p className="text-xs text-muted-foreground flex items-center" suppressHydrationWarning>
-                  <Info className="mr-1 h-3 w-3"/> Author Requirement: At least {currentInvestmentOffer.minSubscriptionRequirement} monthly subscriptions to *this* manga.
-                  {user && ` You have ${user.subscriptions?.filter(s => s.type === 'monthly' && s.mangaId === manga.id).length || 0} for this manga.`}
-                </p>
-              )}
-
-              {manga.investors.length > 0 && (
-                <div>
-                  <h4 className="font-semibold mb-2 flex items-center" suppressHydrationWarning><Users className="mr-2 h-5 w-5 text-muted-foreground"/>Current Backers ({manga.investors.length}):</h4>
-                  <ScrollArea className="max-h-24">
-                    <ul className="list-disc list-inside pl-2 text-sm space-y-1">
-                      {manga.investors.map(inv => (
-                        <li key={inv.userId} suppressHydrationWarning>{inv.userName} ({inv.sharesOwned} shares)</li>
-                      ))}
-                    </ul>
-                  </ScrollArea>
-                </div>
-              )}
-            </CardContent>
-            <CardFooter>
-              <Button 
-                onClick={handleOpenInvestmentDialog} 
-                className="w-full text-lg py-6" 
-                disabled={sharesRemaining <= 0 || !canUserInvest || !canUserInvestAuthorSpecific || user?.accountType === 'creator'} 
-                suppressHydrationWarning
-                title={user?.accountType === 'creator' ? "Creators cannot invest" : !canUserInvest ? `Requires investment opportunity (earned via 5 subscriptions/donations). You have ${user?.investmentOpportunitiesAvailable || 0} opportunities and ${combinedActionsForInvestment} total actions.` : ""}
-              >
-                <TrendingUp className="mr-2 h-5 w-5" /> Invest Now
-              </Button>
-            </CardFooter>
-          </Card>
-        </>
-      )}
-
-      <Separator className="my-8" />
-
-      <div>
-        <h2 className="text-2xl font-semibold mb-4" suppressHydrationWarning>Chapter List</h2>
-        {manga.chapters.length > 0 ? (
-          <ul className="border rounded-lg overflow-hidden bg-card shadow">
-            {manga.chapters.sort((a,b) => a.chapterNumber - b.chapterNumber).map((chapter) => (
-              <ChapterListItem key={chapter.id} mangaId={manga.id} chapter={chapter} />
-            ))}
-          </ul>
-        ) : (
-          <p className="text-muted-foreground" suppressHydrationWarning>No chapters available yet.</p>
-        )}
-      </div>
-
-      <Separator className="my-8" />
-      { (!user || user.accountType !== 'creator' || (user.accountType === 'creator' && user.id === manga.author.id) ) && ( 
-        <CommentSection mangaId={manga.id} />
-      )}
-       {user && user.accountType === 'creator' && user.id !== manga.author.id && ( 
-        <div className="text-center text-muted-foreground py-4">
-            Creators cannot comment on other creators' works.
         </div>
-      )}
-
-      {manga && currentUrl && (
-        <ShareMangaDialog
-          mangaTitle={manga.title}
-          mangaUrl={currentUrl}
-          isOpen={isShareDialogOpen}
-          onOpenChange={setIsShareDialogOpen}
-        />
-      )}
-
-
-      <Dialog open={isDonationDialogOpen} onOpenChange={setIsDonationDialogOpen}>
+      </div>
+      {/* 支付弹窗优化，投资校验、金额校验、PayPal模拟 */}
+      <Dialog open={!!payType || isPayPal} onOpenChange={open => { if(!open) { setPayType(null); setIsPayPal(false); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle suppressHydrationWarning>Donate to {manga.author.name} for {manga.title}</DialogTitle>
-            <DialogDescription suppressHydrationWarning>
-              Show your support for the creator! Your donation (after platform fees) will help them continue their work.
+            <DialogTitle>
+              {payType === 'subscribe' && 'Subscription Payment'}
+              {payType === 'donate' && 'Donate to Author'}
+              {payType === 'invest' && 'Invest in this Manga'}
+              {isPayPal && 'Pay with PayPal'}
+            </DialogTitle>
+            <DialogDescription>
+              {payType === 'subscribe' && 'Please confirm your subscription payment.'}
+              {payType === 'donate' && 'Enter donation amount. Thank you for your support!'}
+              {payType === 'invest' && (
+                <>
+                  Enter investment amount to support this manga.<br/>
+                  <span style={{ color: '#2563eb', fontSize: 14 }}>
+                    Minimum: {manga.investmentOffer?.pricePerShare} USD, Maximum: {manga.investmentOffer?.maxSharesPerUser ? manga.investmentOffer.pricePerShare * manga.investmentOffer.maxSharesPerUser : 'No limit'} USD
+                  </span>
+                </>
+              )}
+              {isPayPal && 'Simulated PayPal payment.'}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="donationAmount" className="text-right" suppressHydrationWarning>Amount ($)</Label>
+          {!isPayPal && (
+            <div style={{ margin: '16px 0' }}>
               <Input
-                id="donationAmount"
                 type="number"
-                value={donationAmount}
-                onChange={(e) => setDonationAmount(e.target.value)}
-                className="col-span-3"
-                placeholder="e.g., 5.00"
+                min={payType==='invest' ? manga.investmentOffer?.pricePerShare||1 : 1}
+                max={payType==='invest' && manga.investmentOffer?.maxSharesPerUser ? manga.investmentOffer.pricePerShare * manga.investmentOffer.maxSharesPerUser : undefined}
+                step={payType==='invest' ? manga.investmentOffer?.pricePerShare||1 : 1}
+                value={payAmount}
+                onChange={e => setPayAmount(e.target.value)}
+                placeholder={payType==='donate' ? 'Donation Amount' : 'Amount'}
               />
             </div>
-          </div>
-          <DialogFooter>
-            <DialogClose asChild><Button variant="outline" suppressHydrationWarning>Cancel</Button></DialogClose>
-            <Button onClick={handleDonate} suppressHydrationWarning>Confirm Donation</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {currentInvestmentOffer && (
-      <Dialog open={isInvestmentDialogOpen} onOpenChange={setIsInvestmentDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle suppressHydrationWarning>Invest in {manga.title}</DialogTitle>
-            <DialogDescription suppressHydrationWarning>
-              Purchase shares and become a backer of this manga's success.
-              Price per share: ${currentInvestmentOffer.pricePerShare.toFixed(2)}. Shares remaining: {sharesRemaining}.
-              {currentInvestmentOffer.maxSharesPerUser && ` Max ${currentInvestmentOffer.maxSharesPerUser} shares per person.`}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="investmentShares" className="text-right" suppressHydrationWarning>Shares</Label>
-              <Input
-                id="investmentShares"
-                type="number"
-                value={investmentShares}
-                onChange={(e) => setInvestmentShares(e.target.value)}
-                className="col-span-3"
-                placeholder="Number of shares"
-                min="1"
-                max={Math.min(sharesRemaining, currentInvestmentOffer.maxSharesPerUser || sharesRemaining).toString()}
-              />
+          )}
+          {!isPayPal && (
+            <div style={{ display: 'flex', gap: 12 }}>
+              <Button
+                onClick={handlePayment}
+                disabled={Boolean(
+                  !payAmount || Number(payAmount) <= 0 ||
+                  (payType === 'invest' && (
+                    Number(payAmount) < (manga.investmentOffer?.pricePerShare || 1) ||
+                    (manga.investmentOffer?.maxSharesPerUser && Number(payAmount) > manga.investmentOffer.pricePerShare * manga.investmentOffer.maxSharesPerUser)
+                  ))
+                )}
+                className="w-full"
+              >
+                Confirm Payment
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => { setIsPayPal(true); }}
+                className="w-full"
+              >
+                Pay with PayPal
+              </Button>
             </div>
-            {investmentShares && parseInt(investmentShares) > 0 && (
-              <p className="text-sm text-center text-muted-foreground col-span-4" suppressHydrationWarning>
-                Total Cost: {parseInt(investmentShares)} shares * ${currentInvestmentOffer.pricePerShare.toFixed(2)} =
-                <span className="font-semibold text-primary"> ${(parseInt(investmentShares) * currentInvestmentOffer.pricePerShare).toFixed(2)}</span>
-              </p>
-            )}
-          </div>
-          <DialogFooter>
-            <DialogClose asChild><Button variant="outline" suppressHydrationWarning>Cancel</Button></DialogClose>
-            <Button onClick={handleInvest} disabled={!investmentShares || parseInt(investmentShares) <=0 || parseInt(investmentShares) > sharesRemaining} suppressHydrationWarning>Confirm Investment</Button>
-          </DialogFooter>
+          )}
+          {isPayPal && (
+            <Button onClick={handlePayPal} className="w-full">Simulate PayPal Payment</Button>
+          )}
         </DialogContent>
       </Dialog>
-      )}
+      {/* 章节列表 */}
+      <div style={{
+        width: '100%', maxWidth: 980, margin: '0 auto', background: '#fff',
+        borderRadius: 18, boxShadow: '0 2px 12px #0001', padding: '28px 40px', marginBottom: 40
+      }}>
+        <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 18, color: '#23243a' }}>章节</div>
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {manga.chapters.map(chapter => (
+            <li key={chapter.id} style={{
+              background: '#f7f7fa', borderRadius: 8, padding: '14px 18px',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+            }}>
+              <span style={{ fontSize: 17, fontWeight: 600, color: '#23243a' }}>{chapter.title}</span>
+              <Link href={`/manga/${manga.id}/chapter/${chapter.id}`}>
+                <button style={{
+                  background: '#2563eb', color: '#fff', fontWeight: 700, fontSize: 15,
+                  border: 'none', borderRadius: 6, padding: '7px 22px',
+                  boxShadow: '0 1px 4px #2563eb22', cursor: 'pointer', transition: 'background 0.2s'
+                }}>阅读</button>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </div>
+      {/* 评论区优化：权限交由组件内部处理，外部不传 canComment/isCreator/isOwnManga 等 */}
+      <div style={{ width: '100%', maxWidth: 980, margin: '0 auto 40px auto', background: '#fff', borderRadius: 18, boxShadow: '0 2px 12px #0001', padding: '28px 40px' }}>
+        <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 18, color: '#23243a' }}>Comments</div>
+        <div>
+          <CommentSection mangaId={manga.id} />
+        </div>
+      </div>
     </div>
   );
 }

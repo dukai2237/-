@@ -446,44 +446,6 @@ export const updateListingFollowerCount = (listingId: string, increment: boolean
 };
 
 export const addCommentToMockManga = (mangaId: string, newComment: Comment, parentId?: string): Comment | null => {
-  const mangaIndex = modifiableMockMangaSeries.findIndex(m => m.id === mangaId);
-  if (mangaIndex !== -1) {
-    const manga = modifiableMockMangaSeries[mangaIndex];
-    if (!manga.comments) {
-      manga.comments = [];
-    }
-
-    if (parentId) {
-      const findAndAddReply = (comments: Comment[]): boolean => {
-        for (let i = 0; i < comments.length; i++) {
-          if (comments[i].id === parentId) {
-            if (!comments[i].replies) {
-              comments[i].replies = [];
-            }
-            comments[i].replies!.push(newComment);
-            return true; 
-          }
-          if (comments[i].replies && findAndAddReply(comments[i].replies!)) {
-            return true; 
-          }
-        }
-        return false; 
-      };
-
-      if (findAndAddReply(manga.comments)) {
-        modifiableMockMangaSeries[mangaIndex] = manga; 
-        return newComment;
-      } else {
-        console.warn(`Parent comment with ID ${parentId} not found for manga ${mangaId}.`);
-        return null; 
-      }
-    } else {
-      manga.comments.push(newComment);
-      modifiableMockMangaSeries[mangaIndex] = manga; 
-      return newComment;
-    }
-  }
-  console.warn(`Manga with ID ${mangaId} not found.`);
   return null; 
 };
 

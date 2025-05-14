@@ -1,4 +1,3 @@
-
 // src/app/profile/page.tsx
 "use client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -16,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { getMangaById, getShareListingById, mockAuthors, updateMockAuthorBalance, fetchAuthorDetails } from "@/lib/mock-data"; 
+import { getMangaById, getShareListingById, mockAuthors, updateMockAuthorBalance } from "@/lib/mock-data";
 import type { UserInvestment, ShareListing, AuthorInfo as GlobalAuthorInfo, MangaSeries } from '@/lib/types';
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -32,13 +31,12 @@ import {
 import Image from 'next/image';
 import { USER_PROFILE_UPDATE_COOLDOWN_DAYS, CREATOR_PROFILE_UPDATE_COOLDOWN_DAYS } from '@/lib/constants';
 
-
 export default function ProfilePage() {
   const { 
     user, logout, viewingHistory, transactions, addFunds, withdrawFunds, 
-    approveCreatorAccount, favorites, listSharesForSale, delistSharesFromSale,
-    updateUserProfile, deleteMangaSeries // Added deleteMangaSeries from context
-  } = useAuth(); 
+    approveCreatorAccount, listSharesForSale, delistSharesFromSale,
+    updateUserProfile, deleteMangaSeries
+  } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -60,7 +58,6 @@ export default function ProfilePage() {
   const [newAvatarPreview, setNewAvatarPreview] = useState<string | null>(user?.avatarUrl || null);
   const avatarFileRef = useRef<HTMLInputElement>(null);
 
-
   const [isMockAdmin, setIsMockAdmin] = useState(false); 
   const [authorDetails, setAuthorDetails] = useState<GlobalAuthorInfo | null | undefined>(undefined);
   const [mangaToEdit, setMangaToEdit] = useState<MangaSeries | null>(null); // For delete confirmation
@@ -68,24 +65,23 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (user) {
-        setNewName(user.name);
-        setNewAvatarPreview(user.avatarUrl);
-        if (user.email === 'admin@example.com') { 
-            setIsMockAdmin(true);
-        } else {
-            setIsMockAdmin(false);
-        }
-        if (user.accountType === 'creator') {
-             const author = fetchAuthorDetails(user.id); // Use fetchAuthorDetails
-             setAuthorDetails(author);
-        } else {
-             setAuthorDetails(null);
-        }
+      setNewName(user.name);
+      setNewAvatarPreview(user.avatarUrl);
+      if (user.email === 'admin@example.com') { 
+        setIsMockAdmin(true);
+      } else {
+        setIsMockAdmin(false);
+      }
+      if (user.accountType === 'creator') {
+        const author = mockAuthors.find(a => a.id === user.id);
+        setAuthorDetails(author);
+      } else {
+        setAuthorDetails(null);
+      }
     } else {
       router.push("/login?redirect=/profile");
     }
   }, [user, router]);
-
 
   if (!user) {
     return (
@@ -97,12 +93,13 @@ export default function ProfilePage() {
       </div>
     );
   }
-  
-  const recentViewing = Array.from(viewingHistory.entries())
-    .sort(([, a], [, b]) => b.date.getTime() - a.date.getTime())
-    .slice(0, 5);
 
-  const investmentsWithMockROI = user.investments.map(inv => ({
+  const recentViewing = viewingHistory && typeof viewingHistory.entries === 'function'
+    ? Array.from(viewingHistory.entries())
+        .sort(([, a], [, b]) => b.date.getTime() - a.date.getTime())
+        .slice(0, 5)
+    : [];
+  const investmentsWithMockROI = (user.investments || []).map(inv => ({
     ...inv,
     mockCurrentValue: inv.amountInvested * (1 + (Math.random() * 0.10 + 0.05)), 
     mockProfit: (inv.amountInvested * (1 + (Math.random() * 0.10 + 0.05))) - inv.amountInvested,
@@ -117,6 +114,16 @@ export default function ProfilePage() {
     addFunds(amount);
     setFundsToAdd("");
     setIsAddFundsDialogOpen(false);
+  };
+
+  const handleStripePay = async () => {
+    const res = await fetch('/api/stripe/create-checkout-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: fundsToAdd, userId: user.id }),
+    });
+    const data = await res.json();
+    window.location.href = data.url;
   };
   
   const handleAuthorWithdraw = async () => {
@@ -147,7 +154,6 @@ export default function ProfilePage() {
       setAuthorDetails(prev => prev ? {...prev, walletBalance: prev.walletBalance - amount} : null);
     }
   };
-
 
   const handleOpenListSharesDialog = (investment: UserInvestment) => {
     setSelectedInvestmentToList(investment);
@@ -234,9 +240,8 @@ export default function ProfilePage() {
     return (now - lastUpdateTimestamp) / (1000 * 60 * 60 * 24) >= cooldownDays;
   };
 
-
   const isCreator = user.accountType === 'creator';
-  const favoritedMangaList = user.favorites?.map(id => getMangaById(id)).filter(Boolean) as MangaSeries[] || [];
+  const favoritedMangaList = (user.favorites || []).map(id => getMangaById(id)).filter(Boolean) as MangaSeries[];
   const userShareListings = user.investments.filter(inv => inv.isListedForSale && inv.listingId).map(inv => getShareListingById(inv.listingId!)).filter(Boolean) as ShareListing[];
 
   return (
@@ -262,7 +267,7 @@ export default function ProfilePage() {
             )
           )}
           {!isCreator && <Badge variant="outline" className="mx-auto mt-2 text-sm px-3 py-1">Regular User</Badge>}
-           <Button 
+          <Button 
             variant="ghost" 
             size="icon" 
             className="absolute top-2 right-2" 
@@ -275,7 +280,7 @@ export default function ProfilePage() {
             title="Edit Profile"
             disabled={!canUpdateProfile()}
             suppressHydrationWarning
-            >
+          >
             <UserCog className="h-5 w-5" />
           </Button>
           <p className="text-xs text-muted-foreground mt-1" suppressHydrationWarning>
@@ -330,7 +335,6 @@ export default function ProfilePage() {
             </CardFooter>
         </Card>
       )}
-
 
       <Card className="w-full max-w-2xl mx-auto">
         <CardHeader>
@@ -560,6 +564,7 @@ export default function ProfilePage() {
           <DialogFooter>
             <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
             <Button onClick={handleAddFunds}>Confirm Deposit</Button>
+            <Button onClick={handleStripePay}>Pay with Stripe</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -601,7 +606,6 @@ export default function ProfilePage() {
             </DialogContent>
         </Dialog>
       )}
-
 
       <Dialog open={isListSharesDialogOpen} onOpenChange={setIsListSharesDialogOpen}>
         <DialogContent className="sm:max-w-md">
