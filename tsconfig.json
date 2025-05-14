@@ -34,12 +34,6 @@
     "components/**/*",
     "contexts/**/*",
     "hooks/**/*",
-    "lib/**/*"
-  ],
+    "lib/**/*"  ],
   "exclude": ["node_modules"]
 }
-
-/** @type {import('next').NextConfig} */
-const nextConfig = {}
-
-module.exports = nextConfig
