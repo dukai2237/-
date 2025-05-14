@@ -34,6 +34,7 @@
     "components/**/*",
     "contexts/**/*",
     "hooks/**/*",
-    "lib/**/*"  ],
+    "lib/**/*"
+  ],
   "exclude": ["node_modules"]
 }
