@@ -23,6 +23,23 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "app/page.tsx"],
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    "app/page.tsx",
+    "app/manga/**/*",
+    "app/creator/**/*",
+    "components/**/*",
+    "contexts/**/*",
+    "hooks/**/*",
+    "lib/**/*"
+  ],
   "exclude": ["node_modules"]
 }
+
+/** @type {import('next').NextConfig} */
+const nextConfig = {}
+
+module.exports = nextConfig
